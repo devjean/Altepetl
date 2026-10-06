@@ -21,6 +21,7 @@ namespace Altepetl
         private float _escala = 1f;
         private GUIStyle _titulo;
         private GUIStyle _texto;
+        private GUIStyle _textoChico;
         private GUIStyle _boton;
         private GUIStyle _caja;
         private Texture2D _blanco;
@@ -203,9 +204,13 @@ namespace Altepetl
         {
             GUI.Box(tarjeta, GUIContent.none, _caja);
             string resumen = def.Construible ? TextoCosto(def.Costo) : "Próximamente";
-            string limite = def.Construible ? "\n" + TextoLimite(def) : "";
-            GUI.Label(new Rect(tarjeta.x + 8, tarjeta.y + 8, tarjeta.width - 16, 170),
-                $"{def.NombrePara(Manager.Pueblo)}\n\n{resumen}\n\n{ResumenEdificio(def)}{limite}", _texto);
+            GUI.Label(new Rect(tarjeta.x + 8, tarjeta.y + 6, tarjeta.width - 16, 44), def.NombrePara(Manager.Pueblo), _texto);
+            GUI.Label(new Rect(tarjeta.x + 8, tarjeta.y + 52, tarjeta.width - 16, 100),
+                $"{resumen}\n{ResumenEdificio(def)}", _textoChico);
+            if (def.Construible)
+            {
+                GUI.Label(new Rect(tarjeta.x + 8, tarjeta.yMax - 140, tarjeta.width - 16, 42), TextoLimite(def), _textoChico);
+            }
 
             GUI.enabled = PuedeConstruir(def);
             if (GUI.Button(new Rect(tarjeta.x + 8, tarjeta.yMax - 96, tarjeta.width - 16, 44), "Construir", _boton))
@@ -255,7 +260,7 @@ namespace Altepetl
             if (tienes >= maximo)
             {
                 texto += Manager.NivelTecpan < BuildingCatalog.Get(BuildingId.Tecpan).NivelMaximo
-                    ? "\nMejora el tecpan para construir más"
+                    ? "\nSube el tecpan para más"
                     : "\nMáximo alcanzado";
             }
             return texto;
@@ -614,6 +619,9 @@ namespace Altepetl
 
             _texto = new GUIStyle(GUI.skin.label) { fontSize = 15, wordWrap = true };
             _texto.normal.textColor = new Color(0.96f, 0.92f, 0.82f);
+
+            _textoChico = new GUIStyle(_texto) { fontSize = 13 };
+            _textoChico.normal.textColor = new Color(0.85f, 0.80f, 0.70f);
 
             _titulo = new GUIStyle(_texto) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
 

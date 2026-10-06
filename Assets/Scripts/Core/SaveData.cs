@@ -7,7 +7,7 @@ namespace Altepetl
     [Serializable]
     public sealed class SaveData
     {
-        public const int VersionActual = 1;
+        public const int VersionActual = 2; // 2: se añadió el nivel de los edificios
 
         public int version = VersionActual;
         public PuebloId pueblo;
@@ -22,6 +22,7 @@ namespace Altepetl
         public BuildingId id;
         public int x;
         public int y;
+        public int nivel;              // nivel terminado; 0 si aún se está construyendo
         public float segundosRestantes;
         public float acumulado;
     }

@@ -18,6 +18,7 @@ Abre cualquier escena (por ejemplo `SampleScene`) y pulsa **Play**. El juego se 
 - Elige un pueblo.
 - Toca un edificio del menú inferior y luego una casilla libre del mapa. Clic derecho o Esc cancela.
 - Toca un edificio para ver su información. Si está en construcción, puedes terminarlo con plumas de quetzal.
+- Los edificios se mejoran desde su panel (hasta nivel 5): producen, almacenan y aguantan más. Ningún edificio puede superar el nivel del tecpan.
 - La aldea se guarda sola (cada 30 s, al construir y al salir). Al volver, las obras avanzan y los edificios producen por el tiempo que estuviste fuera.
 - Para empezar de cero, detén el juego y usa el menú **Altepetl → Borrar partida guardada**.
 

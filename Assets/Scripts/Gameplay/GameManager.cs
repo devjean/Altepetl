@@ -68,7 +68,7 @@ namespace Altepetl
 
             var tecpan = BuildingCatalog.Get(BuildingId.Tecpan);
             var origen = Mapa.AjustarOrigen(Mapa.MundoACasilla(Mapa.Centro) - Vector2Int.one, tecpan.Tamano);
-            Construir(tecpan, origen, segundosRestantes: 0f);
+            Construir(tecpan, origen, nivel: 1, segundosRestantes: 0f);
             Guardar();
         }
 
@@ -137,19 +137,61 @@ namespace Altepetl
                 Colocando = null;
                 return;
             }
-            Construir(definicion, origen, definicion.SegundosConstruccion * Pueblo.MultiplicadorTiempoConstruccion);
+            Construir(definicion, origen, 0, definicion.SegundosParaNivel(1) * Pueblo.MultiplicadorTiempoConstruccion);
             Colocando = null;
             Guardar();
         }
 
-        private Building Construir(BuildingDefinition definicion, Vector2Int origen, float segundosRestantes,
-            float acumulado = 0f)
+        private Building Construir(BuildingDefinition definicion, Vector2Int origen, int nivel,
+            float segundosRestantes, float acumulado = 0f)
         {
             var edificio = new GameObject().AddComponent<Building>();
-            edificio.Inicializar(definicion, Pueblo, origen, Banco, Mapa, segundosRestantes, acumulado);
+            edificio.Inicializar(definicion, Pueblo, origen, Banco, Mapa, nivel, segundosRestantes, acumulado);
             Mapa.Ocupar(origen, definicion.Tamano, edificio);
             _edificios.Add(edificio);
             return edificio;
+        }
+
+        // ---------- Mejoras ----------
+
+        /// <summary>Nivel del tecpan; ningún otro edificio puede superarlo.</summary>
+        public int NivelTecpan
+        {
+            get
+            {
+                foreach (var edificio in _edificios)
+                {
+                    if (edificio.Definicion.Id == BuildingId.Tecpan) return edificio.Nivel;
+                }
+                return 1;
+            }
+        }
+
+        public enum EstadoMejora
+        {
+            Disponible,
+            EnObra,
+            NivelMaximo,
+            RequiereTecpan,
+            SinRecursos,
+        }
+
+        public EstadoMejora PuedeMejorar(Building edificio)
+        {
+            if (edificio.EnConstruccion) return EstadoMejora.EnObra;
+            if (edificio.Nivel >= edificio.Definicion.NivelMaximo) return EstadoMejora.NivelMaximo;
+            if (edificio.Definicion.Id != BuildingId.Tecpan && edificio.Nivel >= NivelTecpan)
+                return EstadoMejora.RequiereTecpan;
+            if (!Banco.PuedePagar(edificio.Definicion.CostoMejora(edificio.Nivel))) return EstadoMejora.SinRecursos;
+            return EstadoMejora.Disponible;
+        }
+
+        public void TryMejorar(Building edificio)
+        {
+            if (PuedeMejorar(edificio) != EstadoMejora.Disponible) return;
+            if (!Banco.TryGastar(edificio.Definicion.CostoMejora(edificio.Nivel))) return;
+            edificio.EmpezarMejora();
+            Guardar();
         }
 
         // ---------- Guardado ----------
@@ -169,6 +211,7 @@ namespace Altepetl
                 datos.edificios.Add(new EdificioGuardado
                 {
                     id = edificio.Definicion.Id,
+                    nivel = edificio.Nivel,
                     x = edificio.Origen.x,
                     y = edificio.Origen.y,
                     segundosRestantes = edificio.SegundosRestantes,
@@ -190,7 +233,7 @@ namespace Altepetl
                 var definicion = BuildingCatalog.Get(guardado.id);
                 var origen = new Vector2Int(guardado.x, guardado.y);
                 if (definicion == null || !Mapa.EstaLibre(origen, definicion.Tamano)) continue;
-                Construir(definicion, origen, guardado.segundosRestantes, guardado.acumulado);
+                Construir(definicion, origen, guardado.nivel, guardado.segundosRestantes, guardado.acumulado);
             }
             for (int i = 0; i < ResourceInfo.Count && i < datos.recursos.Length; i++)
             {

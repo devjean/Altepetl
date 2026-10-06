@@ -56,12 +56,29 @@ namespace Altepetl
         private bool[,] _ocupado;
         private GameManager _manager;
         private Army _ejercito;
+        // Tropas que se llevaron a esta batalla; lo que se entrene mientras tanto se queda en la aldea.
+        private readonly int[] _reserva = new int[TroopCatalog.Count];
+
+        public int Disponibles(TroopId id) => _reserva[(int)id];
+        public int TotalDisponibles
+        {
+            get
+            {
+                int total = 0;
+                foreach (int n in _reserva) total += n;
+                return total;
+            }
+        }
         private bool _algunaDesplegada;
 
         public void Empezar(GameManager manager, int indiceNivel)
         {
             _manager = manager;
             _ejercito = manager.Ejercito;
+            foreach (var definicion in TroopCatalog.Todos)
+            {
+                while (_ejercito.Quitar(definicion.Id)) _reserva[(int)definicion.Id]++;
+            }
             IndiceNivel = indiceNivel;
             Nivel = CampaignLevel.Todos[indiceNivel];
             TiempoRestante = SegundosLimite;
@@ -102,7 +119,7 @@ namespace Altepetl
         {
             foreach (var definicion in TroopCatalog.Todos)
             {
-                if (_ejercito.Get(definicion.Id) > 0) return definicion.Id;
+                if (Disponibles(definicion.Id) > 0) return definicion.Id;
             }
             return TroopId.Macuahuitl;
         }
@@ -122,19 +139,20 @@ namespace Altepetl
                 _manager.MostrarMensaje("No puedes desplegar encima de un edificio");
                 return;
             }
-            if (!_ejercito.Quitar(Seleccionada))
+            if (_reserva[(int)Seleccionada] <= 0)
             {
                 _manager.MostrarMensaje("No te quedan tropas de ese tipo");
                 return;
             }
 
+            _reserva[(int)Seleccionada]--;
             var tropa = new GameObject().AddComponent<TroopUnit>();
             tropa.transform.SetParent(transform, false);
             tropa.Inicializar(TroopCatalog.Get(Seleccionada), _manager.Pueblo, new Vector3(punto.x, 0f, punto.z), this);
             _tropas.Add(tropa);
             _algunaDesplegada = true;
 
-            if (_ejercito.Get(Seleccionada) == 0) Seleccionada = PrimeraTropaDisponible();
+            if (Disponibles(Seleccionada) == 0) Seleccionada = PrimeraTropaDisponible();
         }
 
         private void Update()
@@ -143,7 +161,7 @@ namespace Altepetl
 
             TiempoRestante -= Time.deltaTime;
             bool todoDestruido = Destruccion >= 1f;
-            bool sinTropas = _algunaDesplegada && _tropas.Count == 0 && _ejercito.Total == 0;
+            bool sinTropas = _algunaDesplegada && _tropas.Count == 0 && TotalDisponibles == 0;
             if (TiempoRestante <= 0f || todoDestruido || sinTropas) Terminar();
         }
 
@@ -152,6 +170,8 @@ namespace Altepetl
         {
             if (Terminada) return;
             Terminada = true;
+            // Las tropas que no se desplegaron regresan a la aldea.
+            DevolverReserva();
             TiempoRestante = Mathf.Max(0f, TiempoRestante);
 
             float porcentaje = Destruccion;
@@ -167,6 +187,15 @@ namespace Altepetl
             }
             Resultado = resultado;
             _manager.AlTerminarBatalla(this);
+        }
+
+        private void DevolverReserva()
+        {
+            for (int i = 0; i < _reserva.Length; i++)
+            {
+                _ejercito.Agregar((TroopId)i, _reserva[i]);
+                _reserva[i] = 0;
+            }
         }
 
         public EnemyBuilding ObjetivoPara(Vector3 desde, bool prefiereDefensas)

@@ -33,6 +33,11 @@ namespace Altepetl
             _cola.Add(id);
         }
 
+        public void Agregar(TroopId id, int cantidad)
+        {
+            if (cantidad > 0) _tropas[(int)id] += cantidad;
+        }
+
         public bool Quitar(TroopId id)
         {
             if (_tropas[(int)id] <= 0) return false;

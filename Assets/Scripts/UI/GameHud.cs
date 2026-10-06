@@ -349,7 +349,7 @@ namespace Altepetl
             float x = 15f;
             foreach (var tropa in TroopCatalog.Todos)
             {
-                int cantidad = Manager.Ejercito.Get(tropa.Id);
+                int cantidad = batalla.Disponibles(tropa.Id);
                 bool elegida = batalla.Seleccionada == tropa.Id && cantidad > 0;
                 GUI.enabled = cantidad > 0;
                 GUI.backgroundColor = elegida ? new Color(1f, 0.85f, 0.2f) : Color.white;

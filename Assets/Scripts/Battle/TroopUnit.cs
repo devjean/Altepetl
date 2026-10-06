@@ -10,6 +10,7 @@ namespace Altepetl
     {
         public TroopDefinition Definicion { get; private set; }
         public float Vida { get; private set; }
+        public float VidaMaxima => _vidaMaxima;
         public bool Muerta => Vida <= 0f;
 
         private BattleManager _batalla;

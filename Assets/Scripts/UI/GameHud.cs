@@ -23,6 +23,7 @@ namespace Altepetl
         private GUIStyle _texto;
         private GUIStyle _boton;
         private GUIStyle _caja;
+        private Texture2D _blanco;
         private bool _campanaAbierta;
 
         /// <summary>¿La posición (en píxeles de pantalla, origen abajo) está sobre algún panel?</summary>
@@ -333,6 +334,8 @@ namespace Altepetl
                 $"{batalla.Nivel.Nombre}    Destrucción: {Mathf.FloorToInt(batalla.Destruccion * 100)}%    Tiempo: {segundos / 60}:{segundos % 60:00}",
                 _texto);
 
+            DibujarBarrasDeVida(batalla);
+
             if (batalla.Terminada)
             {
                 DibujarResultado(batalla, ancho, alto);
@@ -366,6 +369,39 @@ namespace Altepetl
             }
         }
 
+        private void DibujarBarrasDeVida(BattleManager batalla)
+        {
+            var camara = Camera.main;
+            if (camara == null || Event.current.type != EventType.Repaint) return;
+
+            foreach (var edificio in batalla.Edificios)
+            {
+                if (edificio.Destruido || edificio.Vida >= edificio.VidaMaxima) continue;
+                var arriba = edificio.transform.position + Vector3.up * edificio.AlturaBarra;
+                BarraDeVida(camara, arriba, edificio.Vida / edificio.VidaMaxima, 44f, new Color(0.85f, 0.2f, 0.15f));
+            }
+            foreach (var tropa in batalla.Tropas)
+            {
+                if (tropa == null || tropa.Muerta || tropa.Vida >= tropa.VidaMaxima) continue;
+                var arriba = tropa.transform.position + Vector3.up * 0.9f;
+                BarraDeVida(camara, arriba, tropa.Vida / tropa.VidaMaxima, 22f, new Color(0.3f, 0.85f, 0.3f));
+            }
+        }
+
+        private void BarraDeVida(Camera camara, Vector3 mundo, float fraccion, float anchoBarra, Color color)
+        {
+            Vector3 pantalla = camara.WorldToScreenPoint(mundo);
+            if (pantalla.z < 0f) return;
+            float x = pantalla.x / _escala - anchoBarra * 0.5f;
+            float y = (Screen.height - pantalla.y) / _escala;
+            var fondo = new Rect(x, y, anchoBarra, 5f);
+            GUI.color = new Color(0f, 0f, 0f, 0.7f);
+            GUI.DrawTexture(fondo, _blanco);
+            GUI.color = color;
+            GUI.DrawTexture(new Rect(x, y, anchoBarra * Mathf.Clamp01(fraccion), 5f), _blanco);
+            GUI.color = Color.white;
+        }
+
         private void DibujarResultado(BattleManager batalla, float ancho, float alto)
         {
             var resultado = batalla.Resultado;
@@ -376,7 +412,8 @@ namespace Altepetl
                 resultado.Victoria ? "¡Victoria!" : "Derrota", _titulo);
 
             string botin = TextoCosto(resultado.Botin);
-            string texto = $"Destrucción: {Mathf.FloorToInt(resultado.Porcentaje * 100)}%"
+            string texto = (resultado.TecpanDestruido ? "¡Cayó el tecpan! La ciudad se rinde.\n" : "")
+                           + $"Destrucción: {Mathf.FloorToInt(resultado.Porcentaje * 100)}%"
                            + $"\nBotín: {(botin.Length > 0 ? botin : "nada")}";
             if (resultado.Plumas > 0) texto += $"\nPlumas de quetzal: +{resultado.Plumas}";
             if (!resultado.Victoria) texto += $"\nNecesitas destruir al menos {Mathf.RoundToInt(BattleManager.VictoriaMinima * 100)}% para ganar.";
@@ -409,6 +446,7 @@ namespace Altepetl
         {
             if (_titulo != null) return;
 
+            _blanco = Textura(Color.white);
             _caja = new GUIStyle(GUI.skin.box);
             _caja.normal.background = Textura(new Color(0.12f, 0.09f, 0.07f, 0.85f));
 

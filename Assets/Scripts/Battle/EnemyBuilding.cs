@@ -14,6 +14,8 @@ namespace Altepetl
         public bool EsDefensa => Definicion.EsDefensa;
         /// <summary>Radio aproximado del edificio, para saber cuándo una tropa ya lo alcanza.</summary>
         public float Radio => Definicion.Tamano * 0.45f;
+        /// <summary>Altura a la que se dibuja su barra de vida.</summary>
+        public float AlturaBarra => _altura + 0.4f;
 
         private BattleManager _batalla;
         private float _dano;

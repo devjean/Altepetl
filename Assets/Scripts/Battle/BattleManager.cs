@@ -9,6 +9,7 @@ namespace Altepetl
         public bool Victoria;      // al menos la mitad destruida
         public int[] Botin = ResourceInfo.Costo();
         public int Plumas;         // solo en la primera victoria de cada nivel
+        public bool TecpanDestruido;
     }
 
     /// <summary>
@@ -31,11 +32,16 @@ namespace Altepetl
 
         public Vector3 Centro => Origen + new Vector3(CampaignLevel.TamanoMapa * 0.5f, 0f, CampaignLevel.TamanoMapa * 0.5f);
 
+        /// <summary>Si cae el tecpan, la ciudad se rinde.</summary>
+        public bool TecpanDestruido { get; private set; }
+        public IReadOnlyList<EnemyBuilding> Edificios => _edificios;
+        public IReadOnlyList<TroopUnit> Tropas => _tropas;
+
         public float Destruccion
         {
             get
             {
-                if (_edificios.Count == 0) return 1f;
+                if (TecpanDestruido || _edificios.Count == 0) return 1f;
                 int destruidos = 0;
                 foreach (var edificio in _edificios)
                 {
@@ -153,6 +159,7 @@ namespace Altepetl
             {
                 Porcentaje = porcentaje,
                 Victoria = porcentaje >= VictoriaMinima,
+                TecpanDestruido = TecpanDestruido,
             };
             for (int i = 0; i < ResourceInfo.Count; i++)
             {
@@ -208,7 +215,10 @@ namespace Altepetl
 
         public void AlDestruirEdificio(EnemyBuilding edificio)
         {
-            // La comprobación de fin se hace en Update.
+            if (edificio.Definicion.Id != BuildingId.Tecpan) return;
+            // Al caer el tecpan la ciudad se rinde: victoria con todo el botín.
+            TecpanDestruido = true;
+            Terminar();
         }
 
         public void AlMorirTropa(TroopUnit tropa)

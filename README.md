@@ -21,7 +21,7 @@ Abre cualquier escena (por ejemplo `SampleScene`) y pulsa **Play**. El juego se 
 - Los edificios se mejoran desde su panel (hasta nivel 5): producen, almacenan y aguantan más. Ningún edificio puede superar el nivel del tecpan.
 - La aldea se guarda sola (cada 30 s, al construir y al salir). Al volver, las obras avanzan y los edificios producen por el tiempo que estuviste fuera.
 - Construye un **telpochcalli** para entrenar tropas (guerreros con macuahuitl, arqueros y honderos). Cada nivel da 10 de espacio y las tropas se siguen entrenando aunque cierres el juego.
-- Con el botón **Atacar** eliges una aldea de la campaña. Toca el campo para desplegar la tropa elegida; pelean solas. Ganas con al menos 50% destruido, el botín depende de lo destruido y la primera victoria de cada nivel da plumas de quetzal. Las tropas desplegadas no regresan.
+- Con el botón **Atacar** eliges una aldea de la campaña. Toca el campo para desplegar la tropa elegida; pelean solas. Ganas con al menos 50% destruido o al tirar el tecpan (la ciudad se rinde y te llevas todo el botín); el botín depende de lo destruido y la primera victoria de cada nivel da plumas de quetzal. Las tropas desplegadas no regresan.
 - Para empezar de cero, detén el juego y usa el menú **Altepetl → Borrar partida guardada**.
 
 ## Estructura

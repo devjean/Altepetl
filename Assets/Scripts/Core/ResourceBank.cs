@@ -21,6 +21,18 @@ namespace Altepetl
             return type == ResourceType.Plumas ? int.MaxValue : CapacidadBase + _capacidadExtra;
         }
 
+        /// <summary>Cantidad exacta, con decimales, para guardar la partida.</summary>
+        public float GetExacto(ResourceType type)
+        {
+            return _cantidades[(int)type];
+        }
+
+        /// <summary>Fija una cantidad (al cargar la partida), respetando la capacidad.</summary>
+        public void Establecer(ResourceType type, float cantidad)
+        {
+            _cantidades[(int)type] = Mathf.Clamp(cantidad, 0f, Capacidad(type));
+        }
+
         public void AgregarCapacidad(int extra)
         {
             _capacidadExtra += extra;

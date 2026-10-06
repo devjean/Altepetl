@@ -13,6 +13,7 @@ namespace Altepetl
     public sealed class GameManager : MonoBehaviour
     {
         public const int TamanoMapa = 20;
+        private const float SegundosEntreAutoguardados = 30f;
 
         public Pueblo Pueblo { get; private set; }
         public ResourceBank Banco { get; private set; }
@@ -30,6 +31,7 @@ namespace Altepetl
         private Renderer _fantasmaRender;
         private Transform _marcaSeleccion;
         private float _mensajeHasta;
+        private float _proximoAutoguardado;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void CrearAutomaticamente()
@@ -50,6 +52,9 @@ namespace Altepetl
             _fantasma = CrearMarcador("Fantasma", out _fantasmaRender);
             _marcaSeleccion = CrearMarcador("Seleccion", out var renderSeleccion);
             renderSeleccion.material.color = new Color(1f, 0.85f, 0.2f);
+
+            var guardado = SaveSystem.Cargar();
+            if (guardado != null) Restaurar(guardado);
         }
 
         public void ElegirPueblo(Pueblo pueblo)
@@ -63,7 +68,8 @@ namespace Altepetl
 
             var tecpan = BuildingCatalog.Get(BuildingId.Tecpan);
             var origen = Mapa.AjustarOrigen(Mapa.MundoACasilla(Mapa.Centro) - Vector2Int.one, tecpan.Tamano);
-            Construir(tecpan, origen, instantaneo: true);
+            Construir(tecpan, origen, segundosRestantes: 0f);
+            Guardar();
         }
 
         public void EmpezarColocacion(BuildingDefinition definicion)
@@ -87,10 +93,10 @@ namespace Altepetl
             Seleccionado = edificio;
         }
 
-        public void MostrarMensaje(string texto)
+        public void MostrarMensaje(string texto, float segundos = 2.5f)
         {
             Mensaje = texto;
-            _mensajeHasta = Time.time + 2.5f;
+            _mensajeHasta = Time.time + segundos;
         }
 
         private void Update()
@@ -100,6 +106,7 @@ namespace Altepetl
             ActualizarMarcadores();
 
             if (Pueblo == null) return;
+            if (Time.time >= _proximoAutoguardado) Guardar();
             if (!LeerPuntero(out Vector2 posicion, out bool presionado, out bool cancelar)) return;
 
             if (cancelar) CancelarColocacion();
@@ -130,16 +137,110 @@ namespace Altepetl
                 Colocando = null;
                 return;
             }
-            Construir(definicion, origen, instantaneo: false);
+            Construir(definicion, origen, definicion.SegundosConstruccion * Pueblo.MultiplicadorTiempoConstruccion);
             Colocando = null;
+            Guardar();
         }
 
-        private void Construir(BuildingDefinition definicion, Vector2Int origen, bool instantaneo)
+        private Building Construir(BuildingDefinition definicion, Vector2Int origen, float segundosRestantes,
+            float acumulado = 0f)
         {
             var edificio = new GameObject().AddComponent<Building>();
-            edificio.Inicializar(definicion, Pueblo, origen, Banco, Mapa, instantaneo);
+            edificio.Inicializar(definicion, Pueblo, origen, Banco, Mapa, segundosRestantes, acumulado);
             Mapa.Ocupar(origen, definicion.Tamano, edificio);
             _edificios.Add(edificio);
+            return edificio;
+        }
+
+        // ---------- Guardado ----------
+
+        public void Guardar()
+        {
+            _proximoAutoguardado = Time.time + SegundosEntreAutoguardados;
+            if (Pueblo == null) return;
+
+            var datos = new SaveData { pueblo = Pueblo.Id };
+            for (int i = 0; i < ResourceInfo.Count; i++)
+            {
+                datos.recursos[i] = Banco.GetExacto((ResourceType)i);
+            }
+            foreach (var edificio in _edificios)
+            {
+                datos.edificios.Add(new EdificioGuardado
+                {
+                    id = edificio.Definicion.Id,
+                    x = edificio.Origen.x,
+                    y = edificio.Origen.y,
+                    segundosRestantes = edificio.SegundosRestantes,
+                    acumulado = edificio.Acumulado,
+                });
+            }
+            SaveSystem.Guardar(datos);
+        }
+
+        private void Restaurar(SaveData datos)
+        {
+            Pueblo = Pueblo.Get(datos.pueblo);
+            Banco = new ResourceBank();
+
+            // Primero los edificios, para que los almacenes terminados sumen su capacidad
+            // antes de fijar los recursos.
+            foreach (var guardado in datos.edificios)
+            {
+                var definicion = BuildingCatalog.Get(guardado.id);
+                var origen = new Vector2Int(guardado.x, guardado.y);
+                if (definicion == null || !Mapa.EstaLibre(origen, definicion.Tamano)) continue;
+                Construir(definicion, origen, guardado.segundosRestantes, guardado.acumulado);
+            }
+            for (int i = 0; i < ResourceInfo.Count && i < datos.recursos.Length; i++)
+            {
+                Banco.Establecer((ResourceType)i, datos.recursos[i]);
+            }
+
+            AplicarTiempoAusente(SaveSystem.SegundosDesde(datos));
+        }
+
+        /// <summary>Avanza construcciones y producción por el tiempo que el juego estuvo cerrado.</summary>
+        private void AplicarTiempoAusente(float segundos)
+        {
+            if (segundos <= 0f) return;
+
+            var antes = new int[ResourceInfo.Count];
+            for (int i = 0; i < ResourceInfo.Count; i++) antes[i] = Banco.Get((ResourceType)i);
+
+            // Dos pasadas: primero terminan todas las obras (un petlacalco nuevo amplía el almacén)
+            // y después cada edificio produce durante el tiempo que le sobró.
+            var sobrantes = new float[_edificios.Count];
+            for (int i = 0; i < _edificios.Count; i++)
+            {
+                sobrantes[i] = _edificios[i].AvanzarConstruccion(segundos);
+            }
+            for (int i = 0; i < _edificios.Count; i++)
+            {
+                _edificios[i].Producir(sobrantes[i]);
+            }
+
+            var ganancias = new List<string>();
+            for (int i = 0; i < ResourceInfo.Count; i++)
+            {
+                int ganancia = Banco.Get((ResourceType)i) - antes[i];
+                if (ganancia > 0) ganancias.Add($"+{ganancia} {ResourceInfo.Nombre((ResourceType)i).ToLowerInvariant()}");
+            }
+            if (ganancias.Count > 0)
+            {
+                MostrarMensaje("Mientras no estabas: " + string.Join(", ", ganancias), 5f);
+            }
+        }
+
+        private void OnApplicationPause(bool pausado)
+        {
+            // En el móvil, el sistema puede cerrar la app mientras está en segundo plano.
+            if (pausado) Guardar();
+        }
+
+        private void OnApplicationQuit()
+        {
+            Guardar();
         }
 
         // ---------- Entrada (ratón en el editor, toque en el móvil) ----------

@@ -18,11 +18,14 @@ Abre cualquier escena (por ejemplo `SampleScene`) y pulsa **Play**. El juego se 
 - Elige un pueblo.
 - Toca un edificio del menú inferior y luego una casilla libre del mapa. Clic derecho o Esc cancela.
 - Toca un edificio para ver su información. Si está en construcción, puedes terminarlo con plumas de quetzal.
+- La aldea se guarda sola (cada 30 s, al construir y al salir). Al volver, las obras avanzan y los edificios producen por el tiempo que estuviste fuera.
+- Para empezar de cero, detén el juego y usa el menú **Altepetl → Borrar partida guardada**.
 
 ## Estructura
 
 | Carpeta | Contenido |
 | --- | --- |
-| `Assets/Scripts/Core` | Datos puros: recursos, pueblos, catálogo de edificios, banco de recursos, cuadrícula |
+| `Assets/Scripts/Core` | Datos puros: recursos, pueblos, catálogo de edificios, banco de recursos, cuadrícula, guardado |
 | `Assets/Scripts/Gameplay` | `GameManager` (escena, entrada, colocación) y `Building` (construcción y producción) |
 | `Assets/Scripts/UI` | HUD provisional con IMGUI |
+| `Assets/Scripts/Editor` | Menú "Altepetl" del editor (borrar partida, abrir carpeta de guardado) |

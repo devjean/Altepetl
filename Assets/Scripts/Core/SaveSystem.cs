@@ -1,0 +1,57 @@
+using System;
+using System.IO;
+using UnityEngine;
+
+namespace Altepetl
+{
+    /// <summary>Guarda y carga la partida como JSON en la carpeta de datos persistentes del dispositivo.</summary>
+    public static class SaveSystem
+    {
+        private const string NombreArchivo = "aldea.json";
+
+        public static string Ruta => Path.Combine(Application.persistentDataPath, NombreArchivo);
+
+        public static bool Existe => File.Exists(Ruta);
+
+        public static void Guardar(SaveData datos)
+        {
+            datos.version = SaveData.VersionActual;
+            datos.guardadoUtcTicks = DateTime.UtcNow.Ticks;
+            string json = JsonUtility.ToJson(datos, prettyPrint: true);
+
+            // Se escribe a un archivo temporal y luego se reemplaza, para no corromper
+            // la partida si el juego se cierra a mitad de la escritura.
+            string temporal = Ruta + ".tmp";
+            File.WriteAllText(temporal, json);
+            if (File.Exists(Ruta)) File.Delete(Ruta);
+            File.Move(temporal, Ruta);
+        }
+
+        public static SaveData Cargar()
+        {
+            if (!Existe) return null;
+            try
+            {
+                var datos = JsonUtility.FromJson<SaveData>(File.ReadAllText(Ruta));
+                return datos != null && datos.version == SaveData.VersionActual ? datos : null;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"No se pudo leer la partida guardada: {e.Message}");
+                return null;
+            }
+        }
+
+        public static void Borrar()
+        {
+            if (Existe) File.Delete(Ruta);
+        }
+
+        /// <summary>Segundos reales desde el guardado. Si el reloj del dispositivo retrocedió, devuelve 0.</summary>
+        public static float SegundosDesde(SaveData datos)
+        {
+            long diferencia = DateTime.UtcNow.Ticks - datos.guardadoUtcTicks;
+            return diferencia > 0 ? (float)TimeSpan.FromTicks(diferencia).TotalSeconds : 0f;
+        }
+    }
+}

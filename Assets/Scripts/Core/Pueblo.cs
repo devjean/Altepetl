@@ -64,5 +64,14 @@ namespace Altepetl
                 MultiplicadorVidaTropas = 0.90f,
             },
         };
+
+        public static Pueblo Get(PuebloId id)
+        {
+            foreach (var pueblo in Todos)
+            {
+                if (pueblo.Id == id) return pueblo;
+            }
+            return Todos[0];
+        }
     }
 }

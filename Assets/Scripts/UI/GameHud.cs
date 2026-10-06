@@ -203,10 +203,11 @@ namespace Altepetl
         {
             GUI.Box(tarjeta, GUIContent.none, _caja);
             string resumen = def.Construible ? TextoCosto(def.Costo) : "Próximamente";
-            GUI.Label(new Rect(tarjeta.x + 8, tarjeta.y + 8, tarjeta.width - 16, 150),
-                $"{def.NombrePara(Manager.Pueblo)}\n\n{resumen}\n\n{ResumenEdificio(def)}", _texto);
+            string limite = def.Construible ? "\n" + TextoLimite(def) : "";
+            GUI.Label(new Rect(tarjeta.x + 8, tarjeta.y + 8, tarjeta.width - 16, 170),
+                $"{def.NombrePara(Manager.Pueblo)}\n\n{resumen}\n\n{ResumenEdificio(def)}{limite}", _texto);
 
-            GUI.enabled = def.Construible && Manager.Banco.PuedePagar(def.Costo);
+            GUI.enabled = PuedeConstruir(def);
             if (GUI.Button(new Rect(tarjeta.x + 8, tarjeta.yMax - 96, tarjeta.width - 16, 44), "Construir", _boton))
             {
                 _menuAbierto = false;
@@ -229,7 +230,7 @@ namespace Altepetl
             {
                 _info = null;
             }
-            GUI.enabled = def.Construible && Manager.Banco.PuedePagar(def.Costo);
+            GUI.enabled = PuedeConstruir(def);
             string texto = def.Construible ? $"Construir\n{TextoCosto(def.Costo)}" : "Próximamente";
             if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), texto, _boton))
             {
@@ -238,6 +239,26 @@ namespace Altepetl
                 Manager.EmpezarColocacion(def);
             }
             GUI.enabled = true;
+        }
+
+        private bool PuedeConstruir(BuildingDefinition def)
+        {
+            return def.Construible && !Manager.EnLimite(def) && Manager.Banco.PuedePagar(def.Costo);
+        }
+
+        private string TextoLimite(BuildingDefinition def)
+        {
+            int maximo = Manager.Maximo(def);
+            int tienes = Manager.Cantidad(def.Id);
+            if (maximo == int.MaxValue) return $"Tienes: {tienes}";
+            string texto = $"Tienes: {tienes} / {maximo}";
+            if (tienes >= maximo)
+            {
+                texto += Manager.NivelTecpan < BuildingCatalog.Get(BuildingId.Tecpan).NivelMaximo
+                    ? "\nMejora el tecpan para construir más"
+                    : "\nMáximo alcanzado";
+            }
+            return texto;
         }
 
         private static string NombreCategoria(CategoriaEdificio categoria)
@@ -274,12 +295,7 @@ namespace Altepetl
             if (def.EsDefensa) lineas.Add($"Alcance: {def.AlcanceDefensa:0.#} casillas, daño: {def.DanoDefensaPorSegundo:0.#} por segundo");
             if (def.NivelMaximo > 1) lineas.Add($"Se mejora hasta nivel {def.NivelMaximo}: +50% por nivel, sin pasar el nivel del tecpan");
 
-            int tienes = 0;
-            foreach (var edificio in Manager.Edificios)
-            {
-                if (edificio.Definicion.Id == def.Id) tienes++;
-            }
-            lineas.Add($"Tienes: {tienes}");
+            lineas.Add(TextoLimite(def));
             return string.Join("\n", lineas);
         }
 

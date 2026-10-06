@@ -35,6 +35,7 @@ namespace Altepetl
         public float SegundosConstruccion = 5f;
         public bool Construible = true;   // el tecpan se coloca solo al inicio
         public CategoriaEdificio Categoria = CategoriaEdificio.Suministros;
+        public int[] MaximoPorTecpan;     // cuántos se pueden tener con el tecpan en nivel 1..5; null = sin límite
         public int NivelMaximo = 5;
         public int[] CostoMejoraBase;     // si es null, se usa Costo (el tecpan no tiene costo de construcción)
 
@@ -49,6 +50,13 @@ namespace Altepetl
         public bool EsDefensa;            // ataca a las tropas enemigas en batalla
         public float AlcanceDefensa;
         public float DanoDefensaPorSegundo;
+
+        /// <summary>Cuántos se pueden tener con el tecpan en ese nivel (int.MaxValue si no hay límite).</summary>
+        public int Maximo(int nivelTecpan)
+        {
+            if (MaximoPorTecpan == null || MaximoPorTecpan.Length == 0) return int.MaxValue;
+            return MaximoPorTecpan[Mathf.Clamp(nivelTecpan, 1, MaximoPorTecpan.Length) - 1];
+        }
 
         public string NombrePara(Pueblo pueblo)
         {
@@ -109,6 +117,7 @@ namespace Altepetl
                 Recurso = ResourceType.Maiz,
                 ProduccionPorMinuto = 30f,
                 VidaBase = 300,
+                MaximoPorTecpan = new[] { 2, 3, 4, 5, 6 },
             },
             new BuildingDefinition
             {
@@ -123,6 +132,7 @@ namespace Altepetl
                 Recurso = ResourceType.Madera,
                 ProduccionPorMinuto = 36f,
                 VidaBase = 300,
+                MaximoPorTecpan = new[] { 2, 3, 4, 5, 6 },
             },
             new BuildingDefinition
             {
@@ -137,6 +147,7 @@ namespace Altepetl
                 Recurso = ResourceType.Obsidiana,
                 ProduccionPorMinuto = 15f,
                 VidaBase = 400,
+                MaximoPorTecpan = new[] { 1, 1, 2, 2, 3 },
             },
             new BuildingDefinition
             {
@@ -150,6 +161,7 @@ namespace Altepetl
                 SegundosConstruccion = 20f,
                 CapacidadExtra = 1000,
                 VidaBase = 800,
+                MaximoPorTecpan = new[] { 1, 1, 2, 2, 3 },
             },
             new BuildingDefinition
             {
@@ -164,6 +176,7 @@ namespace Altepetl
                 CapacidadTropas = 10,
                 Categoria = CategoriaEdificio.Militar,
                 VidaBase = 700,
+                MaximoPorTecpan = new[] { 1, 1, 1, 2, 2 },
             },
             new BuildingDefinition
             {
@@ -192,6 +205,7 @@ namespace Altepetl
                 SegundosConstruccion = 2f,
                 VidaBase = 500,
                 Categoria = CategoriaEdificio.Defensas,
+                MaximoPorTecpan = new[] { 20, 40, 60, 80, 100 },
             },
         };
 

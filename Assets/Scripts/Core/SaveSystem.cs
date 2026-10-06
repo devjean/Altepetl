@@ -33,13 +33,29 @@ namespace Altepetl
             try
             {
                 var datos = JsonUtility.FromJson<SaveData>(File.ReadAllText(Ruta));
-                return datos != null && datos.version == SaveData.VersionActual ? datos : null;
+                if (datos == null || datos.version < 1 || datos.version > SaveData.VersionActual) return null;
+                Migrar(datos);
+                return datos;
             }
             catch (Exception e)
             {
                 Debug.LogWarning($"No se pudo leer la partida guardada: {e.Message}");
                 return null;
             }
+        }
+
+        /// <summary>Actualiza partidas de versiones anteriores al formato actual.</summary>
+        private static void Migrar(SaveData datos)
+        {
+            if (datos.version < 2)
+            {
+                // La versión 1 no tenía niveles: lo terminado era nivel 1 y lo que estaba en obra, nivel 0.
+                foreach (var edificio in datos.edificios)
+                {
+                    edificio.nivel = edificio.segundosRestantes > 0f ? 0 : 1;
+                }
+            }
+            datos.version = SaveData.VersionActual;
         }
 
         public static void Borrar()

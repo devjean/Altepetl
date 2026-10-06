@@ -148,7 +148,7 @@ namespace Altepetl
             var edificio = Manager.Seleccionado;
             if (edificio == null) return;
 
-            var panel = new Rect(ancho - 270, AltoBarraSuperior + 10, 260, 200);
+            var panel = new Rect(ancho - 290, AltoBarraSuperior + 10, 280, 250);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
 
@@ -160,29 +160,57 @@ namespace Altepetl
                 return;
             }
 
-            string info = def.Descripcion + "\n";
-            if (edificio.EnConstruccion)
+            string info = (edificio.Nivel > 0 ? $"Nivel {edificio.Nivel}. " : "") + def.Descripcion + "\n";
+            if (edificio.Mejorando)
+            {
+                info += $"\nMejorando a nivel {edificio.Nivel + 1}: {Mathf.CeilToInt(edificio.SegundosRestantes)} s";
+            }
+            else if (edificio.EnConstruccion)
             {
                 info += $"\nEn construcción: {Mathf.CeilToInt(edificio.SegundosRestantes)} s";
             }
             else if (def.Produce)
             {
                 info += $"\nProduce {edificio.ProduccionPorMinuto:0.#} de {ResourceInfo.Nombre(def.Recurso)} por minuto";
-                if (Manager.Banco.EstaLleno(def.Recurso)) info += "\nAlmacén lleno: construye un petlacalco";
+                if (Manager.Banco.EstaLleno(def.Recurso)) info += "\nAlmacén lleno: construye o mejora un petlacalco";
             }
             info += $"\nVida: {edificio.Vida}";
-            GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, 100), info, _texto);
+            GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, 120), info, _texto);
 
+            var botonRect = new Rect(panel.x + 10, panel.yMax - 54, panel.width - 20, 44);
             if (edificio.EnConstruccion)
             {
                 int costo = edificio.CostoAcelerar;
                 GUI.enabled = Manager.Banco.Get(ResourceType.Plumas) >= costo;
-                if (GUI.Button(new Rect(panel.x + 10, panel.yMax - 50, panel.width - 20, 40),
-                        $"Terminar ya ({costo} plumas de quetzal)", _boton))
+                if (GUI.Button(botonRect, $"Terminar ya ({costo} plumas de quetzal)", _boton))
                 {
                     edificio.TryAcelerar();
                 }
                 GUI.enabled = true;
+                return;
+            }
+
+            var estado = Manager.PuedeMejorar(edificio);
+            switch (estado)
+            {
+                case GameManager.EstadoMejora.NivelMaximo:
+                    GUI.Label(botonRect, "Nivel máximo", _texto);
+                    break;
+                case GameManager.EstadoMejora.RequiereTecpan:
+                    GUI.Label(botonRect, $"Mejora el tecpan a nivel {edificio.Nivel + 1} para seguir", _texto);
+                    break;
+                default:
+                    GUI.enabled = estado == GameManager.EstadoMejora.Disponible;
+                    string extra = def.Produce
+                        ? $" → {edificio.ProduccionEnNivel(edificio.Nivel + 1):0.#}/min"
+                        : "";
+                    string texto = $"Mejorar a nivel {edificio.Nivel + 1}{extra}\n{TextoCosto(def.CostoMejora(edificio.Nivel))}";
+                    if (GUI.Button(botonRect, texto, _boton))
+                    {
+                        Manager.TryMejorar(edificio);
+                    }
+                    GUI.enabled = true;
+                    break;
             }
         }
 

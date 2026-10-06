@@ -10,6 +10,8 @@ namespace Altepetl
         public bool EnConstruccion => _segundosRestantes > 0f;
         public float SegundosRestantes => _segundosRestantes;
         public string Nombre => Definicion.NombrePara(_pueblo);
+        public float Acumulado => _acumulado;
+        public float SegundosConstruccionTotal => Definicion.SegundosConstruccion * _pueblo.MultiplicadorTiempoConstruccion;
 
         private Pueblo _pueblo;
         private ResourceBank _banco;
@@ -19,13 +21,14 @@ namespace Altepetl
         private Renderer _render;
 
         public void Inicializar(BuildingDefinition definicion, Pueblo pueblo, Vector2Int origen,
-            ResourceBank banco, GridMap mapa, bool instantaneo)
+            ResourceBank banco, GridMap mapa, float segundosRestantes, float acumulado = 0f)
         {
             Definicion = definicion;
             Origen = origen;
             _pueblo = pueblo;
             _banco = banco;
-            _segundosRestantes = instantaneo ? 0f : definicion.SegundosConstruccion * pueblo.MultiplicadorTiempoConstruccion;
+            _segundosRestantes = Mathf.Max(0f, segundosRestantes);
+            _acumulado = acumulado;
 
             name = Nombre;
             transform.position = mapa.CentroDeArea(origen, definicion.Tamano);
@@ -74,27 +77,43 @@ namespace Altepetl
 
         private void Update()
         {
+            AvanzarConstruccion(Time.deltaTime);
             if (EnConstruccion)
             {
-                _segundosRestantes -= Time.deltaTime;
-                if (_segundosRestantes <= 0f)
-                {
-                    _segundosRestantes = 0f;
-                    AlTerminar();
-                }
                 ActualizarVisual();
                 return;
             }
+            Producir(Time.deltaTime);
+        }
 
-            if (Definicion.Produce)
+        /// <summary>
+        /// Avanza el temporizador de construcción. Devuelve los segundos que sobran
+        /// después de terminar (0 si sigue en construcción).
+        /// </summary>
+        public float AvanzarConstruccion(float segundos)
+        {
+            if (!EnConstruccion) return segundos;
+            if (segundos < _segundosRestantes)
             {
-                _acumulado += ProduccionPorMinuto / 60f * Time.deltaTime;
-                if (_acumulado >= 1f)
-                {
-                    float entero = Mathf.Floor(_acumulado);
-                    _banco.Add(Definicion.Recurso, entero);
-                    _acumulado -= entero;
-                }
+                _segundosRestantes -= segundos;
+                return 0f;
+            }
+            float sobrante = segundos - _segundosRestantes;
+            _segundosRestantes = 0f;
+            AlTerminar();
+            return sobrante;
+        }
+
+        /// <summary>Produce lo correspondiente a ese tiempo. Lo que no cabe en el almacén se pierde.</summary>
+        public void Producir(float segundos)
+        {
+            if (EnConstruccion || !Definicion.Produce || segundos <= 0f) return;
+            _acumulado += ProduccionPorMinuto / 60f * segundos;
+            if (_acumulado >= 1f)
+            {
+                float entero = Mathf.Floor(_acumulado);
+                _banco.Add(Definicion.Recurso, entero);
+                _acumulado -= entero;
             }
         }
 
@@ -110,8 +129,7 @@ namespace Altepetl
             float progreso = 1f;
             if (EnConstruccion)
             {
-                float total = Definicion.SegundosConstruccion * _pueblo.MultiplicadorTiempoConstruccion;
-                progreso = Mathf.Clamp01(1f - _segundosRestantes / Mathf.Max(total, 0.01f));
+                progreso = Mathf.Clamp01(1f - _segundosRestantes / Mathf.Max(SegundosConstruccionTotal, 0.01f));
             }
 
             float altura = Mathf.Max(0.05f, Definicion.Altura * Mathf.Lerp(0.2f, 1f, progreso));

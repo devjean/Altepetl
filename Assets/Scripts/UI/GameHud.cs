@@ -205,11 +205,11 @@ namespace Altepetl
             GUI.Box(tarjeta, GUIContent.none, _caja);
             string resumen = def.Construible ? TextoCosto(def.Costo) : "Próximamente";
             GUI.Label(new Rect(tarjeta.x + 8, tarjeta.y + 6, tarjeta.width - 16, 44), def.NombrePara(Manager.Pueblo), _texto);
-            GUI.Label(new Rect(tarjeta.x + 8, tarjeta.y + 52, tarjeta.width - 16, 100),
+            GUI.Label(new Rect(tarjeta.x + 8, tarjeta.y + 52, tarjeta.width - 16, 80),
                 $"{resumen}\n{ResumenEdificio(def)}", _textoChico);
             if (def.Construible)
             {
-                GUI.Label(new Rect(tarjeta.x + 8, tarjeta.yMax - 140, tarjeta.width - 16, 42), TextoLimite(def), _textoChico);
+                GUI.Label(new Rect(tarjeta.x + 8, tarjeta.yMax - 162, tarjeta.width - 16, 64), TextoLimite(def), _textoChico);
             }
 
             GUI.enabled = PuedeConstruir(def);

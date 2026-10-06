@@ -55,6 +55,7 @@ namespace Altepetl
                     edificio.nivel = edificio.segundosRestantes > 0f ? 0 : 1;
                 }
             }
+            // La versión 3 solo añadió campos (ejército y campaña) que empiezan vacíos.
             datos.version = SaveData.VersionActual;
         }
 

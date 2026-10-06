@@ -21,6 +21,17 @@ namespace Altepetl
         public BuildingDefinition Colocando { get; private set; }
         public Building Seleccionado { get; private set; }
         public IReadOnlyList<Building> Edificios => _edificios;
+        public Army Ejercito { get; } = new Army();
+        public int NivelesCompletados { get; private set; }
+
+        public enum Modo
+        {
+            Aldea,
+            Batalla,
+        }
+
+        public Modo ModoActual { get; private set; } = Modo.Aldea;
+        public BattleManager Batalla { get; private set; }
 
         public string Mensaje { get; private set; }
 
@@ -32,6 +43,8 @@ namespace Altepetl
         private Transform _marcaSeleccion;
         private float _mensajeHasta;
         private float _proximoAutoguardado;
+        private Vector3 _centroCamara;
+        private float _ladoCamara;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void CrearAutomaticamente()
@@ -43,6 +56,8 @@ namespace Altepetl
         private void Awake()
         {
             Mapa = new GridMap(TamanoMapa, TamanoMapa);
+            _centroCamara = Mapa.Centro;
+            _ladoCamara = TamanoMapa;
             _hud = gameObject.AddComponent<GameHud>();
             _hud.Manager = this;
 
@@ -106,12 +121,19 @@ namespace Altepetl
             ActualizarMarcadores();
 
             if (Pueblo == null) return;
+            if (CapacidadEjercito > 0) Ejercito.Avanzar(Time.deltaTime, DuracionEntrenamiento);
             if (Time.time >= _proximoAutoguardado) Guardar();
             if (!LeerPuntero(out Vector2 posicion, out bool presionado, out bool cancelar)) return;
 
             if (cancelar) CancelarColocacion();
             if (!presionado || _hud.PunteroSobreHud(posicion)) return;
             if (!PunteroEnSuelo(posicion, out Vector3 punto)) return;
+
+            if (ModoActual == Modo.Batalla)
+            {
+                if (Batalla != null) Batalla.Desplegar(punto);
+                return;
+            }
 
             var casilla = Mapa.MundoACasilla(punto);
             if (Colocando != null)
@@ -194,6 +216,94 @@ namespace Altepetl
             Guardar();
         }
 
+        // ---------- Ejército ----------
+
+        /// <summary>Espacio para tropas: 10 por nivel de cada telpochcalli terminado.</summary>
+        public int CapacidadEjercito
+        {
+            get
+            {
+                int capacidad = 0;
+                foreach (var edificio in _edificios)
+                {
+                    capacidad += edificio.Definicion.CapacidadTropas * edificio.Nivel;
+                }
+                return capacidad;
+            }
+        }
+
+        public float DuracionEntrenamiento(TroopId id)
+        {
+            return TroopCatalog.Get(id).SegundosEntrenamiento * Pueblo.MultiplicadorTiempoEntrenamiento;
+        }
+
+        public void TryEntrenar(TroopId id)
+        {
+            if (CapacidadEjercito <= 0)
+            {
+                MostrarMensaje("Construye un telpochcalli");
+                return;
+            }
+            if (Ejercito.Espacio >= CapacidadEjercito)
+            {
+                MostrarMensaje("Ejército lleno");
+                return;
+            }
+            if (!Banco.TryGastar(TroopCatalog.Get(id).Costo))
+            {
+                MostrarMensaje("Recursos insuficientes");
+                return;
+            }
+            Ejercito.Encolar(id, DuracionEntrenamiento(id));
+            Guardar();
+        }
+
+        // ---------- Campaña ----------
+
+        public void EmpezarBatalla(int indice)
+        {
+            if (ModoActual == Modo.Batalla) return;
+            if (indice < 0 || indice >= CampaignLevel.Todos.Length || indice > NivelesCompletados) return;
+            if (Ejercito.Total <= 0)
+            {
+                MostrarMensaje("Entrena tropas en el telpochcalli antes de atacar");
+                return;
+            }
+
+            Seleccionar(null);
+            CancelarColocacion();
+            Batalla = new GameObject("Batalla").AddComponent<BattleManager>();
+            Batalla.Empezar(this, indice);
+            ModoActual = Modo.Batalla;
+            EnfocarCamara(Batalla.Centro, CampaignLevel.TamanoMapa + 4);
+            Guardar();
+        }
+
+        /// <summary>Lo llama la batalla al terminar: entrega botín y plumas.</summary>
+        public void AlTerminarBatalla(BattleManager batalla)
+        {
+            var resultado = batalla.Resultado;
+            for (int i = 0; i < ResourceInfo.Count; i++)
+            {
+                if (resultado.Botin[i] > 0) Banco.Add((ResourceType)i, resultado.Botin[i]);
+            }
+            if (resultado.Victoria && batalla.IndiceNivel == NivelesCompletados)
+            {
+                NivelesCompletados++;
+                resultado.Plumas = batalla.Nivel.PlumasPrimeraVez;
+                Banco.Add(ResourceType.Plumas, resultado.Plumas);
+            }
+            Guardar();
+        }
+
+        public void VolverAAldea()
+        {
+            if (Batalla != null) Destroy(Batalla.gameObject);
+            Batalla = null;
+            ModoActual = Modo.Aldea;
+            EnfocarCamara(Mapa.Centro, TamanoMapa);
+        }
+
         // ---------- Guardado ----------
 
         public void Guardar()
@@ -218,6 +328,8 @@ namespace Altepetl
                     acumulado = edificio.Acumulado,
                 });
             }
+            Ejercito.Exportar(datos);
+            datos.nivelesCompletados = NivelesCompletados;
             SaveSystem.Guardar(datos);
         }
 
@@ -239,6 +351,8 @@ namespace Altepetl
             {
                 Banco.Establecer((ResourceType)i, datos.recursos[i]);
             }
+            Ejercito.Importar(datos);
+            NivelesCompletados = Mathf.Clamp(datos.nivelesCompletados, 0, CampaignLevel.Todos.Length);
 
             AplicarTiempoAusente(SaveSystem.SegundosDesde(datos));
         }
@@ -262,6 +376,8 @@ namespace Altepetl
             {
                 _edificios[i].Producir(sobrantes[i]);
             }
+            int tropasAntes = Ejercito.Total;
+            if (CapacidadEjercito > 0) Ejercito.Avanzar(segundos, DuracionEntrenamiento);
 
             var ganancias = new List<string>();
             for (int i = 0; i < ResourceInfo.Count; i++)
@@ -269,6 +385,8 @@ namespace Altepetl
                 int ganancia = Banco.Get((ResourceType)i) - antes[i];
                 if (ganancia > 0) ganancias.Add($"+{ganancia} {ResourceInfo.Nombre((ResourceType)i).ToLowerInvariant()}");
             }
+            int tropasNuevas = Ejercito.Total - tropasAntes;
+            if (tropasNuevas > 0) ganancias.Add($"+{tropasNuevas} tropas");
             if (ganancias.Count > 0)
             {
                 MostrarMensaje("Mientras no estabas: " + string.Join(", ", ganancias), 5f);
@@ -332,9 +450,18 @@ namespace Altepetl
             _camara.clearFlags = CameraClearFlags.SolidColor;
             _camara.backgroundColor = new Color(0.55f, 0.75f, 0.85f);
             _camara.transform.rotation = Quaternion.Euler(30f, 45f, 0f);
-            _camara.transform.position = Mapa.Centro - _camara.transform.forward * 40f;
             _camara.nearClipPlane = 0.1f;
             _camara.farClipPlane = 100f;
+            EnfocarCamara(_centroCamara, _ladoCamara);
+        }
+
+        /// <summary>Mueve la cámara para encuadrar un mapa cuadrado de ese lado alrededor del centro.</summary>
+        private void EnfocarCamara(Vector3 centro, float lado)
+        {
+            _centroCamara = centro;
+            _ladoCamara = lado;
+            if (_camara == null) return;
+            _camara.transform.position = centro - _camara.transform.forward * 40f;
             AjustarCamara();
         }
 
@@ -342,7 +469,7 @@ namespace Altepetl
         private void AjustarCamara()
         {
             if (_camara == null) return;
-            float diagonal = TamanoMapa * Mathf.Sqrt(2f);
+            float diagonal = _ladoCamara * Mathf.Sqrt(2f);
             float alturaNecesaria = diagonal * Mathf.Sin(30f * Mathf.Deg2Rad) + 3f;
             float aspecto = Mathf.Max(_camara.aspect, 0.01f);
             float tamano = Mathf.Max(alturaNecesaria * 0.5f, diagonal / (2f * aspecto));
@@ -383,7 +510,7 @@ namespace Altepetl
         {
             // Vista previa de dónde se colocará el edificio.
             bool mostrarFantasma = false;
-            if (Colocando != null && LeerPuntero(out Vector2 posicion, out _, out _)
+            if (ModoActual == Modo.Aldea && Colocando != null && LeerPuntero(out Vector2 posicion, out _, out _)
                 && !_hud.PunteroSobreHud(posicion) && PunteroEnSuelo(posicion, out Vector3 punto))
             {
                 var origen = Mapa.AjustarOrigen(Mapa.MundoACasilla(punto), Colocando.Tamano);
@@ -396,7 +523,7 @@ namespace Altepetl
             _fantasma.gameObject.SetActive(mostrarFantasma);
 
             // Marco bajo el edificio seleccionado.
-            bool haySeleccion = Seleccionado != null;
+            bool haySeleccion = ModoActual == Modo.Aldea && Seleccionado != null;
             if (haySeleccion)
             {
                 int tamano = Seleccionado.Definicion.Tamano;

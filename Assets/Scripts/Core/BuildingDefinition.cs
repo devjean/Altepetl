@@ -10,6 +10,8 @@ namespace Altepetl
         Obsidiana,
         Petlacalco,
         Muralla,
+        Telpochcalli,
+        Torre,
     }
 
     /// <summary>Datos fijos de un tipo de edificio. Más adelante pasarán a ScriptableObjects.</summary>
@@ -32,7 +34,12 @@ namespace Altepetl
         public float ProduccionPorMinuto;
 
         public int CapacidadExtra;        // almacenamiento extra por recurso
-        public int VidaBase;              // solo relevante para defensas, de momento
+        public int VidaBase;
+        public int CapacidadTropas;       // espacio para tropas por nivel (telpochcalli)
+
+        public bool EsDefensa;            // ataca a las tropas enemigas en batalla
+        public float AlcanceDefensa;
+        public float DanoDefensaPorSegundo;
 
         public string NombrePara(Pueblo pueblo)
         {
@@ -134,6 +141,34 @@ namespace Altepetl
                 SegundosConstruccion = 20f,
                 CapacidadExtra = 1000,
                 VidaBase = 800,
+            },
+            new BuildingDefinition
+            {
+                Id = BuildingId.Telpochcalli,
+                Nombre = "Telpochcalli",
+                Descripcion = "Casa de los jóvenes guerreros. Entrena tropas; cada nivel da 10 de espacio.",
+                Tamano = 2,
+                Altura = 1.1f,
+                Color = new Color(0.60f, 0.25f, 0.20f),
+                Costo = ResourceInfo.Costo(maiz: 120, madera: 100),
+                SegundosConstruccion = 20f,
+                CapacidadTropas = 10,
+                VidaBase = 700,
+            },
+            new BuildingDefinition
+            {
+                Id = BuildingId.Torre,
+                Nombre = "Torre de vigía",
+                Descripcion = "Defensa: dispara a las tropas cercanas.",
+                Altura = 1.8f,
+                Color = new Color(0.55f, 0.50f, 0.45f),
+                Costo = ResourceInfo.Costo(madera: 120, obsidiana: 60),
+                SegundosConstruccion = 25f,
+                Construible = false, // de momento solo en aldeas enemigas
+                VidaBase = 400,
+                EsDefensa = true,
+                AlcanceDefensa = 3.5f,
+                DanoDefensaPorSegundo = 10f,
             },
             new BuildingDefinition
             {

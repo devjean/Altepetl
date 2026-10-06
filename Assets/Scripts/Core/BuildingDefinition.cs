@@ -14,6 +14,14 @@ namespace Altepetl
         Torre,
     }
 
+    /// <summary>Pestañas del menú de construcción.</summary>
+    public enum CategoriaEdificio
+    {
+        Suministros,
+        Defensas,
+        Militar,
+    }
+
     /// <summary>Datos fijos de un tipo de edificio. Más adelante pasarán a ScriptableObjects.</summary>
     public sealed class BuildingDefinition
     {
@@ -26,6 +34,7 @@ namespace Altepetl
         public int[] Costo = ResourceInfo.Costo();
         public float SegundosConstruccion = 5f;
         public bool Construible = true;   // el tecpan se coloca solo al inicio
+        public CategoriaEdificio Categoria = CategoriaEdificio.Suministros;
         public int NivelMaximo = 5;
         public int[] CostoMejoraBase;     // si es null, se usa Costo (el tecpan no tiene costo de construcción)
 
@@ -91,7 +100,7 @@ namespace Altepetl
             {
                 Id = BuildingId.Granja,
                 Nombre = "Granja",
-                Descripcion = "Produce maíz.",
+                Descripcion = "Campos de maíz: el alimento de tu pueblo y el pago para entrenar tropas.",
                 Altura = 0.3f,
                 Color = new Color(0.45f, 0.70f, 0.30f),
                 Costo = ResourceInfo.Costo(madera: 50),
@@ -105,7 +114,7 @@ namespace Altepetl
             {
                 Id = BuildingId.Lenadores,
                 Nombre = "Leñadores",
-                Descripcion = "Produce madera.",
+                Descripcion = "Cortan madera en los bosques cercanos. Casi todos los edificios la necesitan.",
                 Altura = 0.8f,
                 Color = new Color(0.50f, 0.35f, 0.20f),
                 Costo = ResourceInfo.Costo(maiz: 60),
@@ -119,7 +128,7 @@ namespace Altepetl
             {
                 Id = BuildingId.Obsidiana,
                 Nombre = "Yacimiento de obsidiana",
-                Descripcion = "Produce obsidiana.",
+                Descripcion = "Aquí se extrae el itztli, el vidrio volcánico de las navajas del macuahuitl y las puntas de flecha.",
                 Altura = 0.6f,
                 Color = new Color(0.15f, 0.15f, 0.20f),
                 Costo = ResourceInfo.Costo(maiz: 85, madera: 70),
@@ -133,7 +142,7 @@ namespace Altepetl
             {
                 Id = BuildingId.Petlacalco,
                 Nombre = "Petlacalco",
-                Descripcion = "Almacén: +1000 de capacidad para cada recurso por nivel.",
+                Descripcion = "Almacén de los tributos. Cada nivel guarda +1000 de cada recurso.",
                 Tamano = 2,
                 Altura = 1.2f,
                 Color = new Color(0.80f, 0.55f, 0.35f),
@@ -153,18 +162,20 @@ namespace Altepetl
                 Costo = ResourceInfo.Costo(maiz: 120, madera: 100),
                 SegundosConstruccion = 20f,
                 CapacidadTropas = 10,
+                Categoria = CategoriaEdificio.Militar,
                 VidaBase = 700,
             },
             new BuildingDefinition
             {
                 Id = BuildingId.Torre,
                 Nombre = "Torre de vigía",
-                Descripcion = "Defensa: dispara a las tropas cercanas.",
+                Descripcion = "Vigila los alrededores y dispara a las tropas enemigas que se acercan.",
                 Altura = 1.8f,
                 Color = new Color(0.55f, 0.50f, 0.45f),
                 Costo = ResourceInfo.Costo(madera: 120, obsidiana: 60),
                 SegundosConstruccion = 25f,
                 Construible = false, // de momento solo en aldeas enemigas
+                Categoria = CategoriaEdificio.Defensas,
                 VidaBase = 400,
                 EsDefensa = true,
                 AlcanceDefensa = 3.5f,
@@ -174,12 +185,13 @@ namespace Altepetl
             {
                 Id = BuildingId.Muralla,
                 Nombre = "Muralla",
-                Descripcion = "Defensa. Su vida depende del pueblo.",
+                Descripcion = "Frena a las tropas enemigas. Los tlaxcaltecas, famosos por sus murallas, las hacen más resistentes.",
                 Altura = 0.9f,
                 Color = new Color(0.70f, 0.68f, 0.62f),
                 Costo = ResourceInfo.Costo(madera: 10, obsidiana: 5),
                 SegundosConstruccion = 2f,
                 VidaBase = 500,
+                Categoria = CategoriaEdificio.Defensas,
             },
         };
 

@@ -62,7 +62,7 @@ namespace Altepetl
             Pueblo = pueblo;
             Banco = new ResourceBank();
             Banco.Add(ResourceType.Maiz, 300);
-            Banco.Add(ResourceType.Madera, 400);
+            Banco.Add(ResourceType.Madera, 300);
             Banco.Add(ResourceType.Obsidiana, 100);
             Banco.Add(ResourceType.Plumas, 50);
 

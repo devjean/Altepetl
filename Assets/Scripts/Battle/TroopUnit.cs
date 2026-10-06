@@ -8,6 +8,8 @@ namespace Altepetl
     /// </summary>
     public sealed class TroopUnit : MonoBehaviour
     {
+        private const float MargenAlcance = 0.05f;
+
         public TroopDefinition Definicion { get; private set; }
         public float Vida { get; private set; }
         public float VidaMaxima => _vidaMaxima;
@@ -68,7 +70,9 @@ namespace Altepetl
             haciaObjetivo.y = 0f;
             float distanciaAlBorde = haciaObjetivo.magnitude - _objetivo.Radio;
 
-            if (distanciaAlBorde > Definicion.Alcance)
+            // Margen pequeño: lejos del origen los float pierden precisión y, sin él, la tropa
+            // podía quedarse a una milésima del alcance sin moverse ni atacar.
+            if (distanciaAlBorde > Definicion.Alcance + MargenAlcance)
             {
                 float paso = Mathf.Min(Definicion.Velocidad * Time.deltaTime, distanciaAlBorde - Definicion.Alcance);
                 transform.position += haciaObjetivo.normalized * paso;

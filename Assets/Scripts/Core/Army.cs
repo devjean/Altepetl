@@ -3,14 +3,36 @@ using System.Collections.Generic;
 
 namespace Altepetl
 {
-    /// <summary>Tropas listas para atacar y la cola de entrenamiento. Cada tropa ocupa 1 de espacio.</summary>
+    /// <summary>
+    /// Tropas listas para atacar, separadas por tipo y rango, y la cola de entrenamiento.
+    /// Cada tropa ocupa 1 de espacio. Las recién entrenadas son jóvenes guerreros.
+    /// </summary>
     public sealed class Army
     {
-        private readonly int[] _tropas = new int[TroopCatalog.Count];
+        private readonly int[] _tropas = new int[TroopCatalog.Count * Rangos.Count];
         private readonly List<TroopId> _cola = new List<TroopId>();
         private float _restante; // segundos que le faltan a la primera de la cola
 
-        public int Get(TroopId id) => _tropas[(int)id];
+        private static int Indice(TroopId id, int rango) => (int)id * Rangos.Count + rango;
+
+        public int Get(TroopId id, int rango) => _tropas[Indice(id, rango)];
+
+        /// <summary>Todas las tropas de ese tipo, de cualquier rango.</summary>
+        public int Get(TroopId id)
+        {
+            int total = 0;
+            for (int r = 0; r < Rangos.Count; r++) total += Get(id, r);
+            return total;
+        }
+
+        /// <summary>Tropas de ese rango, de cualquier tipo.</summary>
+        public int ConRango(int rango)
+        {
+            int total = 0;
+            for (int t = 0; t < TroopCatalog.Count; t++) total += Get((TroopId)t, rango);
+            return total;
+        }
+
         public int Total
         {
             get
@@ -33,15 +55,17 @@ namespace Altepetl
             _cola.Add(id);
         }
 
-        public void Agregar(TroopId id, int cantidad)
+        public void Agregar(TroopId id, int rango, int cantidad)
         {
-            if (cantidad > 0) _tropas[(int)id] += cantidad;
+            if (cantidad > 0) _tropas[Indice(id, rango)] += cantidad;
         }
 
-        public bool Quitar(TroopId id)
+        /// <summary>Saca una tropa de ese tipo y rango. Devuelve false si no había.</summary>
+        public bool Quitar(TroopId id, int rango)
         {
-            if (_tropas[(int)id] <= 0) return false;
-            _tropas[(int)id]--;
+            int i = Indice(id, rango);
+            if (_tropas[i] <= 0) return false;
+            _tropas[i]--;
             return true;
         }
 
@@ -56,7 +80,7 @@ namespace Altepetl
                     return;
                 }
                 segundos -= _restante;
-                _tropas[(int)_cola[0]]++;
+                _tropas[Indice(_cola[0], Rangos.Joven)]++;
                 _cola.RemoveAt(0);
                 _restante = _cola.Count > 0 ? duracion(_cola[0]) : 0f;
             }
@@ -66,7 +90,9 @@ namespace Altepetl
 
         public void Exportar(SaveData datos)
         {
-            datos.tropas = (int[])_tropas.Clone();
+            datos.tropasPorRango = (int[])_tropas.Clone();
+            datos.tropas = new int[TroopCatalog.Count];
+            for (int t = 0; t < TroopCatalog.Count; t++) datos.tropas[t] = Get((TroopId)t);
             datos.colaEntrenamiento = new List<int>();
             foreach (var id in _cola) datos.colaEntrenamiento.Add((int)id);
             datos.entrenamientoRestante = _restante;
@@ -74,10 +100,20 @@ namespace Altepetl
 
         public void Importar(SaveData datos)
         {
-            if (datos.tropas != null)
+            Array.Clear(_tropas, 0, _tropas.Length);
+            if (datos.tropasPorRango != null && datos.tropasPorRango.Length == _tropas.Length)
             {
-                for (int i = 0; i < _tropas.Length && i < datos.tropas.Length; i++) _tropas[i] = Math.Max(0, datos.tropas[i]);
+                for (int i = 0; i < _tropas.Length; i++) _tropas[i] = Math.Max(0, datos.tropasPorRango[i]);
             }
+            else if (datos.tropas != null)
+            {
+                // Partidas anteriores a los rangos: todas las tropas empiezan como jóvenes guerreros.
+                for (int t = 0; t < TroopCatalog.Count && t < datos.tropas.Length; t++)
+                {
+                    _tropas[Indice((TroopId)t, Rangos.Joven)] = Math.Max(0, datos.tropas[t]);
+                }
+            }
+
             _cola.Clear();
             if (datos.colaEntrenamiento != null)
             {

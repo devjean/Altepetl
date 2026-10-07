@@ -56,6 +56,7 @@ namespace Altepetl
                 }
             }
             // La versión 3 solo añadió campos (ejército y campaña) que empiezan vacíos.
+            // La versión 4 añadió los rangos; Army.Importar pasa las tropas viejas a jóvenes guerreros.
             datos.version = SaveData.VersionActual;
         }
 

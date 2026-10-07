@@ -349,10 +349,11 @@ namespace Altepetl
                 });
             }
             Ejercito.Exportar(datos);
-            // Si se cierra el juego en plena batalla, las tropas sin desplegar no se pierden.
+            // Si se cierra el juego en plena batalla, las tropas sin desplegar y las que siguen vivas
+            // en el campo no se pierden.
             if (Batalla != null && !Batalla.Terminada)
             {
-                for (int i = 0; i < TroopCatalog.Count; i++) datos.tropas[i] += Batalla.Disponibles((TroopId)i);
+                Batalla.SumarTropasPendientes(datos.tropasPorRango);
             }
             datos.nivelesCompletados = NivelesCompletados;
             SaveSystem.Guardar(datos);

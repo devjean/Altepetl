@@ -78,4 +78,36 @@ namespace Altepetl
             return Todos[(int)id];
         }
     }
+
+    /// <summary>
+    /// Rangos que se ganan en batalla: sobrevivir hace al guerrero experimentado y
+    /// hacer una captura lo convierte en tlamani ("el que ha capturado").
+    /// </summary>
+    public static class Rangos
+    {
+        public const int Count = 3;
+        public const int Joven = 0;
+        public const int Experimentado = 1;
+        public const int Capturador = 2;
+        public const float BonoPorRango = 0.15f; // +15 % de vida y ataque por rango
+
+        private static readonly string[] NombresMexicas = { "Joven guerrero", "Guerrero experimentado", "Tlamani" };
+        // De acolhuas y tlaxcaltecas no hay una lista de rangos tan detallada; se usan nombres generales.
+        private static readonly string[] NombresGenerales = { "Joven guerrero", "Guerrero experimentado", "Veterano" };
+
+        public static string Nombre(Pueblo pueblo, int rango)
+        {
+            var nombres = pueblo != null && pueblo.Id == PuebloId.Mexicas ? NombresMexicas : NombresGenerales;
+            return nombres[UnityEngine.Mathf.Clamp(rango, 0, Count - 1)];
+        }
+
+        public static float Multiplicador(int rango) => 1f + BonoPorRango * rango;
+
+        /// <summary>Rango con el que regresa una tropa que sobrevivió a la batalla.</summary>
+        public static int AlRegresar(int rango, int capturas)
+        {
+            if (capturas > 0) return Capturador;
+            return UnityEngine.Mathf.Max(rango, Experimentado);
+        }
+    }
 }

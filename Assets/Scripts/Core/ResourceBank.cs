@@ -15,10 +15,12 @@ namespace Altepetl
             return Mathf.FloorToInt(_cantidades[(int)type]);
         }
 
-        /// <summary>Las plumas de quetzal no tienen límite.</summary>
+        /// <summary>Las plumas de quetzal y los mamaltin no tienen límite.</summary>
         public int Capacidad(ResourceType type)
         {
-            return type == ResourceType.Plumas ? int.MaxValue : CapacidadBase + _capacidadExtra;
+            return type == ResourceType.Plumas || type == ResourceType.Cautivos
+                ? int.MaxValue
+                : CapacidadBase + _capacidadExtra;
         }
 
         /// <summary>Cantidad exacta, con decimales, para guardar la partida.</summary>

@@ -14,6 +14,9 @@ namespace Altepetl
         public float Vida { get; private set; }
         public float VidaMaxima => _vidaMaxima;
         public bool Muerta => Vida <= 0f;
+        public int Rango { get; private set; }
+        /// <summary>Edificios que derribó en esta batalla.</summary>
+        public int Capturas { get; set; }
 
         private BattleManager _batalla;
         private float _vidaMaxima;
@@ -22,13 +25,15 @@ namespace Altepetl
         private Renderer _render;
         private float _destelloHasta;
 
-        public void Inicializar(TroopDefinition definicion, Pueblo pueblo, Vector3 posicion, BattleManager batalla)
+        public void Inicializar(TroopDefinition definicion, int rango, Pueblo pueblo, Vector3 posicion, BattleManager batalla)
         {
             Definicion = definicion;
+            Rango = rango;
             _batalla = batalla;
-            _vidaMaxima = definicion.Vida * pueblo.MultiplicadorVidaTropas;
+            float bonoRango = Rangos.Multiplicador(rango);
+            _vidaMaxima = definicion.Vida * pueblo.MultiplicadorVidaTropas * bonoRango;
             Vida = _vidaMaxima;
-            _danoPorSegundo = definicion.DanoPorSegundo * pueblo.MultiplicadorAtaqueTropas;
+            _danoPorSegundo = definicion.DanoPorSegundo * pueblo.MultiplicadorAtaqueTropas * bonoRango;
 
             name = definicion.Nombre;
             transform.position = posicion;
@@ -36,8 +41,10 @@ namespace Altepetl
             var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             Destroy(cuerpo.GetComponent<Collider>());
             cuerpo.transform.SetParent(transform, false);
-            cuerpo.transform.localScale = new Vector3(0.3f, 0.3f, 0.3f);
-            cuerpo.transform.localPosition = new Vector3(0f, 0.3f, 0f);
+            // Los de más rango se ven un poco más grandes.
+            float tamano = 0.3f * (1f + 0.12f * rango);
+            cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
+            cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
             _render = cuerpo.GetComponent<Renderer>();
             _render.material.color = definicion.Color;
         }
@@ -78,7 +85,7 @@ namespace Altepetl
                 transform.position += haciaObjetivo.normalized * paso;
                 return;
             }
-            _objetivo.RecibirDano(_danoPorSegundo * Time.deltaTime);
+            _objetivo.RecibirDano(_danoPorSegundo * Time.deltaTime, this);
         }
     }
 }

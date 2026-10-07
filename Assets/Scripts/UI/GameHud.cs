@@ -112,7 +112,8 @@ namespace Altepetl
             for (int i = 0; i < ResourceInfo.Count; i++)
             {
                 var tipo = (ResourceType)i;
-                string capacidad = tipo == ResourceType.Plumas ? "" : $" / {banco.Capacidad(tipo)}";
+                int maximo = banco.Capacidad(tipo);
+                string capacidad = maximo == int.MaxValue ? "" : $" / {maximo}";
                 GUI.Label(new Rect(x, 10, anchoCelda, 24), $"{ResourceInfo.Nombre(tipo)}: {banco.Get(tipo)}{capacidad}", _texto);
                 x += anchoCelda;
             }
@@ -246,6 +247,18 @@ namespace Altepetl
             GUI.enabled = true;
         }
 
+        /// <summary>"2 tlamani, 3 guerrero experimentado": tropas con rango, sin contar a los jóvenes.</summary>
+        private string TextoRangos(Army ejercito)
+        {
+            var partes = new List<string>();
+            for (int r = Rangos.Count - 1; r > Rangos.Joven; r--)
+            {
+                int n = ejercito.ConRango(r);
+                if (n > 0) partes.Add($"{n} {Rangos.Nombre(Manager.Pueblo, r).ToLowerInvariant()}");
+            }
+            return string.Join(", ", partes);
+        }
+
         private bool PuedeConstruir(BuildingDefinition def)
         {
             return def.Construible && !Manager.EnLimite(def) && Manager.Banco.PuedePagar(def.Costo);
@@ -349,6 +362,11 @@ namespace Altepetl
                 if (Manager.Banco.EstaLleno(def.Recurso)) info += "\nAlmacén lleno: construye o mejora un petlacalco";
             }
             info += $"\nVida: {edificio.Vida}";
+            if (def.CapacidadTropas > 0 && edificio.Nivel > 0)
+            {
+                string veteranos = TextoRangos(Manager.Ejercito);
+                if (veteranos.Length > 0) info += "\nCon rango: " + veteranos;
+            }
             GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, 120), info, _texto);
             if (entrena) DibujarEntrenamiento(panel);
 
@@ -442,7 +460,7 @@ namespace Altepetl
                 return;
             }
 
-            var panel = new Rect((ancho - 480) / 2, AltoBarraSuperior + 10, 480, 370);
+            var panel = new Rect((ancho - 480) / 2, AltoBarraSuperior + 10, 480, 394);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
             GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Campaña", _titulo);
@@ -458,10 +476,12 @@ namespace Altepetl
             {
                 partes.Add($"{ejercito.Get(tropa.Id)} {tropa.Nombre.ToLowerInvariant()}");
             }
-            GUI.Label(new Rect(panel.x + 10, panel.y + 40, panel.width - 20, 24),
-                "Tu ejército: " + string.Join(", ", partes), _texto);
+            string veteranosCampana = TextoRangos(ejercito);
+            GUI.Label(new Rect(panel.x + 10, panel.y + 40, panel.width - 20, 48),
+                "Tu ejército: " + string.Join(", ", partes)
+                + (veteranosCampana.Length > 0 ? "\nCon rango: " + veteranosCampana : ""), _texto);
 
-            float y = panel.y + 72;
+            float y = panel.y + 96;
             for (int i = 0; i < CampaignLevel.Todos.Length; i++)
             {
                 var nivel = CampaignLevel.Todos[i];
@@ -519,7 +539,9 @@ namespace Altepetl
                 bool elegida = batalla.Seleccionada == tropa.Id && cantidad > 0;
                 GUI.enabled = cantidad > 0;
                 GUI.backgroundColor = elegida ? new Color(1f, 0.85f, 0.2f) : Color.white;
-                if (GUI.Button(new Rect(x, abajo.y + 10, 150, AltoBarraInferior - 20), $"{tropa.Nombre}\nx{cantidad}", _boton))
+                int conRango = cantidad - batalla.Disponibles(tropa.Id, Rangos.Joven);
+                string texto = $"{tropa.Nombre}\nx{cantidad}" + (conRango > 0 ? $"\n({conRango} con rango)" : "");
+                if (GUI.Button(new Rect(x, abajo.y + 10, 150, AltoBarraInferior - 20), texto, _boton))
                 {
                     batalla.Seleccionada = tropa.Id;
                 }
@@ -571,7 +593,7 @@ namespace Altepetl
         private void DibujarResultado(BattleManager batalla, float ancho, float alto)
         {
             var resultado = batalla.Resultado;
-            var panel = new Rect((ancho - 400) / 2, (alto - 300) / 2, 400, 300);
+            var panel = new Rect((ancho - 420) / 2, (alto - 340) / 2, 420, 340);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
             GUI.Label(new Rect(panel.x + 10, panel.y + 15, panel.width - 20, 34),
@@ -582,8 +604,15 @@ namespace Altepetl
                            + $"Destrucción: {Mathf.FloorToInt(resultado.Porcentaje * 100)}%"
                            + $"\nBotín: {(botin.Length > 0 ? botin : "nada")}";
             if (resultado.Plumas > 0) texto += $"\nPlumas de quetzal: +{resultado.Plumas}";
+            if (resultado.Regresan > 0) texto += $"\nRegresan a la aldea: {resultado.Regresan} tropas";
+            var ascensos = new List<string>();
+            for (int r = Rangos.Count - 1; r > 0; r--)
+            {
+                if (resultado.Ascensos[r] > 0) ascensos.Add($"{resultado.Ascensos[r]} a {Rangos.Nombre(Manager.Pueblo, r).ToLowerInvariant()}");
+            }
+            if (ascensos.Count > 0) texto += "\nAscensos: " + string.Join(", ", ascensos);
             if (!resultado.Victoria) texto += $"\nNecesitas destruir al menos {Mathf.RoundToInt(BattleManager.VictoriaMinima * 100)}% para ganar.";
-            GUI.Label(new Rect(panel.x + 20, panel.y + 60, panel.width - 40, 160), texto, _texto);
+            GUI.Label(new Rect(panel.x + 20, panel.y + 60, panel.width - 40, 200), texto, _texto);
 
             if (GUI.Button(new Rect(panel.x + 100, panel.yMax - 64, panel.width - 200, 48), "Volver a la aldea", _boton))
             {

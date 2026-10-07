@@ -7,7 +7,7 @@ namespace Altepetl
     [Serializable]
     public sealed class SaveData
     {
-        public const int VersionActual = 3; // 2: nivel de los edificios. 3: ejército y campaña
+        public const int VersionActual = 4; // 2: nivel de los edificios. 3: ejército y campaña. 4: rangos
 
         public int version = VersionActual;
         public PuebloId pueblo;
@@ -15,7 +15,8 @@ namespace Altepetl
         public List<EdificioGuardado> edificios = new List<EdificioGuardado>();
         public long guardadoUtcTicks; // momento del guardado, para calcular la producción sin conexión
 
-        public int[] tropas = new int[TroopCatalog.Count];
+        public int[] tropas = new int[TroopCatalog.Count];          // total por tipo (versión 3)
+        public int[] tropasPorRango = new int[0];                    // por tipo y rango (versión 4)
         public List<int> colaEntrenamiento = new List<int>();
         public float entrenamientoRestante;
         public int nivelesCompletados; // niveles de campaña ganados, en orden

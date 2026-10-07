@@ -451,7 +451,8 @@ namespace Altepetl
             var panel = new Rect((ancho - 600) / 2, AltoBarraSuperior + 10, 600, 420);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Ofrendas", _titulo);
+            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28),
+                _deidadInfo != null ? _deidadInfo.Nombre : "Ofrendas", _titulo);
             if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
             {
                 _ofrendasAbierto = false;
@@ -531,7 +532,6 @@ namespace Altepetl
 
         private void DibujarLoreDeidad(Rect panel, Deidad deidad)
         {
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), deidad.Nombre, _titulo);
             string texto = $"{deidad.Dominio}\n\n{deidad.Lore}\n\nOfrenda: {Culto.CostoOfrenda} mamaltin. {TextoBono(deidad)}"
                            + (deidad.Id == DeidadId.Huitzilopochtli ? "." : " durante 2 horas.");
             GUI.Label(new Rect(panel.x + 25, panel.y + 48, panel.width - 50, 280), texto, _texto);

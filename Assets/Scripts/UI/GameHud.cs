@@ -22,6 +22,7 @@ namespace Altepetl
         private GUIStyle _titulo;
         private GUIStyle _texto;
         private GUIStyle _textoChico;
+        private GUIStyle _inicial;
         private GUIStyle _boton;
         private GUIStyle _caja;
         private Texture2D _blanco;
@@ -63,11 +64,13 @@ namespace Altepetl
             if (Manager.ModoActual == GameManager.Modo.Batalla)
             {
                 DibujarBatalla(ancho, alto);
+                DibujarInsigniaOfrenda();
                 DibujarMensaje(ancho, alto);
                 return;
             }
 
             DibujarRecursos(ancho);
+            DibujarInsigniaOfrenda();
             DibujarMenuConstruccion(ancho, alto);
             DibujarBotonAtacar(alto);
             DibujarPanelSeleccion(ancho);
@@ -505,6 +508,27 @@ namespace Altepetl
             }
         }
 
+        /// <summary>Insignia bajo la barra de recursos con el dios cuya ofrenda está activa.</summary>
+        private void DibujarInsigniaOfrenda()
+        {
+            var culto = Manager.Culto;
+            if (!culto.HayActiva) return;
+            var deidad = culto.Activa;
+            var caja = new Rect(10, AltoBarraSuperior + 8, 300, 46);
+            Zona(caja);
+            GUI.Box(caja, GUIContent.none, _caja);
+
+            // Símbolo provisional (cuadro con el color y la inicial del dios) hasta tener arte.
+            var simbolo = new Rect(caja.x + 6, caja.y + 6, 34, 34);
+            GUI.color = deidad.Color;
+            GUI.DrawTexture(simbolo, _blanco);
+            GUI.color = Color.white;
+            GUI.Label(simbolo, deidad.Nombre.Substring(0, 1), _inicial);
+
+            GUI.Label(new Rect(caja.x + 48, caja.y + 4, caja.width - 54, 40),
+                $"{deidad.Nombre} · {TextoTiempo(culto.SegundosRestantes)}\n{TextoBono(deidad)}", _textoChico);
+        }
+
         private void DibujarLoreDeidad(Rect panel, Deidad deidad)
         {
             GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), deidad.Nombre, _titulo);
@@ -797,6 +821,9 @@ namespace Altepetl
 
             _textoChico = new GUIStyle(_texto) { fontSize = 13 };
             _textoChico.normal.textColor = new Color(0.85f, 0.80f, 0.70f);
+
+            _inicial = new GUIStyle(_texto) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            _inicial.normal.textColor = new Color(0.12f, 0.09f, 0.07f);
 
             _titulo = new GUIStyle(_texto) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
 

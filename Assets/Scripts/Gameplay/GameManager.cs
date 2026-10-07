@@ -63,6 +63,8 @@ namespace Altepetl
             _ladoCamara = TamanoMapa;
             _hud = gameObject.AddComponent<GameHud>();
             _hud.Manager = this;
+            var tropasEnAldea = new GameObject("Tropas en la aldea").AddComponent<TropasEnAldea>();
+            tropasEnAldea.Manager = this;
 
             PrepararCamara();
             PrepararLuz();

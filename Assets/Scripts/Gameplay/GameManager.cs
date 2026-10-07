@@ -146,7 +146,7 @@ namespace Altepetl
             ActualizarAmbiente();
 
             if (Pueblo == null) return;
-            if (CapacidadEjercito > 0) Ejercito.Avanzar(Time.deltaTime, DuracionEntrenamiento);
+            if (NivelTelpochcalli > 0) Ejercito.Avanzar(Time.deltaTime, DuracionEntrenamiento);
             int curados = Ejercito.Curar(Time.deltaTime, CamasCuracion);
             if (curados > 0) MostrarMensaje(curados == 1 ? "Una tropa sanó en el temazcalli" : $"{curados} tropas sanaron en el temazcalli");
             Culto.Avanzar(Time.deltaTime);
@@ -248,7 +248,24 @@ namespace Altepetl
 
         // ---------- Ejército ----------
 
-        /// <summary>Espacio para tropas: 10 por nivel de cada telpochcalli terminado.</summary>
+        /// <summary>Nivel del mejor telpochcalli terminado (0 si no hay): de él depende si se entrena y qué tan rápido.</summary>
+        public int NivelTelpochcalli
+        {
+            get
+            {
+                int nivel = 0;
+                foreach (var edificio in _edificios)
+                {
+                    if (edificio.Definicion.Entrena) nivel = Mathf.Max(nivel, edificio.Nivel);
+                }
+                return nivel;
+            }
+        }
+
+        /// <summary>Cada nivel del telpochcalli después del 1 entrena un 20 % más rápido.</summary>
+        public const float EntrenamientoExtraPorNivel = 0.2f;
+
+        /// <summary>Espacio para tropas: 15 por nivel de cada calpulli terminado.</summary>
         public int CapacidadEjercito
         {
             get
@@ -285,8 +302,9 @@ namespace Altepetl
 
         public float DuracionEntrenamiento(TroopId id)
         {
+            float porNivel = 1f + EntrenamientoExtraPorNivel * Mathf.Max(0, NivelTelpochcalli - 1);
             return TroopCatalog.Get(id).SegundosEntrenamiento * Pueblo.MultiplicadorTiempoEntrenamiento
-                   * (1f - Culto.Bono(TipoBono.Entrenamiento));
+                   * (1f - Culto.Bono(TipoBono.Entrenamiento)) / porNivel;
         }
 
         /// <summary>Costo de entrenar, que cambia con el favor de Huitzilopochtli.</summary>
@@ -324,14 +342,19 @@ namespace Altepetl
 
         public void TryEntrenar(TroopId id)
         {
-            if (CapacidadEjercito <= 0)
+            if (NivelTelpochcalli <= 0)
             {
                 MostrarMensaje("Construye un telpochcalli");
                 return;
             }
+            if (CapacidadEjercito <= 0)
+            {
+                MostrarMensaje("Construye un calpulli para tener espacio");
+                return;
+            }
             if (Ejercito.Espacio >= CapacidadEjercito)
             {
-                MostrarMensaje("Ejército lleno");
+                MostrarMensaje("Ejército lleno: construye o mejora un calpulli");
                 return;
             }
             if (!Banco.TryGastar(CostoEntrenamiento(id)))
@@ -491,7 +514,7 @@ namespace Altepetl
                 _edificios[i].Producir(sobrantes[i] - conOfrenda, conOfrenda: false);
             }
             int tropasAntes = Ejercito.Total;
-            if (CapacidadEjercito > 0) Ejercito.Avanzar(segundos, DuracionEntrenamiento);
+            if (NivelTelpochcalli > 0) Ejercito.Avanzar(segundos, DuracionEntrenamiento);
             int curados = Ejercito.Curar(segundos, CamasCuracion);
 
             var ganancias = new List<string>();

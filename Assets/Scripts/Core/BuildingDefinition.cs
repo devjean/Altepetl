@@ -14,6 +14,7 @@ namespace Altepetl
         Torre,
         Teocalli, // nuevos al final: el número se guarda en la partida
         Temazcalli,
+        Calpulli,
     }
 
     /// <summary>Pestañas del menú de construcción.</summary>
@@ -48,7 +49,8 @@ namespace Altepetl
 
         public int CapacidadExtra;        // almacenamiento extra por recurso
         public int VidaBase;
-        public int CapacidadTropas;       // espacio para tropas por nivel (telpochcalli)
+        public int CapacidadTropas;       // espacio para tropas por nivel (calpulli)
+        public bool Entrena;              // entrena tropas (telpochcalli)
         public int CamasCuracion;         // heridos que cura a la vez, por nivel (temazcalli)
 
         public bool EsDefensa;            // ataca a las tropas enemigas en batalla
@@ -171,16 +173,32 @@ namespace Altepetl
             {
                 Id = BuildingId.Telpochcalli,
                 Nombre = "Telpochcalli",
-                Descripcion = "Casa de los jóvenes guerreros. Entrena tropas; cada nivel da 10 de espacio.",
+                Descripcion = "Casa de los jóvenes, donde aprenden el manejo de las armas. Entrena tropas.",
                 Tamano = 2,
                 Altura = 1.1f,
                 Color = new Color(0.60f, 0.25f, 0.20f),
                 Costo = ResourceInfo.Costo(maiz: 120, madera: 100),
                 SegundosConstruccion = 20f,
-                CapacidadTropas = 10,
+                Entrena = true,
                 Categoria = CategoriaEdificio.Militar,
                 VidaBase = 700,
-                MaximoPorTecpan = new[] { 1, 1, 1, 2, 2 },
+                MaximoPorTecpan = new[] { 1, 1, 1, 1, 1 },
+            },
+            new BuildingDefinition
+            {
+                Id = BuildingId.Calpulli,
+                Nombre = "Calpulli",
+                Descripcion = "Barrio de familias. Los guerreros eran hombres del calpulli que se movilizaban "
+                              + "para cada campaña. Da espacio para tropas.",
+                Tamano = 2,
+                Altura = 0.8f,
+                Color = new Color(0.72f, 0.58f, 0.40f),
+                Costo = ResourceInfo.Costo(maiz: 80, madera: 120),
+                SegundosConstruccion = 15f,
+                CapacidadTropas = 15,
+                Categoria = CategoriaEdificio.Militar,
+                VidaBase = 600,
+                MaximoPorTecpan = new[] { 1, 2, 2, 3, 3 },
             },
             new BuildingDefinition
             {

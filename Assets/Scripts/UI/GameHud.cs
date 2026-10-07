@@ -310,6 +310,7 @@ namespace Altepetl
             if (def.Produce) return $"+{ProduccionInicial(def):0.#} {ResourceInfo.Nombre(def.Recurso).ToLowerInvariant()}/min";
             if (def.CapacidadExtra > 0) return $"+{def.CapacidadExtra} de almacén";
             if (def.CapacidadTropas > 0) return $"{def.CapacidadTropas} de espacio para tropas";
+            if (def.Entrena) return "Entrena tropas";
             if (def.CamasCuracion > 0) return $"Cura {def.CamasCuracion} heridos a la vez";
             if (def.EsDefensa) return $"{def.DanoDefensaPorSegundo:0.#} de daño por segundo";
             if (def.Id == BuildingId.Teocalli) return "Ofrendas a los dioses";
@@ -326,7 +327,11 @@ namespace Altepetl
             };
             if (def.Produce) lineas.Add($"Produce {ProduccionInicial(def):0.#} de {ResourceInfo.Nombre(def.Recurso).ToLowerInvariant()} por minuto");
             if (def.CapacidadExtra > 0) lineas.Add($"Almacén: +{def.CapacidadExtra} de cada recurso");
-            if (def.CapacidadTropas > 0) lineas.Add($"Espacio para tropas: {def.CapacidadTropas}");
+            if (def.CapacidadTropas > 0) lineas.Add($"Espacio para tropas: {def.CapacidadTropas} por nivel");
+            if (def.Entrena)
+            {
+                lineas.Add($"Entrena guerreros, arqueros y honderos. Cada nivel entrena {Mathf.RoundToInt(GameManager.EntrenamientoExtraPorNivel * 100)}% más rápido; el espacio lo da el calpulli");
+            }
             if (def.CamasCuracion > 0)
             {
                 lineas.Add($"Cura a {def.CamasCuracion} heridos a la vez por nivel. Sanar a uno muy herido tarda "
@@ -357,7 +362,7 @@ namespace Altepetl
             if (edificio == null) return;
 
             var def = edificio.Definicion;
-            bool entrena = def.CapacidadTropas > 0 && edificio.Nivel > 0;
+            bool entrena = def.Entrena && edificio.Nivel > 0;
             float altoPanel = entrena ? 370 : def.CamasCuracion > 0 ? 310 : 250;
             var panel = new Rect(ancho - 290, AltoBarraSuperior + 10, 280, altoPanel);
             Zona(panel);
@@ -402,6 +407,10 @@ namespace Altepetl
                       + TextoTiempo(Manager.Ejercito.SegundosParaSiguienteCurado(camas));
             }
             if (def.CapacidadTropas > 0 && edificio.Nivel > 0)
+            {
+                info += $"\nEjército: {Manager.Ejercito.Espacio} / {Manager.CapacidadEjercito}";
+            }
+            if (def.Entrena && edificio.Nivel > 0)
             {
                 if (Manager.Ejercito.Heridos.Count > 0) info += $"\nHeridos en el temazcalli: {Manager.Ejercito.Heridos.Count}";
                 string veteranos = TextoRangos(Manager.Ejercito);
@@ -599,7 +608,9 @@ namespace Altepetl
         private void DibujarEntrenamiento(Rect panel)
         {
             var ejercito = Manager.Ejercito;
-            string estado = $"Ejército: {ejercito.Espacio} / {Manager.CapacidadEjercito}";
+            string estado = Manager.CapacidadEjercito > 0
+                ? $"Ejército: {ejercito.Espacio} / {Manager.CapacidadEjercito}"
+                : "Sin espacio: construye un calpulli";
             if (ejercito.Entrenando)
             {
                 var actual = TroopCatalog.Get(ejercito.Actual);

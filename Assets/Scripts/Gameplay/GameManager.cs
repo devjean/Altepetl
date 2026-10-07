@@ -22,6 +22,8 @@ namespace Altepetl
         public Building Seleccionado { get; private set; }
         public IReadOnlyList<Building> Edificios => _edificios;
         public Army Ejercito { get; } = new Army();
+        /// <summary>Ofrendas en el teocalli y favor de Huitzilopochtli.</summary>
+        public Culto Culto { get; private set; }
         public int NivelesCompletados { get; private set; }
 
         public enum Modo
@@ -37,6 +39,7 @@ namespace Altepetl
 
         private readonly List<Building> _edificios = new List<Building>();
         private Camera _camara;
+        private Light _sol;
         private GameHud _hud;
         private Transform _fantasma;
         private Renderer _fantasmaRender;
@@ -75,6 +78,7 @@ namespace Altepetl
         public void ElegirPueblo(Pueblo pueblo)
         {
             Pueblo = pueblo;
+            Culto = new Culto(pueblo.Id);
             Banco = new ResourceBank();
             Banco.Add(ResourceType.Maiz, 300);
             Banco.Add(ResourceType.Madera, 300);
@@ -139,9 +143,12 @@ namespace Altepetl
             if (Mensaje != null && Time.time > _mensajeHasta) Mensaje = null;
             AjustarCamara();
             ActualizarMarcadores();
+            ActualizarAmbiente();
 
             if (Pueblo == null) return;
             if (CapacidadEjercito > 0) Ejercito.Avanzar(Time.deltaTime, DuracionEntrenamiento);
+            Culto.Avanzar(Time.deltaTime);
+            Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
             if (Time.time >= _proximoAutoguardado) Guardar();
             if (!LeerPuntero(out Vector2 posicion, out bool presionado, out bool cancelar)) return;
 
@@ -179,7 +186,7 @@ namespace Altepetl
                 Colocando = null;
                 return;
             }
-            Construir(definicion, origen, 0, definicion.SegundosParaNivel(1) * Pueblo.MultiplicadorTiempoConstruccion);
+            Construir(definicion, origen, 0, SegundosConstruccion(definicion));
             Colocando = null;
             Guardar();
         }
@@ -188,6 +195,7 @@ namespace Altepetl
             float segundosRestantes, float acumulado = 0f)
         {
             var edificio = new GameObject().AddComponent<Building>();
+            edificio.Culto = Culto;
             edificio.Inicializar(definicion, Pueblo, origen, Banco, Mapa, nivel, segundosRestantes, acumulado);
             Mapa.Ocupar(origen, definicion.Tamano, edificio);
             _edificios.Add(edificio);
@@ -252,9 +260,50 @@ namespace Altepetl
             }
         }
 
+        /// <summary>Segundos para construir un edificio nuevo (con el pueblo y la ofrenda a Xiuhtecuhtli).</summary>
+        public float SegundosConstruccion(BuildingDefinition definicion)
+        {
+            return definicion.SegundosParaNivel(1) * Pueblo.MultiplicadorTiempoConstruccion
+                   * (1f - Culto.Bono(TipoBono.Construccion));
+        }
+
         public float DuracionEntrenamiento(TroopId id)
         {
-            return TroopCatalog.Get(id).SegundosEntrenamiento * Pueblo.MultiplicadorTiempoEntrenamiento;
+            return TroopCatalog.Get(id).SegundosEntrenamiento * Pueblo.MultiplicadorTiempoEntrenamiento
+                   * (1f - Culto.Bono(TipoBono.Entrenamiento));
+        }
+
+        /// <summary>Costo de entrenar, que cambia con el favor de Huitzilopochtli.</summary>
+        public int[] CostoEntrenamiento(TroopId id)
+        {
+            var baseCosto = TroopCatalog.Get(id).Costo;
+            var costo = new int[ResourceInfo.Count];
+            float mult = Culto.CostoEntrenamientoPorFavor;
+            for (int i = 0; i < costo.Length; i++) costo[i] = Mathf.CeilToInt(baseCosto[i] * mult);
+            return costo;
+        }
+
+        public void TryOfrendar(Deidad deidad)
+        {
+            if (Banco.Get(ResourceType.Cautivos) < Culto.CostoOfrenda)
+            {
+                MostrarMensaje($"Necesitas {Culto.CostoOfrenda} mamaltin");
+                return;
+            }
+            if (!Culto.Ofrendar(deidad, Banco)) return;
+            MostrarMensaje(deidad.Id == DeidadId.Huitzilopochtli
+                ? "Huitzilopochtli recibe tu ofrenda"
+                : $"{deidad.Nombre} recibe tu ofrenda", 3f);
+            Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
+            Guardar();
+        }
+
+        /// <summary>Con la ofrenda a Mictlantecuhtli, una tropa caída devuelve parte de su maíz.</summary>
+        public void AlCaerTropa(TroopDefinition definicion)
+        {
+            float reembolso = Culto.Bono(TipoBono.Reembolso);
+            if (reembolso <= 0f) return;
+            Banco.Add(ResourceType.Maiz, Mathf.Floor(definicion.Costo[(int)ResourceType.Maiz] * reembolso));
         }
 
         public void TryEntrenar(TroopId id)
@@ -269,7 +318,7 @@ namespace Altepetl
                 MostrarMensaje("Ejército lleno");
                 return;
             }
-            if (!Banco.TryGastar(TroopCatalog.Get(id).Costo))
+            if (!Banco.TryGastar(CostoEntrenamiento(id)))
             {
                 MostrarMensaje("Recursos insuficientes");
                 return;
@@ -349,19 +398,24 @@ namespace Altepetl
                 });
             }
             Ejercito.Exportar(datos);
-            // Si se cierra el juego en plena batalla, las tropas sin desplegar no se pierden.
+            // Si se cierra el juego en plena batalla, las tropas sin desplegar y las que siguen vivas
+            // en el campo no se pierden.
             if (Batalla != null && !Batalla.Terminada)
             {
-                for (int i = 0; i < TroopCatalog.Count; i++) datos.tropas[i] += Batalla.Disponibles((TroopId)i);
+                Batalla.SumarTropasPendientes(datos.tropasPorRango);
             }
             datos.nivelesCompletados = NivelesCompletados;
+            Culto.Exportar(datos);
             SaveSystem.Guardar(datos);
         }
 
         private void Restaurar(SaveData datos)
         {
             Pueblo = Pueblo.Get(datos.pueblo);
+            Culto = new Culto(Pueblo.Id);
+            Culto.Importar(datos);
             Banco = new ResourceBank();
+            Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
 
             // Primero los edificios, para que los almacenes terminados sumen su capacidad
             // antes de fijar los recursos.
@@ -397,9 +451,12 @@ namespace Altepetl
             {
                 sobrantes[i] = _edificios[i].AvanzarConstruccion(segundos);
             }
+            // La ofrenda activa solo cuenta mientras le quedaba tiempo.
             for (int i = 0; i < _edificios.Count; i++)
             {
-                _edificios[i].Producir(sobrantes[i]);
+                float conOfrenda = Mathf.Min(sobrantes[i], Culto.SegundosRestantes);
+                _edificios[i].Producir(conOfrenda, conOfrenda: true);
+                _edificios[i].Producir(sobrantes[i] - conOfrenda, conOfrenda: false);
             }
             int tropasAntes = Ejercito.Total;
             if (CapacidadEjercito > 0) Ejercito.Avanzar(segundos, DuracionEntrenamiento);
@@ -410,6 +467,8 @@ namespace Altepetl
                 int ganancia = Banco.Get((ResourceType)i) - antes[i];
                 if (ganancia > 0) ganancias.Add($"+{ganancia} {ResourceInfo.Nombre((ResourceType)i).ToLowerInvariant()}");
             }
+            Culto.Avanzar(segundos);
+            Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
             int tropasNuevas = Ejercito.Total - tropasAntes;
             if (tropasNuevas > 0) ganancias.Add($"+{tropasNuevas} tropas");
             if (ganancias.Count > 0)
@@ -473,7 +532,7 @@ namespace Altepetl
             }
             _camara.orthographic = true;
             _camara.clearFlags = CameraClearFlags.SolidColor;
-            _camara.backgroundColor = new Color(0.55f, 0.75f, 0.85f);
+            _camara.backgroundColor = Deidad.CieloNormal;
             _camara.transform.rotation = Quaternion.Euler(30f, 45f, 0f);
             _camara.nearClipPlane = 0.1f;
             _camara.farClipPlane = 100f;
@@ -502,12 +561,24 @@ namespace Altepetl
             _camara.orthographicSize = tamano * 1.3f;
         }
 
-        private static void PrepararLuz()
+        private void PrepararLuz()
         {
-            if (FindAnyObjectByType<Light>() != null) return;
-            var luz = new GameObject("Sol").AddComponent<Light>();
-            luz.type = LightType.Directional;
-            luz.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            _sol = FindAnyObjectByType<Light>();
+            if (_sol != null) return;
+            _sol = new GameObject("Sol").AddComponent<Light>();
+            _sol.type = LightType.Directional;
+            _sol.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+        }
+
+        /// <summary>El cielo y la luz cambian poco a poco con el dios cuya ofrenda está activa.</summary>
+        private void ActualizarAmbiente()
+        {
+            var deidad = Culto?.Activa;
+            var cielo = deidad != null ? deidad.Cielo : Deidad.CieloNormal;
+            var luz = deidad != null ? deidad.Luz : Color.white;
+            float t = Mathf.Clamp01(Time.deltaTime * 1.5f);
+            if (_camara != null) _camara.backgroundColor = Color.Lerp(_camara.backgroundColor, cielo, t);
+            if (_sol != null) _sol.color = Color.Lerp(_sol.color, luz, t);
         }
 
         private void CrearSuelo()

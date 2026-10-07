@@ -10,6 +10,9 @@ namespace Altepetl
         public int[] Botin = ResourceInfo.Costo();
         public int Plumas;         // solo en la primera victoria de cada nivel
         public bool TecpanDestruido;
+        public int Cautivos;       // mamaltin capturados (ya incluidos en Botin)
+        public int Regresan;       // tropas desplegadas que sobrevivieron
+        public int[] Ascensos = new int[Rangos.Count]; // cuántas subieron a cada rango
     }
 
     /// <summary>
@@ -56,16 +59,27 @@ namespace Altepetl
         private bool[,] _ocupado;
         private GameManager _manager;
         private Army _ejercito;
-        // Tropas que se llevaron a esta batalla; lo que se entrene mientras tanto se queda en la aldea.
-        private readonly int[] _reserva = new int[TroopCatalog.Count];
+        // Tropas que se llevaron a esta batalla, por tipo y rango; lo que se entrene mientras tanto
+        // se queda en la aldea.
+        private readonly int[,] _reserva = new int[TroopCatalog.Count, Rangos.Count];
+        private int _cautivos;
 
-        public int Disponibles(TroopId id) => _reserva[(int)id];
+        public int Cautivos => _cautivos;
+        public int Disponibles(TroopId id, int rango) => _reserva[(int)id, rango];
+
+        public int Disponibles(TroopId id)
+        {
+            int total = 0;
+            for (int r = 0; r < Rangos.Count; r++) total += _reserva[(int)id, r];
+            return total;
+        }
+
         public int TotalDisponibles
         {
             get
             {
                 int total = 0;
-                foreach (int n in _reserva) total += n;
+                for (int t = 0; t < TroopCatalog.Count; t++) total += Disponibles((TroopId)t);
                 return total;
             }
         }
@@ -77,7 +91,10 @@ namespace Altepetl
             _ejercito = manager.Ejercito;
             foreach (var definicion in TroopCatalog.Todos)
             {
-                while (_ejercito.Quitar(definicion.Id)) _reserva[(int)definicion.Id]++;
+                for (int r = 0; r < Rangos.Count; r++)
+                {
+                    while (_ejercito.Quitar(definicion.Id, r)) _reserva[(int)definicion.Id, r]++;
+                }
             }
             IndiceNivel = indiceNivel;
             Nivel = CampaignLevel.Todos[indiceNivel];
@@ -139,16 +156,26 @@ namespace Altepetl
                 _manager.MostrarMensaje("No puedes desplegar encima de un edificio");
                 return;
             }
-            if (_reserva[(int)Seleccionada] <= 0)
+            // Salen primero los de mayor rango.
+            int rango = -1;
+            for (int r = Rangos.Count - 1; r >= 0; r--)
+            {
+                if (_reserva[(int)Seleccionada, r] > 0)
+                {
+                    rango = r;
+                    break;
+                }
+            }
+            if (rango < 0)
             {
                 _manager.MostrarMensaje("No te quedan tropas de ese tipo");
                 return;
             }
 
-            _reserva[(int)Seleccionada]--;
+            _reserva[(int)Seleccionada, rango]--;
             var tropa = new GameObject().AddComponent<TroopUnit>();
             tropa.transform.SetParent(transform, false);
-            tropa.Inicializar(TroopCatalog.Get(Seleccionada), _manager.Pueblo, new Vector3(punto.x, 0f, punto.z), this);
+            tropa.Inicializar(TroopCatalog.Get(Seleccionada), rango, _manager.Pueblo, _manager.Culto, new Vector3(punto.x, 0f, punto.z), this);
             _tropas.Add(tropa);
             _algunaDesplegada = true;
 
@@ -170,8 +197,6 @@ namespace Altepetl
         {
             if (Terminada) return;
             Terminada = true;
-            // Las tropas que no se desplegaron regresan a la aldea.
-            DevolverReserva();
             TiempoRestante = Mathf.Max(0f, TiempoRestante);
 
             float porcentaje = Destruccion;
@@ -180,21 +205,51 @@ namespace Altepetl
                 Porcentaje = porcentaje,
                 Victoria = porcentaje >= VictoriaMinima,
                 TecpanDestruido = TecpanDestruido,
+                Cautivos = _cautivos,
             };
             for (int i = 0; i < ResourceInfo.Count; i++)
             {
                 resultado.Botin[i] = Mathf.FloorToInt(Nivel.Botin[i] * porcentaje);
             }
+            resultado.Botin[(int)ResourceType.Cautivos] = _cautivos;
+
+            // Las tropas que no se desplegaron regresan tal cual; las que sobrevivieron, con su nuevo rango.
+            DevolverReserva();
+            foreach (var tropa in _tropas)
+            {
+                if (tropa == null || tropa.Muerta) continue;
+                int nuevo = Rangos.AlRegresar(tropa.Rango, tropa.Capturas);
+                if (nuevo > tropa.Rango) resultado.Ascensos[nuevo]++;
+                _ejercito.Agregar(tropa.Definicion.Id, nuevo, 1);
+                resultado.Regresan++;
+            }
             Resultado = resultado;
             _manager.AlTerminarBatalla(this);
         }
 
+        /// <summary>Suma (en el arreglo por tipo y rango del guardado) las tropas que aún volverían.</summary>
+        public void SumarTropasPendientes(int[] porRango)
+        {
+            for (int t = 0; t < TroopCatalog.Count; t++)
+            {
+                for (int r = 0; r < Rangos.Count; r++) porRango[t * Rangos.Count + r] += _reserva[t, r];
+            }
+            foreach (var tropa in _tropas)
+            {
+                if (tropa == null || tropa.Muerta) continue;
+                porRango[(int)tropa.Definicion.Id * Rangos.Count + tropa.Rango]++;
+            }
+        }
+
         private void DevolverReserva()
         {
-            for (int i = 0; i < _reserva.Length; i++)
+            for (int t = 0; t < TroopCatalog.Count; t++)
             {
-                _ejercito.Agregar((TroopId)i, _reserva[i]);
-                _reserva[i] = 0;
+                for (int r = 0; r < Rangos.Count; r++)
+                {
+                    _ejercito.Agregar((TroopId)t, r, _reserva[t, r]);
+                    _reserva[t, r] = 0;
+                }
             }
         }
 
@@ -242,8 +297,15 @@ namespace Altepetl
             return mejor;
         }
 
-        public void AlDestruirEdificio(EnemyBuilding edificio)
+        /// <summary>Quien derriba un edificio puede hacer una captura y traer un malli (cautivo).</summary>
+        public void AlDestruirEdificio(EnemyBuilding edificio, TroopUnit atacante)
         {
+            if (atacante != null && !atacante.Muerta && Random.value < Rangos.ProbabilidadCaptura(_manager.Pueblo))
+            {
+                atacante.Capturas++;
+                _cautivos++;
+            }
+
             if (edificio.Definicion.Id != BuildingId.Tecpan) return;
             // Al caer el tecpan la ciudad se rinde: victoria con todo el botín.
             TecpanDestruido = true;
@@ -253,6 +315,7 @@ namespace Altepetl
         public void AlMorirTropa(TroopUnit tropa)
         {
             _tropas.Remove(tropa);
+            _manager.AlCaerTropa(tropa.Definicion);
         }
     }
 }

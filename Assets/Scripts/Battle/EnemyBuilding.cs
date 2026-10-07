@@ -48,7 +48,7 @@ namespace Altepetl
             ActualizarColor();
         }
 
-        public void RecibirDano(float cantidad)
+        public void RecibirDano(float cantidad, TroopUnit atacante)
         {
             if (Destruido) return;
             Vida = Mathf.Max(0f, Vida - cantidad);
@@ -57,7 +57,7 @@ namespace Altepetl
                 // Quedan ruinas planas.
                 _modelo.localScale = new Vector3(_modelo.localScale.x, 0.08f, _modelo.localScale.z);
                 _modelo.localPosition = new Vector3(0f, 0.04f, 0f);
-                _batalla.AlDestruirEdificio(this);
+                _batalla.AlDestruirEdificio(this, atacante);
             }
             ActualizarColor();
         }

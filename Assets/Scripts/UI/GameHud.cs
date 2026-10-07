@@ -22,11 +22,14 @@ namespace Altepetl
         private GUIStyle _titulo;
         private GUIStyle _texto;
         private GUIStyle _textoChico;
+        private GUIStyle _inicial;
         private GUIStyle _boton;
         private GUIStyle _caja;
         private Texture2D _blanco;
         private bool _campanaAbierta;
         private bool _menuAbierto;
+        private bool _ofrendasAbierto;
+        private Deidad _deidadInfo;
         private CategoriaEdificio _pestana = CategoriaEdificio.Suministros;
         private BuildingDefinition _info;
 
@@ -61,15 +64,18 @@ namespace Altepetl
             if (Manager.ModoActual == GameManager.Modo.Batalla)
             {
                 DibujarBatalla(ancho, alto);
+                DibujarInsigniaOfrenda();
                 DibujarMensaje(ancho, alto);
                 return;
             }
 
             DibujarRecursos(ancho);
+            DibujarInsigniaOfrenda();
             DibujarMenuConstruccion(ancho, alto);
             DibujarBotonAtacar(alto);
             DibujarPanelSeleccion(ancho);
             DibujarCampana(ancho);
+            DibujarOfrendas(ancho);
             DibujarMensaje(ancho, alto);
         }
 
@@ -112,11 +118,15 @@ namespace Altepetl
             for (int i = 0; i < ResourceInfo.Count; i++)
             {
                 var tipo = (ResourceType)i;
-                string capacidad = tipo == ResourceType.Plumas ? "" : $" / {banco.Capacidad(tipo)}";
+                int maximo = banco.Capacidad(tipo);
+                string capacidad = maximo == int.MaxValue ? "" : $" / {maximo}";
                 GUI.Label(new Rect(x, 10, anchoCelda, 24), $"{ResourceInfo.Nombre(tipo)}: {banco.Get(tipo)}{capacidad}", _texto);
                 x += anchoCelda;
             }
-            GUI.Label(new Rect(x, 10, anchoCelda, 24), Manager.Pueblo.Nombre, _texto);
+            string pueblo = Manager.Culto.UsaFavor
+                ? $"{Manager.Pueblo.Nombre} · Favor {Mathf.FloorToInt(Manager.Culto.Favor)}"
+                : Manager.Pueblo.Nombre;
+            GUI.Label(new Rect(x, 10, anchoCelda, 24), pueblo, _texto);
         }
 
         private void DibujarMenuConstruccion(float ancho, float alto)
@@ -145,6 +155,7 @@ namespace Altepetl
                 if (_menuAbierto)
                 {
                     _campanaAbierta = false;
+                    _ofrendasAbierto = false;
                     Manager.Seleccionar(null);
                 }
             }
@@ -246,6 +257,18 @@ namespace Altepetl
             GUI.enabled = true;
         }
 
+        /// <summary>"2 tlamani, 3 guerrero experimentado": tropas con rango, sin contar a los jóvenes.</summary>
+        private string TextoRangos(Army ejercito)
+        {
+            var partes = new List<string>();
+            for (int r = Rangos.Count - 1; r > Rangos.Joven; r--)
+            {
+                int n = ejercito.ConRango(r);
+                if (n > 0) partes.Add($"{n} {Rangos.Nombre(Manager.Pueblo, r).ToLowerInvariant()}");
+            }
+            return string.Join(", ", partes);
+        }
+
         private bool PuedeConstruir(BuildingDefinition def)
         {
             return def.Construible && !Manager.EnLimite(def) && Manager.Banco.PuedePagar(def.Costo);
@@ -272,7 +295,8 @@ namespace Altepetl
             {
                 case CategoriaEdificio.Suministros: return "Suministros";
                 case CategoriaEdificio.Defensas: return "Defensas";
-                default: return "Militar";
+                case CategoriaEdificio.Militar: return "Militar";
+                default: return "Templo";
             }
         }
 
@@ -283,6 +307,7 @@ namespace Altepetl
             if (def.CapacidadExtra > 0) return $"+{def.CapacidadExtra} de almacén";
             if (def.CapacidadTropas > 0) return $"{def.CapacidadTropas} de espacio para tropas";
             if (def.EsDefensa) return $"{def.DanoDefensaPorSegundo:0.#} de daño por segundo";
+            if (def.Id == BuildingId.Teocalli) return "Ofrendas a los dioses";
             return $"Vida: {VidaInicial(def)}";
         }
 
@@ -291,7 +316,7 @@ namespace Altepetl
             var lineas = new List<string>
             {
                 $"Tamaño: {def.Tamano}x{def.Tamano} casillas",
-                $"Construcción: {Mathf.CeilToInt(def.SegundosParaNivel(1) * Manager.Pueblo.MultiplicadorTiempoConstruccion)} s",
+                $"Construcción: {Mathf.CeilToInt(Manager.SegundosConstruccion(def))} s",
                 $"Vida: {VidaInicial(def)}",
             };
             if (def.Produce) lineas.Add($"Produce {ProduccionInicial(def):0.#} de {ResourceInfo.Nombre(def.Recurso).ToLowerInvariant()} por minuto");
@@ -349,6 +374,18 @@ namespace Altepetl
                 if (Manager.Banco.EstaLleno(def.Recurso)) info += "\nAlmacén lleno: construye o mejora un petlacalco";
             }
             info += $"\nVida: {edificio.Vida}";
+            if (def.Id == BuildingId.Teocalli && edificio.Nivel > 0)
+            {
+                var culto = Manager.Culto;
+                info += culto.HayActiva
+                    ? $"\nOfrenda activa: {culto.Activa.Nombre}, quedan {TextoTiempo(culto.SegundosRestantes)}"
+                    : "\nSin ofrenda activa";
+            }
+            if (def.CapacidadTropas > 0 && edificio.Nivel > 0)
+            {
+                string veteranos = TextoRangos(Manager.Ejercito);
+                if (veteranos.Length > 0) info += "\nCon rango: " + veteranos;
+            }
             GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, 120), info, _texto);
             if (entrena) DibujarEntrenamiento(panel);
 
@@ -369,6 +406,16 @@ namespace Altepetl
             switch (estado)
             {
                 case GameManager.EstadoMejora.NivelMaximo:
+                    if (def.Id == BuildingId.Teocalli)
+                    {
+                        if (GUI.Button(botonRect, "Ofrendar mamaltin", _boton))
+                        {
+                            Manager.Seleccionar(null);
+                            _ofrendasAbierto = true;
+                            _deidadInfo = null;
+                        }
+                        break;
+                    }
                     GUI.Label(botonRect, "Nivel máximo", _texto);
                     break;
                 case GameManager.EstadoMejora.RequiereTecpan:
@@ -389,6 +436,144 @@ namespace Altepetl
             }
         }
 
+        // ---------- Teocalli ----------
+
+        private void DibujarOfrendas(float ancho)
+        {
+            if (!_ofrendasAbierto) return;
+            if (Manager.Seleccionado != null || Manager.Colocando != null || _menuAbierto || _campanaAbierta)
+            {
+                _ofrendasAbierto = false;
+                return;
+            }
+
+            var culto = Manager.Culto;
+            var panel = new Rect((ancho - 600) / 2, AltoBarraSuperior + 10, 600, 420);
+            Zona(panel);
+            GUI.Box(panel, GUIContent.none, _caja);
+            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28),
+                _deidadInfo != null ? _deidadInfo.Nombre : "Ofrendas", _titulo);
+            if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
+            {
+                _ofrendasAbierto = false;
+                _deidadInfo = null;
+                return;
+            }
+
+            if (_deidadInfo != null)
+            {
+                DibujarLoreDeidad(panel, _deidadInfo);
+                return;
+            }
+
+            int mamaltin = Manager.Banco.Get(ResourceType.Cautivos);
+            string estado = $"Mamaltin: {mamaltin}. Cada ofrenda cuesta {Culto.CostoOfrenda} y su bono dura 2 horas.";
+            if (culto.HayActiva)
+            {
+                var activa = culto.Activa;
+                estado += $"\nActiva: {activa.Nombre} ({TextoBono(activa)}), quedan {TextoTiempo(culto.SegundosRestantes)}";
+            }
+            else
+            {
+                estado += "\nNinguna ofrenda activa.";
+            }
+            if (culto.UsaFavor)
+            {
+                string efecto = culto.FavorAltoActivo ? "alto: +10% ataque, entrenar 10% más barato"
+                    : culto.FavorBajoActivo ? "bajo: -10% ataque, entrenar 20% más caro, defensas -10% vida"
+                    : "normal";
+                estado += $"\nFavor de Huitzilopochtli: {Mathf.FloorToInt(culto.Favor)} / 100 ({efecto}). Baja con el tiempo.";
+            }
+            GUI.Label(new Rect(panel.x + 15, panel.y + 40, panel.width - 30, 70), estado, _textoChico);
+
+            var deidades = new List<Deidad>();
+            foreach (var deidad in Deidad.Todas)
+            {
+                if (deidad.VeneradaPor(culto.Pueblo)) deidades.Add(deidad);
+            }
+            float anchoBoton = (panel.width - 30f) / 2f;
+            for (int i = 0; i < deidades.Count; i++)
+            {
+                var deidad = deidades[i];
+                var rect = new Rect(panel.x + 10 + (i % 2) * (anchoBoton + 10), panel.y + 116 + (i / 2) * 74, anchoBoton - 44, 66);
+                GUI.enabled = culto.PuedeOfrendar(deidad, Manager.Banco);
+                if (GUI.Button(rect, $"{deidad.Nombre}: {deidad.Dominio.ToLowerInvariant()}\n{TextoBono(deidad)}", _boton))
+                {
+                    Manager.TryOfrendar(deidad);
+                }
+                GUI.enabled = true;
+                if (GUI.Button(new Rect(rect.xMax + 4, rect.y, 40, rect.height), "?", _boton))
+                {
+                    _deidadInfo = deidad;
+                }
+            }
+        }
+
+        /// <summary>Insignia bajo la barra de recursos con el dios cuya ofrenda está activa.</summary>
+        private void DibujarInsigniaOfrenda()
+        {
+            var culto = Manager.Culto;
+            if (!culto.HayActiva) return;
+            var deidad = culto.Activa;
+            var caja = new Rect(10, AltoBarraSuperior + 8, 300, 46);
+            Zona(caja);
+            GUI.Box(caja, GUIContent.none, _caja);
+
+            // Símbolo provisional (cuadro con el color y la inicial del dios) hasta tener arte.
+            var simbolo = new Rect(caja.x + 6, caja.y + 6, 34, 34);
+            GUI.color = deidad.Color;
+            GUI.DrawTexture(simbolo, _blanco);
+            GUI.color = Color.white;
+            GUI.Label(simbolo, deidad.Nombre.Substring(0, 1), _inicial);
+
+            GUI.Label(new Rect(caja.x + 48, caja.y + 4, caja.width - 54, 40),
+                $"{deidad.Nombre} · {TextoTiempo(culto.SegundosRestantes)}\n{TextoBono(deidad)}", _textoChico);
+        }
+
+        private void DibujarLoreDeidad(Rect panel, Deidad deidad)
+        {
+            string texto = $"{deidad.Dominio}\n\n{deidad.Lore}\n\nOfrenda: {Culto.CostoOfrenda} mamaltin. {TextoBono(deidad)}"
+                           + (deidad.Id == DeidadId.Huitzilopochtli ? "." : " durante 2 horas.");
+            GUI.Label(new Rect(panel.x + 25, panel.y + 48, panel.width - 50, 280), texto, _texto);
+
+            if (GUI.Button(new Rect(panel.x + 20, panel.yMax - 60, 160, 44), "Volver", _boton))
+            {
+                _deidadInfo = null;
+            }
+            GUI.enabled = Manager.Culto.PuedeOfrendar(deidad, Manager.Banco);
+            if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), $"Ofrendar {Culto.CostoOfrenda} mamaltin", _boton))
+            {
+                Manager.TryOfrendar(deidad);
+                _deidadInfo = null;
+            }
+            GUI.enabled = true;
+        }
+
+        private string TextoBono(Deidad deidad)
+        {
+            if (deidad.Id == DeidadId.Huitzilopochtli) return $"+{Culto.FavorPorOfrenda:0} de favor";
+            int porcentaje = Mathf.RoundToInt(Manager.Culto.ValorPara(deidad) * 100f);
+            switch (deidad.Bono)
+            {
+                case TipoBono.Produccion: return $"+{porcentaje}% a toda la producción";
+                case TipoBono.Maiz: return $"+{porcentaje}% de maíz";
+                case TipoBono.Ataque: return $"+{porcentaje}% de ataque";
+                case TipoBono.Entrenamiento: return $"Entrenar {porcentaje}% más rápido";
+                case TipoBono.Construccion: return $"Construir {porcentaje}% más rápido";
+                case TipoBono.Velocidad: return $"Tropas {porcentaje}% más veloces";
+                case TipoBono.DanoDistancia: return $"+{porcentaje}% daño de arqueros y honderos";
+                case TipoBono.Almacen: return $"+{porcentaje}% de almacén";
+                case TipoBono.Reembolso: return $"Tropas caídas devuelven {porcentaje}% de su maíz";
+                default: return "";
+            }
+        }
+
+        private static string TextoTiempo(float segundos)
+        {
+            int total = Mathf.CeilToInt(segundos);
+            return $"{total / 3600}:{total / 60 % 60:00}:{total % 60:00}";
+        }
+
         private void DibujarEntrenamiento(Rect panel)
         {
             var ejercito = Manager.Ejercito;
@@ -406,8 +591,9 @@ namespace Altepetl
             bool hayEspacio = ejercito.Espacio < Manager.CapacidadEjercito;
             foreach (var tropa in TroopCatalog.Todos)
             {
-                GUI.enabled = hayEspacio && Manager.Banco.PuedePagar(tropa.Costo);
-                string texto = $"{tropa.Nombre} ({ejercito.Get(tropa.Id)})\n{TextoCosto(tropa.Costo)}";
+                var costo = Manager.CostoEntrenamiento(tropa.Id);
+                GUI.enabled = hayEspacio && Manager.Banco.PuedePagar(costo);
+                string texto = $"{tropa.Nombre} ({ejercito.Get(tropa.Id)})\n{TextoCosto(costo)}";
                 if (GUI.Button(new Rect(x, panel.y + 212, anchoBoton - 5f, 88), texto, _boton))
                 {
                     Manager.TryEntrenar(tropa.Id);
@@ -428,6 +614,7 @@ namespace Altepetl
                 if (_campanaAbierta)
                 {
                     _menuAbierto = false;
+                    _ofrendasAbierto = false;
                     Manager.Seleccionar(null);
                 }
             }
@@ -442,7 +629,7 @@ namespace Altepetl
                 return;
             }
 
-            var panel = new Rect((ancho - 480) / 2, AltoBarraSuperior + 10, 480, 370);
+            var panel = new Rect((ancho - 480) / 2, AltoBarraSuperior + 10, 480, 394);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
             GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Campaña", _titulo);
@@ -458,10 +645,12 @@ namespace Altepetl
             {
                 partes.Add($"{ejercito.Get(tropa.Id)} {tropa.Nombre.ToLowerInvariant()}");
             }
-            GUI.Label(new Rect(panel.x + 10, panel.y + 40, panel.width - 20, 24),
-                "Tu ejército: " + string.Join(", ", partes), _texto);
+            string veteranosCampana = TextoRangos(ejercito);
+            GUI.Label(new Rect(panel.x + 10, panel.y + 40, panel.width - 20, 48),
+                "Tu ejército: " + string.Join(", ", partes)
+                + (veteranosCampana.Length > 0 ? "\nCon rango: " + veteranosCampana : ""), _texto);
 
-            float y = panel.y + 72;
+            float y = panel.y + 96;
             for (int i = 0; i < CampaignLevel.Todos.Length; i++)
             {
                 var nivel = CampaignLevel.Todos[i];
@@ -519,7 +708,9 @@ namespace Altepetl
                 bool elegida = batalla.Seleccionada == tropa.Id && cantidad > 0;
                 GUI.enabled = cantidad > 0;
                 GUI.backgroundColor = elegida ? new Color(1f, 0.85f, 0.2f) : Color.white;
-                if (GUI.Button(new Rect(x, abajo.y + 10, 150, AltoBarraInferior - 20), $"{tropa.Nombre}\nx{cantidad}", _boton))
+                int conRango = cantidad - batalla.Disponibles(tropa.Id, Rangos.Joven);
+                string texto = $"{tropa.Nombre}\nx{cantidad}" + (conRango > 0 ? $"\n({conRango} con rango)" : "");
+                if (GUI.Button(new Rect(x, abajo.y + 10, 150, AltoBarraInferior - 20), texto, _boton))
                 {
                     batalla.Seleccionada = tropa.Id;
                 }
@@ -571,7 +762,7 @@ namespace Altepetl
         private void DibujarResultado(BattleManager batalla, float ancho, float alto)
         {
             var resultado = batalla.Resultado;
-            var panel = new Rect((ancho - 400) / 2, (alto - 300) / 2, 400, 300);
+            var panel = new Rect((ancho - 420) / 2, (alto - 340) / 2, 420, 340);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
             GUI.Label(new Rect(panel.x + 10, panel.y + 15, panel.width - 20, 34),
@@ -582,8 +773,15 @@ namespace Altepetl
                            + $"Destrucción: {Mathf.FloorToInt(resultado.Porcentaje * 100)}%"
                            + $"\nBotín: {(botin.Length > 0 ? botin : "nada")}";
             if (resultado.Plumas > 0) texto += $"\nPlumas de quetzal: +{resultado.Plumas}";
+            if (resultado.Regresan > 0) texto += $"\nRegresan a la aldea: {resultado.Regresan} tropas";
+            var ascensos = new List<string>();
+            for (int r = Rangos.Count - 1; r > 0; r--)
+            {
+                if (resultado.Ascensos[r] > 0) ascensos.Add($"{resultado.Ascensos[r]} a {Rangos.Nombre(Manager.Pueblo, r).ToLowerInvariant()}");
+            }
+            if (ascensos.Count > 0) texto += "\nAscensos: " + string.Join(", ", ascensos);
             if (!resultado.Victoria) texto += $"\nNecesitas destruir al menos {Mathf.RoundToInt(BattleManager.VictoriaMinima * 100)}% para ganar.";
-            GUI.Label(new Rect(panel.x + 20, panel.y + 60, panel.width - 40, 160), texto, _texto);
+            GUI.Label(new Rect(panel.x + 20, panel.y + 60, panel.width - 40, 200), texto, _texto);
 
             if (GUI.Button(new Rect(panel.x + 100, panel.yMax - 64, panel.width - 200, 48), "Volver a la aldea", _boton))
             {
@@ -594,7 +792,8 @@ namespace Altepetl
         private void DibujarMensaje(float ancho, float alto)
         {
             if (string.IsNullOrEmpty(Manager.Mensaje)) return;
-            float abajo = Manager.ModoActual == GameManager.Modo.Batalla ? AltoBarraInferior + 50 : 110;
+            // En la aldea va entre los botones Atacar y Construir, para no tapar los paneles.
+            float abajo = Manager.ModoActual == GameManager.Modo.Batalla ? AltoBarraInferior + 50 : 53;
             var rect = new Rect((ancho - 360) / 2, alto - abajo, 360, 36);
             GUI.Box(rect, Manager.Mensaje, _boton);
         }
@@ -622,6 +821,9 @@ namespace Altepetl
 
             _textoChico = new GUIStyle(_texto) { fontSize = 13 };
             _textoChico.normal.textColor = new Color(0.85f, 0.80f, 0.70f);
+
+            _inicial = new GUIStyle(_texto) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            _inicial.normal.textColor = new Color(0.12f, 0.09f, 0.07f);
 
             _titulo = new GUIStyle(_texto) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
 

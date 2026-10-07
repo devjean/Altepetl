@@ -12,7 +12,8 @@ namespace Altepetl
         Muralla,
         Telpochcalli,
         Torre,
-        Teocalli, // al final: el número se guarda en la partida
+        Teocalli, // nuevos al final: el número se guarda en la partida
+        Temazcalli,
     }
 
     /// <summary>Pestañas del menú de construcción.</summary>
@@ -48,6 +49,7 @@ namespace Altepetl
         public int CapacidadExtra;        // almacenamiento extra por recurso
         public int VidaBase;
         public int CapacidadTropas;       // espacio para tropas por nivel (telpochcalli)
+        public int CamasCuracion;         // heridos que cura a la vez, por nivel (temazcalli)
 
         public bool EsDefensa;            // ataca a las tropas enemigas en batalla
         public float AlcanceDefensa;
@@ -178,6 +180,22 @@ namespace Altepetl
                 CapacidadTropas = 10,
                 Categoria = CategoriaEdificio.Militar,
                 VidaBase = 700,
+                MaximoPorTecpan = new[] { 1, 1, 1, 2, 2 },
+            },
+            new BuildingDefinition
+            {
+                Id = BuildingId.Temazcalli,
+                Nombre = "Temazcalli",
+                Descripcion = "Baño de vapor donde el ticitl cura a las tropas heridas con plantas medicinales, "
+                              + "suturas y férulas.",
+                Tamano = 2,
+                Altura = 0.9f,
+                Color = new Color(0.62f, 0.45f, 0.32f),
+                Costo = ResourceInfo.Costo(maiz: 100, madera: 120),
+                SegundosConstruccion = 20f,
+                CamasCuracion = 5,
+                Categoria = CategoriaEdificio.Militar,
+                VidaBase = 600,
                 MaximoPorTecpan = new[] { 1, 1, 1, 2, 2 },
             },
             new BuildingDefinition

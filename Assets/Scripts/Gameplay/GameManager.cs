@@ -147,6 +147,8 @@ namespace Altepetl
 
             if (Pueblo == null) return;
             if (CapacidadEjercito > 0) Ejercito.Avanzar(Time.deltaTime, DuracionEntrenamiento);
+            int curados = Ejercito.Curar(Time.deltaTime, CamasCuracion);
+            if (curados > 0) MostrarMensaje(curados == 1 ? "Una tropa sanó en el temazcalli" : $"{curados} tropas sanaron en el temazcalli");
             Culto.Avanzar(Time.deltaTime);
             Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
             if (Time.time >= _proximoAutoguardado) Guardar();
@@ -260,6 +262,20 @@ namespace Altepetl
             }
         }
 
+        /// <summary>Heridos que se curan a la vez: 5 por nivel de cada temazcalli terminado.</summary>
+        public int CamasCuracion
+        {
+            get
+            {
+                int camas = 0;
+                foreach (var edificio in _edificios)
+                {
+                    camas += edificio.Definicion.CamasCuracion * edificio.Nivel;
+                }
+                return camas;
+            }
+        }
+
         /// <summary>Segundos para construir un edificio nuevo (con el pueblo y la ofrenda a Xiuhtecuhtli).</summary>
         public float SegundosConstruccion(BuildingDefinition definicion)
         {
@@ -329,7 +345,18 @@ namespace Altepetl
 
         // ---------- Campaña ----------
 
-        public void EmpezarBatalla(int indice)
+        /// <summary>Al armar el ejército, de entrada van todas las tropas sanas y ninguna herida.</summary>
+        public SeleccionEjercito SeleccionPorDefecto()
+        {
+            var seleccion = new SeleccionEjercito();
+            foreach (var tropa in TroopCatalog.Todos)
+            {
+                for (int r = 0; r < Rangos.Count; r++) seleccion.Sanos[Army.Indice(tropa.Id, r)] = Ejercito.Get(tropa.Id, r);
+            }
+            return seleccion;
+        }
+
+        public void EmpezarBatalla(int indice, SeleccionEjercito seleccion)
         {
             if (ModoActual == Modo.Batalla) return;
             if (indice < 0 || indice >= CampaignLevel.Todos.Length || indice > NivelesCompletados) return;
@@ -338,11 +365,16 @@ namespace Altepetl
                 MostrarMensaje("Entrena tropas en el telpochcalli antes de atacar");
                 return;
             }
+            if (seleccion == null || seleccion.Total <= 0)
+            {
+                MostrarMensaje("Elige al menos una tropa");
+                return;
+            }
 
             Seleccionar(null);
             CancelarColocacion();
             Batalla = new GameObject("Batalla").AddComponent<BattleManager>();
-            Batalla.Empezar(this, indice);
+            Batalla.Empezar(this, indice, seleccion);
             ModoActual = Modo.Batalla;
             EnfocarCamara(Batalla.Centro, CampaignLevel.TamanoMapa + 4);
             Guardar();
@@ -402,7 +434,7 @@ namespace Altepetl
             // en el campo no se pierden.
             if (Batalla != null && !Batalla.Terminada)
             {
-                Batalla.SumarTropasPendientes(datos.tropasPorRango);
+                Batalla.SumarTropasPendientes(datos);
             }
             datos.nivelesCompletados = NivelesCompletados;
             Culto.Exportar(datos);
@@ -460,6 +492,7 @@ namespace Altepetl
             }
             int tropasAntes = Ejercito.Total;
             if (CapacidadEjercito > 0) Ejercito.Avanzar(segundos, DuracionEntrenamiento);
+            int curados = Ejercito.Curar(segundos, CamasCuracion);
 
             var ganancias = new List<string>();
             for (int i = 0; i < ResourceInfo.Count; i++)
@@ -471,6 +504,7 @@ namespace Altepetl
             Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
             int tropasNuevas = Ejercito.Total - tropasAntes;
             if (tropasNuevas > 0) ganancias.Add($"+{tropasNuevas} tropas");
+            if (curados > 0) ganancias.Add($"{curados} tropas curadas");
             if (ganancias.Count > 0)
             {
                 MostrarMensaje("Mientras no estabas: " + string.Join(", ", ganancias), 5f);

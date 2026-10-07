@@ -12,6 +12,7 @@ namespace Altepetl
         public bool TecpanDestruido;
         public int Cautivos;       // mamaltin capturados (ya incluidos en Botin)
         public int Regresan;       // tropas desplegadas que sobrevivieron
+        public int Heridos;        // de las que regresan, cuántas vienen heridas
         public int[] Ascensos = new int[Rangos.Count]; // cuántas subieron a cada rango
     }
 
@@ -59,18 +60,38 @@ namespace Altepetl
         private bool[,] _ocupado;
         private GameManager _manager;
         private Army _ejercito;
-        // Tropas que se llevaron a esta batalla, por tipo y rango; lo que se entrene mientras tanto
-        // se queda en la aldea.
+        // Tropas que se eligieron para esta batalla, por tipo y rango, más las heridas que se llevaron;
+        // lo que se entrene o se cure mientras tanto se queda en la aldea.
         private readonly int[,] _reserva = new int[TroopCatalog.Count, Rangos.Count];
+        private readonly List<Herido> _reservaHeridos = new List<Herido>();
         private int _cautivos;
 
         public int Cautivos => _cautivos;
-        public int Disponibles(TroopId id, int rango) => _reserva[(int)id, rango];
+
+        public int Disponibles(TroopId id, int rango)
+        {
+            int total = _reserva[(int)id, rango];
+            foreach (var herido in _reservaHeridos)
+            {
+                if (herido.tipo == id && herido.rango == rango) total++;
+            }
+            return total;
+        }
 
         public int Disponibles(TroopId id)
         {
             int total = 0;
-            for (int r = 0; r < Rangos.Count; r++) total += _reserva[(int)id, r];
+            for (int r = 0; r < Rangos.Count; r++) total += Disponibles(id, r);
+            return total;
+        }
+
+        public int HeridosDisponibles(TroopId id)
+        {
+            int total = 0;
+            foreach (var herido in _reservaHeridos)
+            {
+                if (herido.tipo == id) total++;
+            }
             return total;
         }
 
@@ -85,7 +106,7 @@ namespace Altepetl
         }
         private bool _algunaDesplegada;
 
-        public void Empezar(GameManager manager, int indiceNivel)
+        public void Empezar(GameManager manager, int indiceNivel, SeleccionEjercito seleccion)
         {
             _manager = manager;
             _ejercito = manager.Ejercito;
@@ -93,7 +114,12 @@ namespace Altepetl
             {
                 for (int r = 0; r < Rangos.Count; r++)
                 {
-                    while (_ejercito.Quitar(definicion.Id, r)) _reserva[(int)definicion.Id, r]++;
+                    int i = Army.Indice(definicion.Id, r);
+                    for (int n = 0; n < seleccion.Sanos[i] && _ejercito.Quitar(definicion.Id, r); n++)
+                    {
+                        _reserva[(int)definicion.Id, r]++;
+                    }
+                    _reservaHeridos.AddRange(_ejercito.SacarHeridos(definicion.Id, r, seleccion.Heridos[i]));
                 }
             }
             IndiceNivel = indiceNivel;
@@ -156,11 +182,11 @@ namespace Altepetl
                 _manager.MostrarMensaje("No puedes desplegar encima de un edificio");
                 return;
             }
-            // Salen primero los de mayor rango.
+            // Salen primero los de mayor rango; dentro del mismo rango, los sanos y luego los heridos con más vida.
             int rango = -1;
             for (int r = Rangos.Count - 1; r >= 0; r--)
             {
-                if (_reserva[(int)Seleccionada, r] > 0)
+                if (Disponibles(Seleccionada, r) > 0)
                 {
                     rango = r;
                     break;
@@ -172,10 +198,26 @@ namespace Altepetl
                 return;
             }
 
-            _reserva[(int)Seleccionada, rango]--;
+            float vida = 1f;
+            if (_reserva[(int)Seleccionada, rango] > 0)
+            {
+                _reserva[(int)Seleccionada, rango]--;
+            }
+            else
+            {
+                Herido mejor = null;
+                foreach (var herido in _reservaHeridos)
+                {
+                    if (herido.tipo != Seleccionada || herido.rango != rango) continue;
+                    if (mejor == null || herido.vida > mejor.vida) mejor = herido;
+                }
+                _reservaHeridos.Remove(mejor);
+                vida = mejor.vida;
+            }
             var tropa = new GameObject().AddComponent<TroopUnit>();
             tropa.transform.SetParent(transform, false);
-            tropa.Inicializar(TroopCatalog.Get(Seleccionada), rango, _manager.Pueblo, _manager.Culto, new Vector3(punto.x, 0f, punto.z), this);
+            tropa.Inicializar(TroopCatalog.Get(Seleccionada), rango, vida, _manager.Pueblo, _manager.Culto,
+                new Vector3(punto.x, 0f, punto.z), this);
             _tropas.Add(tropa);
             _algunaDesplegada = true;
 
@@ -213,31 +255,38 @@ namespace Altepetl
             }
             resultado.Botin[(int)ResourceType.Cautivos] = _cautivos;
 
-            // Las tropas que no se desplegaron regresan tal cual; las que sobrevivieron, con su nuevo rango.
+            // Las tropas que no se desplegaron regresan tal cual; las que sobrevivieron, con su nuevo rango
+            // y con la vida que les quedó: si vienen heridas van al temazcalli.
             DevolverReserva();
             foreach (var tropa in _tropas)
             {
                 if (tropa == null || tropa.Muerta) continue;
                 int nuevo = Rangos.AlRegresar(tropa.Rango, tropa.Capturas);
                 if (nuevo > tropa.Rango) resultado.Ascensos[nuevo]++;
-                _ejercito.Agregar(tropa.Definicion.Id, nuevo, 1);
+                float vida = tropa.FraccionVida;
+                _ejercito.Regresar(tropa.Definicion.Id, nuevo, vida);
                 resultado.Regresan++;
+                if (vida < 0.999f) resultado.Heridos++;
             }
             Resultado = resultado;
             _manager.AlTerminarBatalla(this);
         }
 
-        /// <summary>Suma (en el arreglo por tipo y rango del guardado) las tropas que aún volverían.</summary>
-        public void SumarTropasPendientes(int[] porRango)
+        /// <summary>Suma al guardado las tropas que aún volverían (sanas por tipo y rango, y heridas).</summary>
+        public void SumarTropasPendientes(SaveData datos)
         {
+            var porRango = datos.tropasPorRango;
             for (int t = 0; t < TroopCatalog.Count; t++)
             {
-                for (int r = 0; r < Rangos.Count; r++) porRango[t * Rangos.Count + r] += _reserva[t, r];
+                for (int r = 0; r < Rangos.Count; r++) porRango[Army.Indice((TroopId)t, r)] += _reserva[t, r];
             }
+            foreach (var herido in _reservaHeridos) datos.heridos.Add(new Herido(herido.tipo, herido.rango, herido.vida));
             foreach (var tropa in _tropas)
             {
                 if (tropa == null || tropa.Muerta) continue;
-                porRango[(int)tropa.Definicion.Id * Rangos.Count + tropa.Rango]++;
+                float vida = tropa.FraccionVida;
+                if (vida >= 0.999f) porRango[Army.Indice(tropa.Definicion.Id, tropa.Rango)]++;
+                else datos.heridos.Add(new Herido(tropa.Definicion.Id, tropa.Rango, vida));
             }
         }
 
@@ -251,6 +300,8 @@ namespace Altepetl
                     _reserva[t, r] = 0;
                 }
             }
+            foreach (var herido in _reservaHeridos) _ejercito.Regresar(herido.tipo, herido.rango, herido.vida);
+            _reservaHeridos.Clear();
         }
 
         public EnemyBuilding ObjetivoPara(Vector3 desde, bool prefiereDefensas)

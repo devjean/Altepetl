@@ -58,6 +58,7 @@ namespace Altepetl
             // La versión 3 solo añadió campos (ejército y campaña) que empiezan vacíos.
             // La versión 4 añadió los rangos (Army.Importar pasa las tropas viejas a jóvenes guerreros)
             // y las ofrendas, que empiezan sin ofrenda activa y con el favor a la mitad.
+            // La versión 5 añadió los heridos, que empiezan vacíos.
             if (datos.version < 4)
             {
                 datos.deidadActiva = 0;

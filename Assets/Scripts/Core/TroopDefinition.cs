@@ -97,7 +97,7 @@ namespace Altepetl
         /// </summary>
         public static float ProbabilidadCaptura(Pueblo pueblo)
         {
-            return pueblo != null && pueblo.Id == PuebloId.Mexicas ? 0.36f : 0.3f;
+            return pueblo != null && pueblo.Id == PuebloId.Mexicas ? 0.26f : 0.2f;
         }
 
         private static readonly string[] NombresMexicas = { "Joven guerrero", "Guerrero experimentado", "Tlamani" };

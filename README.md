@@ -16,9 +16,9 @@ Juego móvil de estrategia y gestión de recursos con temática prehispánica. E
 Abre cualquier escena (por ejemplo `SampleScene`) y pulsa **Play**. El juego se arma solo, no hace falta añadir nada a la escena.
 
 - Elige un pueblo.
-- Toca un edificio del menú inferior y luego una casilla libre del mapa. Clic derecho o Esc cancela.
+- Pulsa **Construir** (abajo a la derecha), elige una pestaña (suministros, defensas o militar) y un edificio, y luego toca una casilla libre del mapa. Clic derecho o Esc cancela. **Información** explica qué hace cada edificio.
 - Toca un edificio para ver su información. Si está en construcción, puedes terminarlo con plumas de quetzal.
-- Los edificios se mejoran desde su panel (hasta nivel 5): producen, almacenan y aguantan más. Ningún edificio puede superar el nivel del tecpan.
+- Los edificios se mejoran desde su panel (hasta nivel 5): producen, almacenan y aguantan más. Ningún edificio puede superar el nivel del tecpan, y el nivel del tecpan también limita cuántos edificios de cada tipo puedes tener (se ve en el menú de construcción).
 - La aldea se guarda sola (cada 30 s, al construir y al salir). Al volver, las obras avanzan y los edificios producen por el tiempo que estuviste fuera.
 - Construye un **telpochcalli** para entrenar tropas (guerreros con macuahuitl, arqueros y honderos). Cada nivel da 10 de espacio y las tropas se siguen entrenando aunque cierres el juego.
 - Con el botón **Atacar** eliges una aldea de la campaña. Toca el campo para desplegar la tropa elegida; pelean solas. Ganas con al menos 50% destruido o al tirar el tecpan (la ciudad se rinde y te llevas todo el botín); el botín depende de lo destruido y la primera victoria de cada nivel da plumas de quetzal. Solo pelean las tropas que llevabas al empezar; las desplegadas no regresan y las que no despliegues vuelven a la aldea.

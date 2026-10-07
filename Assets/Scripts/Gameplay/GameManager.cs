@@ -87,9 +87,29 @@ namespace Altepetl
             Guardar();
         }
 
+        public int Cantidad(BuildingId id)
+        {
+            int cantidad = 0;
+            foreach (var edificio in _edificios)
+            {
+                if (edificio.Definicion.Id == id) cantidad++;
+            }
+            return cantidad;
+        }
+
+        public int Maximo(BuildingDefinition definicion) => definicion.Maximo(NivelTecpan);
+
+        /// <summary>¿Ya tiene todos los que permite el nivel actual del tecpan?</summary>
+        public bool EnLimite(BuildingDefinition definicion) => Cantidad(definicion.Id) >= Maximo(definicion);
+
         public void EmpezarColocacion(BuildingDefinition definicion)
         {
             Seleccionar(null);
+            if (EnLimite(definicion))
+            {
+                MostrarMensaje("Mejora el tecpan para construir más");
+                return;
+            }
             if (!Banco.PuedePagar(definicion.Costo))
             {
                 MostrarMensaje("Recursos insuficientes");

@@ -21,10 +21,14 @@ namespace Altepetl
         private float _escala = 1f;
         private GUIStyle _titulo;
         private GUIStyle _texto;
+        private GUIStyle _textoChico;
         private GUIStyle _boton;
         private GUIStyle _caja;
         private Texture2D _blanco;
         private bool _campanaAbierta;
+        private bool _menuAbierto;
+        private CategoriaEdificio _pestana = CategoriaEdificio.Suministros;
+        private BuildingDefinition _info;
 
         /// <summary>¿La posición (en píxeles de pantalla, origen abajo) está sobre algún panel?</summary>
         public bool PunteroSobreHud(Vector2 posicionPantalla)
@@ -117,41 +121,199 @@ namespace Altepetl
 
         private void DibujarMenuConstruccion(float ancho, float alto)
         {
-            var barra = new Rect(0, alto - AltoBarraInferior, ancho, AltoBarraInferior);
-            Zona(barra);
-            GUI.Box(barra, GUIContent.none, _caja);
-
             if (Manager.Colocando != null)
             {
-                GUI.Label(new Rect(20, barra.y + 15, ancho - 200, 30),
+                var barra = new Rect(0, alto - 64, ancho, 64);
+                Zona(barra);
+                GUI.Box(barra, GUIContent.none, _caja);
+                GUI.Label(new Rect(20, barra.y + 18, ancho - 200, 30),
                     $"Toca el mapa para colocar: {Manager.Colocando.NombrePara(Manager.Pueblo)}", _texto);
-                if (GUI.Button(new Rect(ancho - 170, barra.y + 30, 150, 50), "Cancelar", _boton))
+                if (GUI.Button(new Rect(ancho - 170, barra.y + 8, 150, 48), "Cancelar", _boton))
                 {
                     Manager.CancelarColocacion();
                 }
+                _menuAbierto = false;
                 return;
             }
 
-            var construibles = new List<BuildingDefinition>();
-            foreach (var def in BuildingCatalog.Todos)
+            var boton = new Rect(ancho - 160, alto - 60, 150, 50);
+            Zona(boton);
+            if (GUI.Button(boton, "Construir", _boton))
             {
-                if (def.Construible) construibles.Add(def);
+                _menuAbierto = !_menuAbierto;
+                _info = null;
+                if (_menuAbierto)
+                {
+                    _campanaAbierta = false;
+                    Manager.Seleccionar(null);
+                }
+            }
+            if (!_menuAbierto) return;
+            if (Manager.Seleccionado != null)
+            {
+                _menuAbierto = false;
+                return;
             }
 
-            float anchoBoton = (ancho - 20f) / construibles.Count - 10f;
-            float x = 15f;
-            foreach (var def in construibles)
+            var panel = new Rect((ancho - 600) / 2, AltoBarraSuperior + 10, 600, 400);
+            Zona(panel);
+            GUI.Box(panel, GUIContent.none, _caja);
+            if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
             {
-                bool puede = Manager.Banco.PuedePagar(def.Costo);
-                GUI.enabled = puede;
-                string texto = $"{def.NombrePara(Manager.Pueblo)}\n{TextoCosto(def.Costo)}";
-                if (GUI.Button(new Rect(x, barra.y + 10, anchoBoton, AltoBarraInferior - 20), texto, _boton))
-                {
-                    Manager.EmpezarColocacion(def);
-                }
-                GUI.enabled = true;
-                x += anchoBoton + 10f;
+                _menuAbierto = false;
+                return;
             }
+
+            if (_info != null)
+            {
+                DibujarInfoEdificio(panel, _info);
+                return;
+            }
+
+            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Construir", _titulo);
+
+            // Pestañas
+            var categorias = (CategoriaEdificio[])System.Enum.GetValues(typeof(CategoriaEdificio));
+            float anchoPestana = (panel.width - 20f) / categorias.Length;
+            for (int i = 0; i < categorias.Length; i++)
+            {
+                GUI.backgroundColor = categorias[i] == _pestana ? new Color(1f, 0.85f, 0.2f) : Color.white;
+                if (GUI.Button(new Rect(panel.x + 10 + i * anchoPestana, panel.y + 44, anchoPestana - 6, 36),
+                        NombreCategoria(categorias[i]), _boton))
+                {
+                    _pestana = categorias[i];
+                }
+            }
+            GUI.backgroundColor = Color.white;
+
+            // Tarjetas de la pestaña elegida
+            const int PorFila = 4;
+            float anchoTarjeta = (panel.width - 20f) / PorFila;
+            int indice = 0;
+            foreach (var def in BuildingCatalog.Todos)
+            {
+                if (def.Id == BuildingId.Tecpan || def.Categoria != _pestana) continue;
+                var tarjeta = new Rect(panel.x + 10 + (indice % PorFila) * anchoTarjeta, panel.y + 92 + (indice / PorFila) * 150,
+                    anchoTarjeta - 8, 296);
+                DibujarTarjeta(tarjeta, def);
+                indice++;
+            }
+        }
+
+        private void DibujarTarjeta(Rect tarjeta, BuildingDefinition def)
+        {
+            GUI.Box(tarjeta, GUIContent.none, _caja);
+            string resumen = def.Construible ? TextoCosto(def.Costo) : "Próximamente";
+            GUI.Label(new Rect(tarjeta.x + 8, tarjeta.y + 6, tarjeta.width - 16, 44), def.NombrePara(Manager.Pueblo), _texto);
+            GUI.Label(new Rect(tarjeta.x + 8, tarjeta.y + 52, tarjeta.width - 16, 80),
+                $"{resumen}\n{ResumenEdificio(def)}", _textoChico);
+            if (def.Construible)
+            {
+                GUI.Label(new Rect(tarjeta.x + 8, tarjeta.yMax - 162, tarjeta.width - 16, 64), TextoLimite(def), _textoChico);
+            }
+
+            GUI.enabled = PuedeConstruir(def);
+            if (GUI.Button(new Rect(tarjeta.x + 8, tarjeta.yMax - 96, tarjeta.width - 16, 44), "Construir", _boton))
+            {
+                _menuAbierto = false;
+                Manager.EmpezarColocacion(def);
+            }
+            GUI.enabled = true;
+            if (GUI.Button(new Rect(tarjeta.x + 8, tarjeta.yMax - 46, tarjeta.width - 16, 36), "Información", _boton))
+            {
+                _info = def;
+            }
+        }
+
+        private void DibujarInfoEdificio(Rect panel, BuildingDefinition def)
+        {
+            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), def.NombrePara(Manager.Pueblo), _titulo);
+            GUI.Label(new Rect(panel.x + 20, panel.y + 48, panel.width - 40, 260),
+                def.Descripcion + "\n\n" + DetallesEdificio(def), _texto);
+
+            if (GUI.Button(new Rect(panel.x + 20, panel.yMax - 60, 160, 44), "Volver", _boton))
+            {
+                _info = null;
+            }
+            GUI.enabled = PuedeConstruir(def);
+            string texto = def.Construible ? $"Construir\n{TextoCosto(def.Costo)}" : "Próximamente";
+            if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), texto, _boton))
+            {
+                _menuAbierto = false;
+                _info = null;
+                Manager.EmpezarColocacion(def);
+            }
+            GUI.enabled = true;
+        }
+
+        private bool PuedeConstruir(BuildingDefinition def)
+        {
+            return def.Construible && !Manager.EnLimite(def) && Manager.Banco.PuedePagar(def.Costo);
+        }
+
+        private string TextoLimite(BuildingDefinition def)
+        {
+            int maximo = Manager.Maximo(def);
+            int tienes = Manager.Cantidad(def.Id);
+            if (maximo == int.MaxValue) return $"Tienes: {tienes}";
+            string texto = $"Tienes: {tienes} / {maximo}";
+            if (tienes >= maximo)
+            {
+                texto += Manager.NivelTecpan < BuildingCatalog.Get(BuildingId.Tecpan).NivelMaximo
+                    ? "\nSube el tecpan para más"
+                    : "\nMáximo alcanzado";
+            }
+            return texto;
+        }
+
+        private static string NombreCategoria(CategoriaEdificio categoria)
+        {
+            switch (categoria)
+            {
+                case CategoriaEdificio.Suministros: return "Suministros";
+                case CategoriaEdificio.Defensas: return "Defensas";
+                default: return "Militar";
+            }
+        }
+
+        /// <summary>Una línea con lo más importante del edificio en nivel 1.</summary>
+        private string ResumenEdificio(BuildingDefinition def)
+        {
+            if (def.Produce) return $"+{ProduccionInicial(def):0.#} {ResourceInfo.Nombre(def.Recurso).ToLowerInvariant()}/min";
+            if (def.CapacidadExtra > 0) return $"+{def.CapacidadExtra} de almacén";
+            if (def.CapacidadTropas > 0) return $"{def.CapacidadTropas} de espacio para tropas";
+            if (def.EsDefensa) return $"{def.DanoDefensaPorSegundo:0.#} de daño por segundo";
+            return $"Vida: {VidaInicial(def)}";
+        }
+
+        private string DetallesEdificio(BuildingDefinition def)
+        {
+            var lineas = new List<string>
+            {
+                $"Tamaño: {def.Tamano}x{def.Tamano} casillas",
+                $"Construcción: {Mathf.CeilToInt(def.SegundosParaNivel(1) * Manager.Pueblo.MultiplicadorTiempoConstruccion)} s",
+                $"Vida: {VidaInicial(def)}",
+            };
+            if (def.Produce) lineas.Add($"Produce {ProduccionInicial(def):0.#} de {ResourceInfo.Nombre(def.Recurso).ToLowerInvariant()} por minuto");
+            if (def.CapacidadExtra > 0) lineas.Add($"Almacén: +{def.CapacidadExtra} de cada recurso");
+            if (def.CapacidadTropas > 0) lineas.Add($"Espacio para tropas: {def.CapacidadTropas}");
+            if (def.EsDefensa) lineas.Add($"Alcance: {def.AlcanceDefensa:0.#} casillas, daño: {def.DanoDefensaPorSegundo:0.#} por segundo");
+            if (def.NivelMaximo > 1) lineas.Add($"Se mejora hasta nivel {def.NivelMaximo}: +50% por nivel, sin pasar el nivel del tecpan");
+
+            lineas.Add(TextoLimite(def));
+            return string.Join("\n", lineas);
+        }
+
+        private float ProduccionInicial(BuildingDefinition def)
+        {
+            float mult = def.Recurso == ResourceType.Maiz ? Manager.Pueblo.MultiplicadorMaiz : 1f;
+            return def.ProduccionPorMinuto * mult;
+        }
+
+        private int VidaInicial(BuildingDefinition def)
+        {
+            float mult = def.Id == BuildingId.Muralla ? Manager.Pueblo.MultiplicadorVidaMurallas : 1f;
+            return Mathf.RoundToInt(def.VidaBase * mult);
         }
 
         private void DibujarPanelSeleccion(float ancho)
@@ -258,12 +420,16 @@ namespace Altepetl
         private void DibujarBotonAtacar(float alto)
         {
             if (Manager.Colocando != null) return;
-            var rect = new Rect(10, alto - AltoBarraInferior - 60, 150, 50);
+            var rect = new Rect(10, alto - 60, 150, 50);
             Zona(rect);
             if (GUI.Button(rect, $"Atacar\n({Manager.Ejercito.Total} tropas)", _boton))
             {
                 _campanaAbierta = !_campanaAbierta;
-                if (_campanaAbierta) Manager.Seleccionar(null);
+                if (_campanaAbierta)
+                {
+                    _menuAbierto = false;
+                    Manager.Seleccionar(null);
+                }
             }
         }
 
@@ -428,7 +594,8 @@ namespace Altepetl
         private void DibujarMensaje(float ancho, float alto)
         {
             if (string.IsNullOrEmpty(Manager.Mensaje)) return;
-            var rect = new Rect((ancho - 360) / 2, alto - AltoBarraInferior - 50, 360, 36);
+            float abajo = Manager.ModoActual == GameManager.Modo.Batalla ? AltoBarraInferior + 50 : 110;
+            var rect = new Rect((ancho - 360) / 2, alto - abajo, 360, 36);
             GUI.Box(rect, Manager.Mensaje, _boton);
         }
 
@@ -452,6 +619,9 @@ namespace Altepetl
 
             _texto = new GUIStyle(GUI.skin.label) { fontSize = 15, wordWrap = true };
             _texto.normal.textColor = new Color(0.96f, 0.92f, 0.82f);
+
+            _textoChico = new GUIStyle(_texto) { fontSize = 13 };
+            _textoChico.normal.textColor = new Color(0.85f, 0.80f, 0.70f);
 
             _titulo = new GUIStyle(_texto) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
 

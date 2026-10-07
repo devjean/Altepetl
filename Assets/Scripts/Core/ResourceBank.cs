@@ -10,6 +10,9 @@ namespace Altepetl
         private readonly float[] _cantidades = new float[ResourceInfo.Count];
         private int _capacidadExtra;
 
+        /// <summary>Bono temporal de almacén (ofrenda a Mayahuel): 0.25 = +25 %.</summary>
+        public float BonoCapacidad { get; set; }
+
         public int Get(ResourceType type)
         {
             return Mathf.FloorToInt(_cantidades[(int)type]);
@@ -20,7 +23,7 @@ namespace Altepetl
         {
             return type == ResourceType.Plumas || type == ResourceType.Cautivos
                 ? int.MaxValue
-                : CapacidadBase + _capacidadExtra;
+                : Mathf.RoundToInt((CapacidadBase + _capacidadExtra) * (1f + BonoCapacidad));
         }
 
         /// <summary>Cantidad exacta, con decimales, para guardar la partida.</summary>

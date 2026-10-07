@@ -21,11 +21,13 @@ namespace Altepetl
         private BattleManager _batalla;
         private float _vidaMaxima;
         private float _danoPorSegundo;
+        private float _velocidad;
         private EnemyBuilding _objetivo;
         private Renderer _render;
         private float _destelloHasta;
 
-        public void Inicializar(TroopDefinition definicion, int rango, Pueblo pueblo, Vector3 posicion, BattleManager batalla)
+        public void Inicializar(TroopDefinition definicion, int rango, Pueblo pueblo, Culto culto, Vector3 posicion,
+            BattleManager batalla)
         {
             Definicion = definicion;
             Rango = rango;
@@ -34,6 +36,14 @@ namespace Altepetl
             _vidaMaxima = definicion.Vida * pueblo.MultiplicadorVidaTropas * bonoRango;
             Vida = _vidaMaxima;
             _danoPorSegundo = definicion.DanoPorSegundo * pueblo.MultiplicadorAtaqueTropas * bonoRango;
+            _velocidad = definicion.Velocidad;
+            if (culto != null)
+            {
+                float ataque = 1f + culto.Bono(TipoBono.Ataque);
+                if (definicion.Alcance > 1f) ataque += culto.Bono(TipoBono.DanoDistancia);
+                _danoPorSegundo *= ataque * culto.AtaquePorFavor;
+                _velocidad *= 1f + culto.Bono(TipoBono.Velocidad);
+            }
 
             name = definicion.Nombre;
             transform.position = posicion;
@@ -81,7 +91,7 @@ namespace Altepetl
             // podía quedarse a una milésima del alcance sin moverse ni atacar.
             if (distanciaAlBorde > Definicion.Alcance + MargenAlcance)
             {
-                float paso = Mathf.Min(Definicion.Velocidad * Time.deltaTime, distanciaAlBorde - Definicion.Alcance);
+                float paso = Mathf.Min(_velocidad * Time.deltaTime, distanciaAlBorde - Definicion.Alcance);
                 transform.position += haciaObjetivo.normalized * paso;
                 return;
             }

@@ -21,6 +21,9 @@ namespace Altepetl
 
         private Pueblo _pueblo;
         private ResourceBank _banco;
+
+        /// <summary>Ofrendas activas; lo asigna GameManager al construir.</summary>
+        public Culto Culto { get; set; }
         private float _segundosRestantes;
         private float _segundosTotales;
         private float _acumulado;
@@ -56,7 +59,8 @@ namespace Altepetl
         /// <summary>Segundos que tarda en llegar a ese nivel desde el anterior.</summary>
         public float SegundosParaNivel(int nivel)
         {
-            return Definicion.SegundosParaNivel(nivel) * _pueblo.MultiplicadorTiempoConstruccion;
+            float ofrenda = Culto != null ? 1f - Culto.Bono(TipoBono.Construccion) : 1f;
+            return Definicion.SegundosParaNivel(nivel) * _pueblo.MultiplicadorTiempoConstruccion * ofrenda;
         }
 
         /// <summary>Vida actual; crece con el nivel y las murallas dependen del pueblo.</summary>
@@ -65,16 +69,23 @@ namespace Altepetl
             get
             {
                 float mult = Definicion.Id == BuildingId.Muralla ? _pueblo.MultiplicadorVidaMurallas : 1f;
+                if ((Definicion.Id == BuildingId.Muralla || Definicion.EsDefensa) && Culto != null) mult *= Culto.DefensasPorFavor;
                 return Mathf.RoundToInt(Definicion.VidaBase * BuildingDefinition.Multiplicador(Mathf.Max(1, Nivel)) * mult);
             }
         }
 
         public float ProduccionPorMinuto => ProduccionEnNivel(Nivel);
 
-        public float ProduccionEnNivel(int nivel)
+        public float ProduccionEnNivel(int nivel, bool conOfrenda = true)
         {
             if (!Definicion.Produce || nivel <= 0) return 0f;
             float mult = Definicion.Recurso == ResourceType.Maiz ? _pueblo.MultiplicadorMaiz : 1f;
+            if (conOfrenda && Culto != null)
+            {
+                float bono = Culto.Bono(TipoBono.Produccion);
+                if (Definicion.Recurso == ResourceType.Maiz) bono += Culto.Bono(TipoBono.Maiz);
+                mult *= 1f + bono;
+            }
             return Definicion.ProduccionPorMinuto * BuildingDefinition.Multiplicador(nivel) * mult;
         }
 
@@ -129,10 +140,10 @@ namespace Altepetl
         }
 
         /// <summary>Produce lo correspondiente a ese tiempo. Lo que no cabe en el almacén se pierde.</summary>
-        public void Producir(float segundos)
+        public void Producir(float segundos, bool conOfrenda = true)
         {
             if (EnConstruccion || !Definicion.Produce || segundos <= 0f) return;
-            _acumulado += ProduccionPorMinuto / 60f * segundos;
+            _acumulado += ProduccionEnNivel(Nivel, conOfrenda) / 60f * segundos;
             if (_acumulado >= 1f)
             {
                 float entero = Mathf.Floor(_acumulado);

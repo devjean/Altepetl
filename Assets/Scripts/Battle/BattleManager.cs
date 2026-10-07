@@ -175,7 +175,7 @@ namespace Altepetl
             _reserva[(int)Seleccionada, rango]--;
             var tropa = new GameObject().AddComponent<TroopUnit>();
             tropa.transform.SetParent(transform, false);
-            tropa.Inicializar(TroopCatalog.Get(Seleccionada), rango, _manager.Pueblo, new Vector3(punto.x, 0f, punto.z), this);
+            tropa.Inicializar(TroopCatalog.Get(Seleccionada), rango, _manager.Pueblo, _manager.Culto, new Vector3(punto.x, 0f, punto.z), this);
             _tropas.Add(tropa);
             _algunaDesplegada = true;
 
@@ -312,6 +312,7 @@ namespace Altepetl
         public void AlMorirTropa(TroopUnit tropa)
         {
             _tropas.Remove(tropa);
+            _manager.AlCaerTropa(tropa.Definicion);
         }
     }
 }

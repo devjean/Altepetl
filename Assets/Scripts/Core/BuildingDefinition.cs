@@ -12,6 +12,7 @@ namespace Altepetl
         Muralla,
         Telpochcalli,
         Torre,
+        Teocalli, // al final: el número se guarda en la partida
     }
 
     /// <summary>Pestañas del menú de construcción.</summary>
@@ -20,6 +21,7 @@ namespace Altepetl
         Suministros,
         Defensas,
         Militar,
+        Templo,
     }
 
     /// <summary>Datos fijos de un tipo de edificio. Más adelante pasarán a ScriptableObjects.</summary>
@@ -177,6 +179,21 @@ namespace Altepetl
                 Categoria = CategoriaEdificio.Militar,
                 VidaBase = 700,
                 MaximoPorTecpan = new[] { 1, 1, 1, 2, 2 },
+            },
+            new BuildingDefinition
+            {
+                Id = BuildingId.Teocalli,
+                Nombre = "Teocalli",
+                Descripcion = "Casa de los dioses. Aquí se ofrendan los mamaltin para obtener el favor de los dioses de tu pueblo.",
+                Tamano = 2,
+                Altura = 2.4f,
+                Color = new Color(0.85f, 0.80f, 0.70f),
+                Costo = ResourceInfo.Costo(maiz: 150, madera: 150, obsidiana: 50),
+                SegundosConstruccion = 30f,
+                NivelMaximo = 1,
+                VidaBase = 1500,
+                Categoria = CategoriaEdificio.Templo,
+                MaximoPorTecpan = new[] { 1, 1, 1, 1, 1 },
             },
             new BuildingDefinition
             {

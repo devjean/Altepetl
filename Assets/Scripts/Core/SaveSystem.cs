@@ -56,7 +56,14 @@ namespace Altepetl
                 }
             }
             // La versión 3 solo añadió campos (ejército y campaña) que empiezan vacíos.
-            // La versión 4 añadió los rangos; Army.Importar pasa las tropas viejas a jóvenes guerreros.
+            // La versión 4 añadió los rangos (Army.Importar pasa las tropas viejas a jóvenes guerreros)
+            // y las ofrendas, que empiezan sin ofrenda activa y con el favor a la mitad.
+            if (datos.version < 4)
+            {
+                datos.deidadActiva = 0;
+                datos.ofrendaRestante = 0f;
+                datos.favorHuitzilopochtli = 50f;
+            }
             datos.version = SaveData.VersionActual;
         }
 

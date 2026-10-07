@@ -39,6 +39,7 @@ namespace Altepetl
 
         private readonly List<Building> _edificios = new List<Building>();
         private Camera _camara;
+        private Light _sol;
         private GameHud _hud;
         private Transform _fantasma;
         private Renderer _fantasmaRender;
@@ -142,6 +143,7 @@ namespace Altepetl
             if (Mensaje != null && Time.time > _mensajeHasta) Mensaje = null;
             AjustarCamara();
             ActualizarMarcadores();
+            ActualizarAmbiente();
 
             if (Pueblo == null) return;
             if (CapacidadEjercito > 0) Ejercito.Avanzar(Time.deltaTime, DuracionEntrenamiento);
@@ -530,7 +532,7 @@ namespace Altepetl
             }
             _camara.orthographic = true;
             _camara.clearFlags = CameraClearFlags.SolidColor;
-            _camara.backgroundColor = new Color(0.55f, 0.75f, 0.85f);
+            _camara.backgroundColor = Deidad.CieloNormal;
             _camara.transform.rotation = Quaternion.Euler(30f, 45f, 0f);
             _camara.nearClipPlane = 0.1f;
             _camara.farClipPlane = 100f;
@@ -559,12 +561,24 @@ namespace Altepetl
             _camara.orthographicSize = tamano * 1.3f;
         }
 
-        private static void PrepararLuz()
+        private void PrepararLuz()
         {
-            if (FindAnyObjectByType<Light>() != null) return;
-            var luz = new GameObject("Sol").AddComponent<Light>();
-            luz.type = LightType.Directional;
-            luz.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            _sol = FindAnyObjectByType<Light>();
+            if (_sol != null) return;
+            _sol = new GameObject("Sol").AddComponent<Light>();
+            _sol.type = LightType.Directional;
+            _sol.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+        }
+
+        /// <summary>El cielo y la luz cambian poco a poco con el dios cuya ofrenda está activa.</summary>
+        private void ActualizarAmbiente()
+        {
+            var deidad = Culto?.Activa;
+            var cielo = deidad != null ? deidad.Cielo : Deidad.CieloNormal;
+            var luz = deidad != null ? deidad.Luz : Color.white;
+            float t = Mathf.Clamp01(Time.deltaTime * 1.5f);
+            if (_camara != null) _camara.backgroundColor = Color.Lerp(_camara.backgroundColor, cielo, t);
+            if (_sol != null) _sol.color = Color.Lerp(_sol.color, luz, t);
         }
 
         private void CrearSuelo()

@@ -91,6 +91,15 @@ namespace Altepetl
         public const int Capturador = 2;
         public const float BonoPorRango = 0.15f; // +15 % de vida y ataque por rango
 
+        /// <summary>
+        /// Probabilidad de hacer una captura al derribar un edificio. Los mexicas, que necesitan
+        /// cautivos para Huitzilopochtli, buscan capturar más que los demás.
+        /// </summary>
+        public static float ProbabilidadCaptura(Pueblo pueblo)
+        {
+            return pueblo != null && pueblo.Id == PuebloId.Mexicas ? 0.5f : 0.3f;
+        }
+
         private static readonly string[] NombresMexicas = { "Joven guerrero", "Guerrero experimentado", "Tlamani" };
         // De acolhuas y tlaxcaltecas no hay una lista de rangos tan detallada; se usan nombres generales.
         private static readonly string[] NombresGenerales = { "Joven guerrero", "Guerrero experimentado", "Veterano" };

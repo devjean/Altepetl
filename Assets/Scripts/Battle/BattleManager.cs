@@ -297,11 +297,14 @@ namespace Altepetl
             return mejor;
         }
 
-        /// <summary>Quien derriba un edificio hace una captura y trae un malli (cautivo).</summary>
+        /// <summary>Quien derriba un edificio puede hacer una captura y traer un malli (cautivo).</summary>
         public void AlDestruirEdificio(EnemyBuilding edificio, TroopUnit atacante)
         {
-            if (atacante != null && !atacante.Muerta) atacante.Capturas++;
-            _cautivos++;
+            if (atacante != null && !atacante.Muerta && Random.value < Rangos.ProbabilidadCaptura(_manager.Pueblo))
+            {
+                atacante.Capturas++;
+                _cautivos++;
+            }
 
             if (edificio.Definicion.Id != BuildingId.Tecpan) return;
             // Al caer el tecpan la ciudad se rinde: victoria con todo el botín.

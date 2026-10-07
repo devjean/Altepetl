@@ -28,6 +28,7 @@ namespace Altepetl
         private bool _campanaAbierta;
         private bool _menuAbierto;
         private bool _ofrendasAbierto;
+        private Deidad _deidadInfo;
         private CategoriaEdificio _pestana = CategoriaEdificio.Suministros;
         private BuildingDefinition _info;
 
@@ -408,6 +409,7 @@ namespace Altepetl
                         {
                             Manager.Seleccionar(null);
                             _ofrendasAbierto = true;
+                            _deidadInfo = null;
                         }
                         break;
                     }
@@ -450,6 +452,13 @@ namespace Altepetl
             if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
             {
                 _ofrendasAbierto = false;
+                _deidadInfo = null;
+                return;
+            }
+
+            if (_deidadInfo != null)
+            {
+                DibujarLoreDeidad(panel, _deidadInfo);
                 return;
             }
 
@@ -482,14 +491,38 @@ namespace Altepetl
             for (int i = 0; i < deidades.Count; i++)
             {
                 var deidad = deidades[i];
-                var rect = new Rect(panel.x + 10 + (i % 2) * (anchoBoton + 10), panel.y + 116 + (i / 2) * 74, anchoBoton, 66);
+                var rect = new Rect(panel.x + 10 + (i % 2) * (anchoBoton + 10), panel.y + 116 + (i / 2) * 74, anchoBoton - 44, 66);
                 GUI.enabled = culto.PuedeOfrendar(deidad, Manager.Banco);
                 if (GUI.Button(rect, $"{deidad.Nombre}: {deidad.Dominio.ToLowerInvariant()}\n{TextoBono(deidad)}", _boton))
                 {
                     Manager.TryOfrendar(deidad);
                 }
                 GUI.enabled = true;
+                if (GUI.Button(new Rect(rect.xMax + 4, rect.y, 40, rect.height), "?", _boton))
+                {
+                    _deidadInfo = deidad;
+                }
             }
+        }
+
+        private void DibujarLoreDeidad(Rect panel, Deidad deidad)
+        {
+            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), deidad.Nombre, _titulo);
+            string texto = $"{deidad.Dominio}\n\n{deidad.Lore}\n\nOfrenda: {Culto.CostoOfrenda} mamaltin. {TextoBono(deidad)}"
+                           + (deidad.Id == DeidadId.Huitzilopochtli ? "." : " durante 2 horas.");
+            GUI.Label(new Rect(panel.x + 25, panel.y + 48, panel.width - 50, 280), texto, _texto);
+
+            if (GUI.Button(new Rect(panel.x + 20, panel.yMax - 60, 160, 44), "Volver", _boton))
+            {
+                _deidadInfo = null;
+            }
+            GUI.enabled = Manager.Culto.PuedeOfrendar(deidad, Manager.Banco);
+            if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), $"Ofrendar {Culto.CostoOfrenda} mamaltin", _boton))
+            {
+                Manager.TryOfrendar(deidad);
+                _deidadInfo = null;
+            }
+            GUI.enabled = true;
         }
 
         private string TextoBono(Deidad deidad)
@@ -735,7 +768,8 @@ namespace Altepetl
         private void DibujarMensaje(float ancho, float alto)
         {
             if (string.IsNullOrEmpty(Manager.Mensaje)) return;
-            float abajo = Manager.ModoActual == GameManager.Modo.Batalla ? AltoBarraInferior + 50 : 110;
+            // En la aldea va entre los botones Atacar y Construir, para no tapar los paneles.
+            float abajo = Manager.ModoActual == GameManager.Modo.Batalla ? AltoBarraInferior + 50 : 53;
             var rect = new Rect((ancho - 360) / 2, alto - abajo, 360, 36);
             GUI.Box(rect, Manager.Mensaje, _boton);
         }

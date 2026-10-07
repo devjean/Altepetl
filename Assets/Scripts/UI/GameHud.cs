@@ -22,6 +22,7 @@ namespace Altepetl
         private GUIStyle _titulo;
         private GUIStyle _texto;
         private GUIStyle _textoChico;
+        private GUIStyle _textoUnaLinea;
         private GUIStyle _inicial;
         private GUIStyle _boton;
         private GUIStyle _caja;
@@ -725,9 +726,9 @@ namespace Altepetl
                 _textoChico);
 
             float y = panel.y + 84;
-            GUI.Label(new Rect(panel.x + 20, y, 220, 24), "Tropa", _textoChico);
-            GUI.Label(new Rect(panel.x + 250, y, 150, 24), "Sanas", _textoChico);
-            GUI.Label(new Rect(panel.x + 420, y, 190, 24), "Heridas", _textoChico);
+            GUI.Label(new Rect(panel.x + 20, y, 250, 24), "Tropa", _textoChico);
+            GUI.Label(new Rect(panel.x + 280, y, 140, 24), "Sanas", _textoChico);
+            GUI.Label(new Rect(panel.x + 435, y, 170, 24), "Heridas", _textoChico);
             y += 26;
 
             bool hayFilas = false;
@@ -743,13 +744,13 @@ namespace Altepetl
                     _seleccion.Sanos[i] = Mathf.Clamp(_seleccion.Sanos[i], 0, sanos);
                     _seleccion.Heridos[i] = Mathf.Clamp(_seleccion.Heridos[i], 0, heridos);
 
-                    GUI.Label(new Rect(panel.x + 20, y + 6, 220, 26),
-                        $"{tropa.Nombre} · {Rangos.Nombre(Manager.Pueblo, r).ToLowerInvariant()}", _texto);
-                    _seleccion.Sanos[i] = Contador(new Rect(panel.x + 250, y, 150, 34), _seleccion.Sanos[i], sanos, "");
+                    GUI.Label(new Rect(panel.x + 20, y + 8, 255, 26),
+                        $"{tropa.Nombre} · {Rangos.Nombre(Manager.Pueblo, r).ToLowerInvariant()}", _textoUnaLinea);
+                    _seleccion.Sanos[i] = Contador(new Rect(panel.x + 280, y, 140, 34), _seleccion.Sanos[i], sanos, "");
                     string vida = _seleccion.Heridos[i] > 0
                         ? $" {Mathf.RoundToInt(ejercito.VidaPromedioHeridos(tropa.Id, r, _seleccion.Heridos[i]) * 100)}%"
                         : "";
-                    _seleccion.Heridos[i] = Contador(new Rect(panel.x + 420, y, 190, 34), _seleccion.Heridos[i], heridos, vida);
+                    _seleccion.Heridos[i] = Contador(new Rect(panel.x + 435, y, 170, 34), _seleccion.Heridos[i], heridos, vida);
                     y += 38;
                 }
             }
@@ -777,7 +778,7 @@ namespace Altepetl
             }
             int total = _seleccion.Total;
             GUI.enabled = total > 0;
-            if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), $"¡A la batalla! ({total} tropas)", _boton))
+            if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), total == 1 ? "¡A la batalla! (1 tropa)" : $"¡A la batalla! ({total} tropas)", _boton))
             {
                 int indice = _nivelArmando;
                 _nivelArmando = -1;
@@ -956,6 +957,8 @@ namespace Altepetl
 
             _textoChico = new GUIStyle(_texto) { fontSize = 13 };
             _textoChico.normal.textColor = new Color(0.85f, 0.80f, 0.70f);
+
+            _textoUnaLinea = new GUIStyle(_texto) { fontSize = 14, wordWrap = false, clipping = TextClipping.Clip };
 
             _inicial = new GUIStyle(_texto) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
             _inicial.normal.textColor = new Color(0.12f, 0.09f, 0.07f);

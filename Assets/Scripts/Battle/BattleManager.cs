@@ -14,6 +14,7 @@ namespace Altepetl
         public int Regresan;       // tropas desplegadas que sobrevivieron
         public int Heridos;        // de las que regresan, cuántas vienen heridas
         public int[] Ascensos = new int[Rangos.Count]; // cuántas subieron a cada rango
+        public bool AvanzaHistoria; // se perdió, pero el capítulo cuenta (así pasó en la historia)
     }
 
     /// <summary>
@@ -123,7 +124,7 @@ namespace Altepetl
                 }
             }
             IndiceNivel = indiceNivel;
-            Nivel = CampaignLevel.Todos[indiceNivel];
+            Nivel = manager.Campana[indiceNivel];
             TiempoRestante = SegundosLimite;
             Seleccionada = PrimeraTropaDisponible();
 
@@ -251,7 +252,7 @@ namespace Altepetl
             };
             for (int i = 0; i < ResourceInfo.Count; i++)
             {
-                resultado.Botin[i] = Mathf.FloorToInt(Nivel.Botin[i] * porcentaje);
+                resultado.Botin[i] = Mathf.FloorToInt(Nivel.Botin[i] * porcentaje * Nivel.ParteBotin);
             }
             resultado.Botin[(int)ResourceType.Cautivos] = _cautivos;
 

@@ -25,6 +25,17 @@ namespace Altepetl
         /// <summary>Ofrendas en el teocalli y favor de Huitzilopochtli.</summary>
         public Culto Culto { get; private set; }
         public int NivelesCompletados { get; private set; }
+        /// <summary>Los capítulos de la campaña del pueblo elegido.</summary>
+        public CampaignLevel[] Campana => Altepetl.Campana.Para(Pueblo);
+        /// <summary>Epílogo por leer al volver a la aldea (título y texto), o null.</summary>
+        public string TituloHistoriaPendiente { get; private set; }
+        public string HistoriaPendiente { get; private set; }
+
+        public void LeerHistoriaPendiente()
+        {
+            TituloHistoriaPendiente = null;
+            HistoriaPendiente = null;
+        }
 
         public enum Modo
         {
@@ -384,7 +395,7 @@ namespace Altepetl
         public void EmpezarBatalla(int indice, SeleccionEjercito seleccion)
         {
             if (ModoActual == Modo.Batalla) return;
-            if (indice < 0 || indice >= CampaignLevel.Todos.Length || indice > NivelesCompletados) return;
+            if (indice < 0 || indice >= Campana.Length || indice > NivelesCompletados) return;
             if (Ejercito.Total <= 0)
             {
                 MostrarMensaje("Entrena tropas en el telpochcalli antes de atacar");
@@ -413,11 +424,23 @@ namespace Altepetl
             {
                 if (resultado.Botin[i] > 0) Banco.Add((ResourceType)i, resultado.Botin[i]);
             }
-            if (resultado.Victoria && batalla.IndiceNivel == NivelesCompletados)
+            var nivel = batalla.Nivel;
+            bool primeraVez = batalla.IndiceNivel == NivelesCompletados;
+            // Algunos capítulos siguen aunque se pierdan, como pasó en la historia (Chapultepec).
+            if (primeraVez && (resultado.Victoria || nivel.AvanzaAunqueSePierda))
             {
                 NivelesCompletados++;
-                resultado.Plumas = batalla.Nivel.PlumasPrimeraVez;
-                Banco.Add(ResourceType.Plumas, resultado.Plumas);
+                resultado.AvanzaHistoria = !resultado.Victoria;
+                if (resultado.Victoria)
+                {
+                    resultado.Plumas = nivel.PlumasPrimeraVez;
+                    Banco.Add(ResourceType.Plumas, resultado.Plumas);
+                }
+                if (!string.IsNullOrEmpty(nivel.Epilogo))
+                {
+                    TituloHistoriaPendiente = nivel.Nombre;
+                    HistoriaPendiente = nivel.Epilogo;
+                }
             }
             Guardar();
         }
@@ -488,7 +511,7 @@ namespace Altepetl
                 Banco.Establecer((ResourceType)i, datos.recursos[i]);
             }
             Ejercito.Importar(datos);
-            NivelesCompletados = Mathf.Clamp(datos.nivelesCompletados, 0, CampaignLevel.Todos.Length);
+            NivelesCompletados = Mathf.Clamp(datos.nivelesCompletados, 0, Campana.Length);
 
             AplicarTiempoAusente(SaveSystem.SegundosDesde(datos));
         }

@@ -7,7 +7,7 @@ namespace Altepetl
     [Serializable]
     public sealed class SaveData
     {
-        public const int VersionActual = 4; // 2: nivel de los edificios. 3: ejército y campaña. 4: rangos y ofrendas
+        public const int VersionActual = 5; // 2: nivel de los edificios. 3: ejército y campaña. 4: rangos y ofrendas. 5: heridos
 
         public int version = VersionActual;
         public PuebloId pueblo;
@@ -17,6 +17,7 @@ namespace Altepetl
 
         public int[] tropas = new int[TroopCatalog.Count];          // total por tipo (versión 3)
         public int[] tropasPorRango = new int[0];                    // por tipo y rango (versión 4)
+        public List<Herido> heridos = new List<Herido>();            // se curan en el temazcalli (versión 5)
         public List<int> colaEntrenamiento = new List<int>();
         public float entrenamientoRestante;
         public int nivelesCompletados; // niveles de campaña ganados, en orden

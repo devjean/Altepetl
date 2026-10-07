@@ -22,6 +22,7 @@ namespace Altepetl
         private GUIStyle _titulo;
         private GUIStyle _texto;
         private GUIStyle _textoChico;
+        private GUIStyle _textoUnaLinea;
         private GUIStyle _inicial;
         private GUIStyle _boton;
         private GUIStyle _caja;
@@ -29,6 +30,8 @@ namespace Altepetl
         private bool _campanaAbierta;
         private bool _menuAbierto;
         private bool _ofrendasAbierto;
+        private int _nivelArmando = -1;         // nivel de campaña para el que se arma el ejército
+        private SeleccionEjercito _seleccion;
         private Deidad _deidadInfo;
         private CategoriaEdificio _pestana = CategoriaEdificio.Suministros;
         private BuildingDefinition _info;
@@ -75,6 +78,7 @@ namespace Altepetl
             DibujarBotonAtacar(alto);
             DibujarPanelSeleccion(ancho);
             DibujarCampana(ancho);
+            DibujarArmarEjercito(ancho);
             DibujarOfrendas(ancho);
             DibujarMensaje(ancho, alto);
         }
@@ -306,6 +310,8 @@ namespace Altepetl
             if (def.Produce) return $"+{ProduccionInicial(def):0.#} {ResourceInfo.Nombre(def.Recurso).ToLowerInvariant()}/min";
             if (def.CapacidadExtra > 0) return $"+{def.CapacidadExtra} de almacén";
             if (def.CapacidadTropas > 0) return $"{def.CapacidadTropas} de espacio para tropas";
+            if (def.Entrena) return "Entrena tropas";
+            if (def.CamasCuracion > 0) return $"Cura {def.CamasCuracion} heridos a la vez";
             if (def.EsDefensa) return $"{def.DanoDefensaPorSegundo:0.#} de daño por segundo";
             if (def.Id == BuildingId.Teocalli) return "Ofrendas a los dioses";
             return $"Vida: {VidaInicial(def)}";
@@ -321,7 +327,16 @@ namespace Altepetl
             };
             if (def.Produce) lineas.Add($"Produce {ProduccionInicial(def):0.#} de {ResourceInfo.Nombre(def.Recurso).ToLowerInvariant()} por minuto");
             if (def.CapacidadExtra > 0) lineas.Add($"Almacén: +{def.CapacidadExtra} de cada recurso");
-            if (def.CapacidadTropas > 0) lineas.Add($"Espacio para tropas: {def.CapacidadTropas}");
+            if (def.CapacidadTropas > 0) lineas.Add($"Espacio para tropas: {def.CapacidadTropas} por nivel");
+            if (def.Entrena)
+            {
+                lineas.Add($"Entrena guerreros, arqueros y honderos. Cada nivel entrena {Mathf.RoundToInt(GameManager.EntrenamientoExtraPorNivel * 100)}% más rápido; el espacio lo da el calpulli");
+            }
+            if (def.CamasCuracion > 0)
+            {
+                lineas.Add($"Cura a {def.CamasCuracion} heridos a la vez por nivel. Sanar a uno muy herido tarda "
+                           + $"{Army.FactorCuracion:0.#} veces lo que entrenarlo, y {Mathf.RoundToInt(Army.CuracionExtraPorRango * 100)}% más por cada rango");
+            }
             if (def.EsDefensa) lineas.Add($"Alcance: {def.AlcanceDefensa:0.#} casillas, daño: {def.DanoDefensaPorSegundo:0.#} por segundo");
             if (def.NivelMaximo > 1) lineas.Add($"Se mejora hasta nivel {def.NivelMaximo}: +50% por nivel, sin pasar el nivel del tecpan");
 
@@ -347,8 +362,9 @@ namespace Altepetl
             if (edificio == null) return;
 
             var def = edificio.Definicion;
-            bool entrena = def.CapacidadTropas > 0 && edificio.Nivel > 0;
-            var panel = new Rect(ancho - 290, AltoBarraSuperior + 10, 280, entrena ? 370 : 250);
+            bool entrena = def.Entrena && edificio.Nivel > 0;
+            float altoPanel = entrena ? 370 : def.CamasCuracion > 0 ? 310 : 250;
+            var panel = new Rect(ancho - 290, AltoBarraSuperior + 10, 280, altoPanel);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
 
@@ -381,12 +397,26 @@ namespace Altepetl
                     ? $"\nOfrenda activa: {culto.Activa.Nombre}, quedan {TextoTiempo(culto.SegundosRestantes)}"
                     : "\nSin ofrenda activa";
             }
+            if (def.CamasCuracion > 0 && edificio.Nivel > 0)
+            {
+                int camas = Manager.CamasCuracion;
+                int heridos = Manager.Ejercito.Heridos.Count;
+                info += heridos == 0
+                    ? "\nNo hay heridos"
+                    : $"\nCurando {Mathf.Min(camas, heridos)} de {heridos} heridos; el siguiente sana en "
+                      + TextoTiempo(Manager.Ejercito.SegundosParaSiguienteCurado(camas));
+            }
             if (def.CapacidadTropas > 0 && edificio.Nivel > 0)
             {
+                info += $"\nEjército: {Manager.Ejercito.Espacio} / {Manager.CapacidadEjercito}";
+            }
+            if (def.Entrena && edificio.Nivel > 0)
+            {
+                if (Manager.Ejercito.Heridos.Count > 0) info += $"\nHeridos en el temazcalli: {Manager.Ejercito.Heridos.Count}";
                 string veteranos = TextoRangos(Manager.Ejercito);
                 if (veteranos.Length > 0) info += "\nCon rango: " + veteranos;
             }
-            GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, 120), info, _texto);
+            GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, entrena ? 120 : panel.height - 100), info, _texto);
             if (entrena) DibujarEntrenamiento(panel);
 
             var botonRect = new Rect(panel.x + 10, panel.yMax - 54, panel.width - 20, 44);
@@ -441,7 +471,8 @@ namespace Altepetl
         private void DibujarOfrendas(float ancho)
         {
             if (!_ofrendasAbierto) return;
-            if (Manager.Seleccionado != null || Manager.Colocando != null || _menuAbierto || _campanaAbierta)
+            if (Manager.Seleccionado != null || Manager.Colocando != null || _menuAbierto || _campanaAbierta
+                || _nivelArmando >= 0)
             {
                 _ofrendasAbierto = false;
                 return;
@@ -577,7 +608,9 @@ namespace Altepetl
         private void DibujarEntrenamiento(Rect panel)
         {
             var ejercito = Manager.Ejercito;
-            string estado = $"Ejército: {ejercito.Espacio} / {Manager.CapacidadEjercito}";
+            string estado = Manager.CapacidadEjercito > 0
+                ? $"Ejército: {ejercito.Espacio} / {Manager.CapacidadEjercito}"
+                : "Sin espacio: construye un calpulli";
             if (ejercito.Entrenando)
             {
                 var actual = TroopCatalog.Get(ejercito.Actual);
@@ -610,7 +643,8 @@ namespace Altepetl
             Zona(rect);
             if (GUI.Button(rect, $"Atacar\n({Manager.Ejercito.Total} tropas)", _boton))
             {
-                _campanaAbierta = !_campanaAbierta;
+                _campanaAbierta = !_campanaAbierta && _nivelArmando < 0;
+                _nivelArmando = -1;
                 if (_campanaAbierta)
                 {
                     _menuAbierto = false;
@@ -643,11 +677,12 @@ namespace Altepetl
             var partes = new List<string>();
             foreach (var tropa in TroopCatalog.Todos)
             {
-                partes.Add($"{ejercito.Get(tropa.Id)} {tropa.Nombre.ToLowerInvariant()}");
+                partes.Add($"{ejercito.Get(tropa.Id) + ejercito.HeridosDe(tropa.Id)} {tropa.Nombre.ToLowerInvariant()}");
             }
             string veteranosCampana = TextoRangos(ejercito);
+            string heridosCampana = ejercito.Heridos.Count > 0 ? $" ({ejercito.Heridos.Count} heridos)" : "";
             GUI.Label(new Rect(panel.x + 10, panel.y + 40, panel.width - 20, 48),
-                "Tu ejército: " + string.Join(", ", partes)
+                "Tu ejército: " + string.Join(", ", partes) + heridosCampana
                 + (veteranosCampana.Length > 0 ? "\nCon rango: " + veteranosCampana : ""), _texto);
 
             float y = panel.y + 96;
@@ -667,11 +702,113 @@ namespace Altepetl
                 if (GUI.Button(new Rect(fila.xMax - 120, fila.y + 20, 110, 48), disponible ? "Atacar" : "Bloqueado", _boton))
                 {
                     _campanaAbierta = false;
-                    Manager.EmpezarBatalla(i);
+                    _nivelArmando = i;
+                    _seleccion = Manager.SeleccionPorDefecto();
                 }
                 GUI.enabled = true;
                 y += 96;
             }
+        }
+
+        // ---------- Armar el ejército ----------
+
+        private void DibujarArmarEjercito(float ancho)
+        {
+            if (_nivelArmando < 0 || _seleccion == null) return;
+            if (Manager.Seleccionado != null || Manager.Colocando != null || _menuAbierto || _campanaAbierta)
+            {
+                _nivelArmando = -1;
+                return;
+            }
+
+            var ejercito = Manager.Ejercito;
+            var nivel = CampaignLevel.Todos[_nivelArmando];
+            var panel = new Rect((ancho - 620) / 2, AltoBarraSuperior + 10, 620, 470);
+            Zona(panel);
+            GUI.Box(panel, GUIContent.none, _caja);
+            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Arma tu ejército", _titulo);
+            if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
+            {
+                _nivelArmando = -1;
+                return;
+            }
+            GUI.Label(new Rect(panel.x + 20, panel.y + 40, panel.width - 40, 40),
+                $"Contra: {nivel.Nombre}. Los heridos pelean con la vida que les queda y dejan de curarse mientras estén fuera.",
+                _textoChico);
+
+            float y = panel.y + 84;
+            GUI.Label(new Rect(panel.x + 20, y, 250, 24), "Tropa", _textoChico);
+            GUI.Label(new Rect(panel.x + 280, y, 140, 24), "Sanas", _textoChico);
+            GUI.Label(new Rect(panel.x + 435, y, 170, 24), "Heridas", _textoChico);
+            y += 26;
+
+            bool hayFilas = false;
+            foreach (var tropa in TroopCatalog.Todos)
+            {
+                for (int r = Rangos.Count - 1; r >= 0; r--)
+                {
+                    int sanos = ejercito.Get(tropa.Id, r);
+                    int heridos = ejercito.HeridosDe(tropa.Id, r);
+                    if (sanos + heridos == 0) continue;
+                    hayFilas = true;
+                    int i = Army.Indice(tropa.Id, r);
+                    _seleccion.Sanos[i] = Mathf.Clamp(_seleccion.Sanos[i], 0, sanos);
+                    _seleccion.Heridos[i] = Mathf.Clamp(_seleccion.Heridos[i], 0, heridos);
+
+                    GUI.Label(new Rect(panel.x + 20, y + 8, 255, 26),
+                        $"{tropa.Nombre} · {Rangos.Nombre(Manager.Pueblo, r).ToLowerInvariant()}", _textoUnaLinea);
+                    _seleccion.Sanos[i] = Contador(new Rect(panel.x + 280, y, 140, 34), _seleccion.Sanos[i], sanos, "");
+                    string vida = _seleccion.Heridos[i] > 0
+                        ? $" {Mathf.RoundToInt(ejercito.VidaPromedioHeridos(tropa.Id, r, _seleccion.Heridos[i]) * 100)}%"
+                        : "";
+                    _seleccion.Heridos[i] = Contador(new Rect(panel.x + 435, y, 170, 34), _seleccion.Heridos[i], heridos, vida);
+                    y += 38;
+                }
+            }
+            if (!hayFilas)
+            {
+                GUI.Label(new Rect(panel.x + 20, y, panel.width - 40, 30), "No tienes tropas.", _texto);
+            }
+
+            if (GUI.Button(new Rect(panel.x + 20, panel.yMax - 60, 140, 44), "Volver", _boton))
+            {
+                _nivelArmando = -1;
+                _campanaAbierta = true;
+            }
+            if (GUI.Button(new Rect(panel.x + 170, panel.yMax - 60, 140, 44), "Llevar todas", _boton))
+            {
+                foreach (var tropa in TroopCatalog.Todos)
+                {
+                    for (int r = 0; r < Rangos.Count; r++)
+                    {
+                        int i = Army.Indice(tropa.Id, r);
+                        _seleccion.Sanos[i] = ejercito.Get(tropa.Id, r);
+                        _seleccion.Heridos[i] = ejercito.HeridosDe(tropa.Id, r);
+                    }
+                }
+            }
+            int total = _seleccion.Total;
+            GUI.enabled = total > 0;
+            if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), total == 1 ? "¡A la batalla! (1 tropa)" : $"¡A la batalla! ({total} tropas)", _boton))
+            {
+                int indice = _nivelArmando;
+                _nivelArmando = -1;
+                Manager.EmpezarBatalla(indice, _seleccion);
+            }
+            GUI.enabled = true;
+        }
+
+        /// <summary>[-] n / máximo [+]; devuelve el nuevo valor.</summary>
+        private int Contador(Rect rect, int valor, int maximo, string extra)
+        {
+            GUI.enabled = valor > 0;
+            if (GUI.Button(new Rect(rect.x, rect.y, 34, rect.height), "-", _boton)) valor--;
+            GUI.enabled = true;
+            GUI.Label(new Rect(rect.x + 38, rect.y + 6, rect.width - 80, rect.height), $"{valor} / {maximo}{extra}", _texto);
+            GUI.enabled = valor < maximo;
+            if (GUI.Button(new Rect(rect.xMax - 38, rect.y, 34, rect.height), "+", _boton)) valor++;
+            GUI.enabled = true;
+            return valor;
         }
 
         // ---------- Batalla ----------
@@ -709,7 +846,11 @@ namespace Altepetl
                 GUI.enabled = cantidad > 0;
                 GUI.backgroundColor = elegida ? new Color(1f, 0.85f, 0.2f) : Color.white;
                 int conRango = cantidad - batalla.Disponibles(tropa.Id, Rangos.Joven);
-                string texto = $"{tropa.Nombre}\nx{cantidad}" + (conRango > 0 ? $"\n({conRango} con rango)" : "");
+                int heridos = batalla.HeridosDisponibles(tropa.Id);
+                var notas = new List<string>();
+                if (conRango > 0) notas.Add($"{conRango} con rango");
+                if (heridos > 0) notas.Add($"{heridos} heridos");
+                string texto = $"{tropa.Nombre}\nx{cantidad}" + (notas.Count > 0 ? $"\n({string.Join(", ", notas)})" : "");
                 if (GUI.Button(new Rect(x, abajo.y + 10, 150, AltoBarraInferior - 20), texto, _boton))
                 {
                     batalla.Seleccionada = tropa.Id;
@@ -774,6 +915,12 @@ namespace Altepetl
                            + $"\nBotín: {(botin.Length > 0 ? botin : "nada")}";
             if (resultado.Plumas > 0) texto += $"\nPlumas de quetzal: +{resultado.Plumas}";
             if (resultado.Regresan > 0) texto += $"\nRegresan a la aldea: {resultado.Regresan} tropas";
+            if (resultado.Heridos > 0)
+            {
+                texto += Manager.CamasCuracion > 0
+                    ? $"\nHeridas: {resultado.Heridos}, se curarán en el temazcalli"
+                    : $"\nHeridas: {resultado.Heridos}. Construye un temazcalli para curarlas";
+            }
             var ascensos = new List<string>();
             for (int r = Rangos.Count - 1; r > 0; r--)
             {
@@ -821,6 +968,8 @@ namespace Altepetl
 
             _textoChico = new GUIStyle(_texto) { fontSize = 13 };
             _textoChico.normal.textColor = new Color(0.85f, 0.80f, 0.70f);
+
+            _textoUnaLinea = new GUIStyle(_texto) { fontSize = 14, wordWrap = false, clipping = TextClipping.Clip };
 
             _inicial = new GUIStyle(_texto) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
             _inicial.normal.textColor = new Color(0.12f, 0.09f, 0.07f);

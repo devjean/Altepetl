@@ -13,6 +13,7 @@ namespace Altepetl
         public TroopDefinition Definicion { get; private set; }
         public float Vida { get; private set; }
         public float VidaMaxima => _vidaMaxima;
+        public float FraccionVida => _vidaMaxima > 0f ? Vida / _vidaMaxima : 0f;
         public bool Muerta => Vida <= 0f;
         public int Rango { get; private set; }
         /// <summary>Edificios que derribó en esta batalla.</summary>
@@ -26,15 +27,16 @@ namespace Altepetl
         private Renderer _render;
         private float _destelloHasta;
 
-        public void Inicializar(TroopDefinition definicion, int rango, Pueblo pueblo, Culto culto, Vector3 posicion,
-            BattleManager batalla)
+        /// <summary>vidaInicial: fracción de la vida máxima con la que entra (las heridas entran incompletas).</summary>
+        public void Inicializar(TroopDefinition definicion, int rango, float vidaInicial, Pueblo pueblo, Culto culto,
+            Vector3 posicion, BattleManager batalla)
         {
             Definicion = definicion;
             Rango = rango;
             _batalla = batalla;
             float bonoRango = Rangos.Multiplicador(rango);
             _vidaMaxima = definicion.Vida * pueblo.MultiplicadorVidaTropas * bonoRango;
-            Vida = _vidaMaxima;
+            Vida = _vidaMaxima * Mathf.Clamp(vidaInicial, 0.01f, 1f);
             _danoPorSegundo = definicion.DanoPorSegundo * pueblo.MultiplicadorAtaqueTropas * bonoRango;
             _velocidad = definicion.Velocidad;
             if (culto != null)

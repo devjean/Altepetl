@@ -156,7 +156,7 @@ namespace Altepetl
             new CampaignLevel
             {
                 Nombre = "Chapultepec",
-                Descripcion = "Un cerro muy defendido. En la historia, aquí se perdió.",
+                Descripcion = "Un cerro muy defendido. Aquí se perdió.",
                 Historia =
                     "Ya en el Valle de México, los mexicas se establecieron en Chapultepec. Eran recién llegados, "
                     + "sin tierra propia, y los pueblos del lago no los querían ahí.\n\n"

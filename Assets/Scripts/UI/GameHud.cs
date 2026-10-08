@@ -967,6 +967,12 @@ namespace Altepetl
                 var arriba = tropa.transform.position + Vector3.up * 0.9f;
                 BarraDeVida(camara, arriba, tropa.Vida / tropa.VidaMaxima, 22f, new Color(0.3f, 0.85f, 0.3f));
             }
+            foreach (var defensor in batalla.Defensores)
+            {
+                if (defensor == null || defensor.Muerto || defensor.Vida >= defensor.VidaMaxima) continue;
+                var arriba = defensor.transform.position + Vector3.up * 0.9f;
+                BarraDeVida(camara, arriba, defensor.Vida / defensor.VidaMaxima, 22f, new Color(0.85f, 0.2f, 0.15f));
+            }
         }
 
         private void BarraDeVida(Camera camara, Vector3 mundo, float fraccion, float anchoBarra, Color color)
@@ -998,6 +1004,7 @@ namespace Altepetl
                            + (resultado.TecpanDestruido ? " · ¡Cayó el tecpan!" : "")
                            + $"\nBotín: {(botin.Length > 0 ? botin : "nada")}";
             if (resultado.Plumas > 0) texto += $"\nPlumas de quetzal: +{resultado.Plumas}";
+            if (resultado.DefensoresDerrotados > 0) texto += $"\nDefensores vencidos: {resultado.DefensoresDerrotados}";
             if (resultado.Regresan > 0) texto += $"\nRegresan a la aldea: {resultado.Regresan} tropas";
             if (resultado.Heridos > 0)
             {

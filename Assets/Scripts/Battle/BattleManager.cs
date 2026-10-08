@@ -15,6 +15,7 @@ namespace Altepetl
         public int Regresan;       // tropas desplegadas que sobrevivieron
         public int Heridos;        // de las que regresan, cuántas vienen heridas
         public int[] Ascensos = new int[Rangos.Count]; // cuántas subieron a cada rango
+        public int DefensoresDerrotados;
         public bool AvanzaHistoria; // se perdió, pero el capítulo cuenta (así pasó en la historia)
     }
 
@@ -42,6 +43,7 @@ namespace Altepetl
         public bool TecpanDestruido { get; private set; }
         public IReadOnlyList<EnemyBuilding> Edificios => _edificios;
         public IReadOnlyList<TroopUnit> Tropas => _tropas;
+        public IReadOnlyList<Defensor> Defensores => _defensores;
 
         /// <summary>Parte destruida de la ciudad. Las murallas no cuentan, como en Clash.</summary>
         public float Destruccion
@@ -76,6 +78,8 @@ namespace Altepetl
 
         private readonly List<EnemyBuilding> _edificios = new List<EnemyBuilding>();
         private readonly List<TroopUnit> _tropas = new List<TroopUnit>();
+        private readonly List<Defensor> _defensores = new List<Defensor>();
+        private int _defensoresDerrotados;
         private bool[,] _ocupado;
         private GameManager _manager;
         private Army _ejercito;
@@ -175,6 +179,7 @@ namespace Altepetl
                     }
                 }
             }
+            CrearDefensores();
         }
 
         public TroopId PrimeraTropaDisponible()
@@ -268,6 +273,7 @@ namespace Altepetl
                 Victoria = Estrellas > 0,
                 TecpanDestruido = TecpanDestruido,
                 Cautivos = _cautivos,
+                DefensoresDerrotados = _defensoresDerrotados,
             };
             for (int i = 0; i < ResourceInfo.Count; i++)
             {
@@ -379,6 +385,65 @@ namespace Altepetl
 
             // Derribar el tecpan da una estrella; la batalla sigue.
             if (edificio.Definicion.Id == BuildingId.Tecpan) TecpanDestruido = true;
+        }
+
+        /// <summary>Al vencer a un defensor también se le puede tomar cautivo.</summary>
+        public void AlMorirDefensor(Defensor defensor, TroopUnit atacante)
+        {
+            _defensores.Remove(defensor);
+            _defensoresDerrotados++;
+            if (atacante != null && !atacante.Muerta && Random.value < Rangos.ProbabilidadCaptura(_manager.Pueblo))
+            {
+                atacante.Capturas++;
+                _cautivos++;
+            }
+        }
+
+        /// <summary>El defensor vivo más cercano dentro del alcance, o null.</summary>
+        public Defensor DefensorCercano(Vector3 desde, float alcance)
+        {
+            Defensor mejor = null;
+            float mejorDistancia = alcance * alcance;
+            foreach (var defensor in _defensores)
+            {
+                if (defensor == null || defensor.Muerto) continue;
+                float distancia = (defensor.transform.position - desde).sqrMagnitude;
+                if (distancia <= mejorDistancia)
+                {
+                    mejorDistancia = distancia;
+                    mejor = defensor;
+                }
+            }
+            return mejor;
+        }
+
+        /// <summary>Los defensores esperan en círculo alrededor del tecpan.</summary>
+        private void CrearDefensores()
+        {
+            int total = 0;
+            foreach (var grupo in Nivel.Defensores) total += grupo.Cantidad;
+            if (total == 0) return;
+
+            Vector3 centro = Centro;
+            foreach (var edificio in _edificios)
+            {
+                if (edificio.Definicion.Id == BuildingId.Tecpan) centro = edificio.transform.position;
+            }
+            centro.y = 0f;
+
+            int i = 0;
+            foreach (var grupo in Nivel.Defensores)
+            {
+                for (int n = 0; n < grupo.Cantidad; n++, i++)
+                {
+                    float angulo = i * Mathf.PI * 2f / total;
+                    var puesto = centro + new Vector3(Mathf.Cos(angulo), 0f, Mathf.Sin(angulo)) * 2.4f;
+                    var defensor = new GameObject().AddComponent<Defensor>();
+                    defensor.transform.SetParent(transform, false);
+                    defensor.Inicializar(TroopCatalog.Get(grupo.Tipo), grupo.Rango, puesto, this);
+                    _defensores.Add(defensor);
+                }
+            }
         }
 
         public void AlMorirTropa(TroopUnit tropa)

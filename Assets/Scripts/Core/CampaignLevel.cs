@@ -16,6 +16,21 @@ namespace Altepetl
         }
     }
 
+    /// <summary>Guerreros que defienden la aldea enemiga; esperan junto al tecpan.</summary>
+    public struct GrupoDefensor
+    {
+        public TroopId Tipo;
+        public int Rango;
+        public int Cantidad;
+
+        public GrupoDefensor(TroopId tipo, int cantidad, int rango = 0)
+        {
+            Tipo = tipo;
+            Cantidad = cantidad;
+            Rango = rango;
+        }
+    }
+
     /// <summary>
     /// Un capítulo de campaña: una aldea enemiga contra la IA y la historia que lo acompaña.
     /// </summary>
@@ -26,6 +41,7 @@ namespace Altepetl
         public string Nombre;
         public string Descripcion;
         public EdificioEnemigo[] Edificios;
+        public GrupoDefensor[] Defensores = new GrupoDefensor[0];
         public int[] Botin;          // botín máximo, se gana en proporción a lo destruido
         public int PlumasPrimeraVez; // solo la primera victoria
 
@@ -72,6 +88,10 @@ namespace Altepetl
                     new EdificioEnemigo(BuildingId.Torre, 8, 7),
                 },
                 Botin = ResourceInfo.Costo(maiz: 500, madera: 500, obsidiana: 120),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 2),
+                },
                 PlumasPrimeraVez = 15,
             },
             new CampaignLevel
@@ -91,6 +111,11 @@ namespace Altepetl
                     new EdificioEnemigo(BuildingId.Torre, 5, 8, 2),
                 },
                 Botin = ResourceInfo.Costo(maiz: 800, madera: 800, obsidiana: 200),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 3),
+                    new GrupoDefensor(TroopId.Arquero, 2),
+                },
                 PlumasPrimeraVez = 25,
             },
         };
@@ -129,6 +154,10 @@ namespace Altepetl
                     new EdificioEnemigo(BuildingId.Torre, 3, 8),
                 },
                 Botin = ResourceInfo.Costo(maiz: 300, madera: 300, obsidiana: 50),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 2),
+                },
                 PlumasPrimeraVez = 10,
             },
             new CampaignLevel
@@ -151,6 +180,11 @@ namespace Altepetl
                     new EdificioEnemigo(BuildingId.Torre, 8, 7),
                 },
                 Botin = ResourceInfo.Costo(maiz: 500, madera: 500, obsidiana: 120),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 3),
+                    new GrupoDefensor(TroopId.Arquero, 1),
+                },
                 PlumasPrimeraVez = 15,
             },
             new CampaignLevel
@@ -198,6 +232,11 @@ namespace Altepetl
                     new EdificioEnemigo(BuildingId.Petlacalco, 0, 10, 5),
                 },
                 Botin = ResourceInfo.Costo(maiz: 900, madera: 900, obsidiana: 250),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 6, 1),
+                    new GrupoDefensor(TroopId.Arquero, 4, 1),
+                },
                 PlumasPrimeraVez = 40,
                 AvanzaAunqueSePierda = true,
                 TextoDerrota = "Como cuenta la historia, los mexicas fueron derrotados en Chapultepec y quedaron sometidos a Culhuacan. "
@@ -225,6 +264,11 @@ namespace Altepetl
                     new EdificioEnemigo(BuildingId.Torre, 5, 8, 2),
                 },
                 Botin = ResourceInfo.Costo(maiz: 900, madera: 900, obsidiana: 220),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 5),
+                    new GrupoDefensor(TroopId.Arquero, 3),
+                },
                 PlumasPrimeraVez = 25,
                 ParteBotin = 0.5f,
                 NotaBotin = "La mitad es para Culhuacan",
@@ -257,6 +301,12 @@ namespace Altepetl
                     new EdificioEnemigo(BuildingId.Muralla, 7, 6),
                 },
                 Botin = ResourceInfo.Costo(maiz: 1300, madera: 1300, obsidiana: 300),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 6, 1),
+                    new GrupoDefensor(TroopId.Arquero, 3),
+                    new GrupoDefensor(TroopId.Hondero, 3),
+                },
                 PlumasPrimeraVez = 40,
                 ParteBotin = 0.5f,
                 NotaBotin = "La mitad es para Azcapotzalco",

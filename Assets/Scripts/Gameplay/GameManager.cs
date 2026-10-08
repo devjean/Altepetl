@@ -206,7 +206,10 @@ namespace Altepetl
                 return;
             }
             Construir(definicion, origen, 0, SegundosConstruccion(definicion));
-            Colocando = null;
+            // Las murallas se siguen colocando una tras otra mientras alcancen los recursos.
+            bool otraMuralla = definicion.Id == BuildingId.Muralla && !EnLimite(definicion)
+                && Banco.PuedePagar(definicion.Costo);
+            if (!otraMuralla) Colocando = null;
             Guardar();
         }
 
@@ -218,6 +221,12 @@ namespace Altepetl
             edificio.Inicializar(definicion, Pueblo, origen, Banco, Mapa, nivel, segundosRestantes, acumulado);
             Mapa.Ocupar(origen, definicion.Tamano, edificio);
             _edificios.Add(edificio);
+            if (definicion.Id == BuildingId.Muralla)
+            {
+                edificio.UnirMuralla(Mapa);
+                Mapa.En(origen + new Vector2Int(-1, 0))?.UnirMuralla(Mapa);
+                Mapa.En(origen + new Vector2Int(0, -1))?.UnirMuralla(Mapa);
+            }
             return edificio;
         }
 

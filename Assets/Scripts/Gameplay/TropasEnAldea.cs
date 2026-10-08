@@ -16,7 +16,7 @@ namespace Altepetl
     {
         private const float Separacion = 0.4f;   // distancia entre monitos
         private const float Margen = 0.3f;       // distancia del borde del edificio a la primera fila
-        private const int Filas = 3;             // filas alrededor de cada edificio
+        private const int MaximoFilas = 12;      // filas alrededor de cada edificio, si hacen falta
         private const float Velocidad = 1.4f;    // casillas por segundo al caminar
 
         private sealed class Monito
@@ -103,7 +103,7 @@ namespace Altepetl
             cuerpo.localPosition = new Vector3(plano.x, altura, plano.z);
         }
 
-        /// <summary>Cambia cuando cambian las tropas o los edificios donde se paran.</summary>
+        /// <summary>Cambia cuando cambian las tropas o los edificios.</summary>
         private string Firma()
         {
             var texto = new StringBuilder();
@@ -115,6 +115,8 @@ namespace Altepetl
                     texto.Append(ejercito.Get(tropa.Id, r)).Append(',').Append(ejercito.HeridosDe(tropa.Id, r)).Append(';');
                 }
             }
+            // Cualquier edificio nuevo (una muralla, por ejemplo) puede ocupar un lugar.
+            texto.Append(Manager.Edificios.Count).Append('#');
             foreach (var edificio in Manager.Edificios)
             {
                 if (edificio.Nivel <= 0) continue;
@@ -141,8 +143,8 @@ namespace Altepetl
                 if (edificio.Definicion.Entrena && telpochcalli == null) telpochcalli = edificio;
             }
 
-            var lugaresCalpulli = Lugares(calpullis);
-            var lugaresTemazcalli = temazcallis.Count > 0 ? Lugares(temazcallis) : null;
+            var lugaresCalpulli = Lugares(calpullis, Manager.Ejercito.Total);
+            var lugaresTemazcalli = temazcallis.Count > 0 ? Lugares(temazcallis, Manager.Ejercito.Heridos.Count) : null;
             int siguienteCalpulli = 0;
             int siguienteTemazcalli = 0;
 
@@ -259,26 +261,39 @@ namespace Altepetl
         }
 
         /// <summary>Puntos alrededor de los edificios, fila por fila.</summary>
-        private static List<Vector3> Lugares(List<Building> edificios)
+        /// <summary>
+        /// Lugares alrededor de los edificios, fila por fila. Se saltan las casillas ocupadas
+        /// (murallas u otros edificios) y las de fuera del mapa, y se agregan filas hasta tener
+        /// lugar para todos.
+        /// </summary>
+        private List<Vector3> Lugares(List<Building> edificios, int necesarios)
         {
             var lugares = new List<Vector3>();
-            foreach (var edificio in edificios)
+            var mapa = Manager.Mapa;
+            for (int fila = 0; fila < MaximoFilas && lugares.Count < necesarios; fila++)
             {
-                Vector3 centro = edificio.transform.position;
-                centro.y = 0f;
-                for (int fila = 0; fila < Filas; fila++)
+                foreach (var edificio in edificios)
                 {
+                    Vector3 centro = edificio.transform.position;
+                    centro.y = 0f;
                     float mitad = edificio.Definicion.Tamano * 0.5f + Margen + Separacion * fila;
                     int porLado = Mathf.Max(1, Mathf.RoundToInt(mitad * 2f / Separacion));
                     float paso = mitad * 2f / porLado;
                     // Empieza por el frente (el lado que mira a la cámara) y sigue alrededor.
-                    for (int i = 0; i < porLado; i++) lugares.Add(centro + new Vector3(-mitad + paso * i, 0f, -mitad));
-                    for (int i = 0; i < porLado; i++) lugares.Add(centro + new Vector3(mitad, 0f, -mitad + paso * i));
-                    for (int i = 0; i < porLado; i++) lugares.Add(centro + new Vector3(mitad - paso * i, 0f, mitad));
-                    for (int i = 0; i < porLado; i++) lugares.Add(centro + new Vector3(-mitad, 0f, mitad - paso * i));
+                    for (int i = 0; i < porLado; i++) Agregar(lugares, mapa, centro + new Vector3(-mitad + paso * i, 0f, -mitad));
+                    for (int i = 0; i < porLado; i++) Agregar(lugares, mapa, centro + new Vector3(mitad, 0f, -mitad + paso * i));
+                    for (int i = 0; i < porLado; i++) Agregar(lugares, mapa, centro + new Vector3(mitad - paso * i, 0f, mitad));
+                    for (int i = 0; i < porLado; i++) Agregar(lugares, mapa, centro + new Vector3(-mitad, 0f, mitad - paso * i));
                 }
             }
             return lugares;
+        }
+
+        private static void Agregar(List<Vector3> lugares, GridMap mapa, Vector3 punto)
+        {
+            var casilla = mapa.MundoACasilla(punto);
+            if (!mapa.DentroDelMapa(casilla) || mapa.En(casilla) != null) return;
+            lugares.Add(punto);
         }
 
         /// <summary>Los heridos se ven más apagados.</summary>

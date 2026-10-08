@@ -4,11 +4,13 @@ namespace Altepetl
 {
     /// <summary>
     /// Una tropa en batalla: busca el objetivo más cercano (o la defensa más cercana),
-    /// camina en línea recta hasta tenerlo a su alcance y lo ataca.
+    /// camina en línea recta hasta tenerlo a su alcance y lo ataca. Si un defensor enemigo
+    /// se le acerca, primero pelea con él.
     /// </summary>
     public sealed class TroopUnit : MonoBehaviour
     {
         private const float MargenAlcance = 0.05f;
+        private const float DistanciaParaPelear = 1.2f; // defensores a esta distancia (más el alcance) la distraen
 
         public TroopDefinition Definicion { get; private set; }
         public float Vida { get; private set; }
@@ -78,6 +80,21 @@ namespace Altepetl
             if (Muerta || _batalla.Terminada) return;
 
             _render.material.color = Time.time < _destelloHasta ? Color.white : Definicion.Color;
+
+            var defensor = _batalla.DefensorCercano(transform.position, Definicion.Alcance + DistanciaParaPelear);
+            if (defensor != null)
+            {
+                Vector3 haciaDefensor = defensor.transform.position - transform.position;
+                haciaDefensor.y = 0f;
+                float distancia = haciaDefensor.magnitude - 0.2f;
+                if (distancia > Definicion.Alcance + MargenAlcance)
+                {
+                    transform.position += haciaDefensor.normalized * Mathf.Min(_velocidad * Time.deltaTime, distancia - Definicion.Alcance);
+                    return;
+                }
+                defensor.RecibirDano(_danoPorSegundo * Time.deltaTime, this);
+                return;
+            }
 
             if (_objetivo == null || _objetivo.Destruido)
             {

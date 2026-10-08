@@ -12,7 +12,9 @@ namespace Altepetl
     /// </summary>
     public sealed class GameManager : MonoBehaviour
     {
-        public const int TamanoMapa = 20;
+        public const int TamanoMapa = 24;
+        /// <summary>Lado de la zona donde se puede construir, por nivel del tecpan; crece hacia afuera.</summary>
+        public static readonly int[] LadoConstruible = { 12, 14, 16, 20, 24 };
         private const float SegundosEntreAutoguardados = 30f;
 
         public Pueblo Pueblo { get; private set; }
@@ -54,6 +56,7 @@ namespace Altepetl
 
         private readonly List<Building> _edificios = new List<Building>();
         private Renderer _suelo;
+        private Renderer _zona; // parte del suelo donde ya se puede construir
         private Camera _camara;
         private Light _sol;
         private GameHud _hud;
@@ -165,6 +168,7 @@ namespace Altepetl
         private void Update()
         {
             if (Mensaje != null && Time.time > _mensajeHasta) Mensaje = null;
+            ActualizarZonaConstruible();
             AjustarCamara();
             ActualizarMarcadores();
             ActualizarAmbiente();
@@ -178,10 +182,11 @@ namespace Altepetl
             Culto.Avanzar(Time.deltaTime);
             Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
             if (Time.time >= _proximoAutoguardado) Guardar();
-            if (!LeerPuntero(out Vector2 posicion, out bool presionado, out bool cancelar)) return;
+            if (!LeerPuntero(out Vector2 posicion, out bool abajo, out bool cancelar)) return;
 
             if (cancelar) CancelarColocacion();
-            if (!presionado || _hud.PunteroSobreHud(posicion)) return;
+            // Arrastrar mueve el mapa; un toque sin arrastrar es lo que selecciona, coloca o despliega.
+            if (!ManejarCamara(posicion, abajo) || _hud.PunteroSobreHud(posicion)) return;
             if (!PunteroEnSuelo(posicion, out Vector3 punto)) return;
 
             if (ModoActual == Modo.Batalla)
@@ -203,6 +208,11 @@ namespace Altepetl
 
         private void TryColocar(BuildingDefinition definicion, Vector2Int origen)
         {
+            if (!Mapa.EnArea(origen, definicion.Tamano))
+            {
+                MostrarMensaje("Mejora el tecpan para abrir más terreno");
+                return;
+            }
             if (!Mapa.EstaLibre(origen, definicion.Tamano))
             {
                 MostrarMensaje("Ese lugar está ocupado");
@@ -498,7 +508,7 @@ namespace Altepetl
             if (Batalla != null) Destroy(Batalla.gameObject);
             Batalla = null;
             ModoActual = Modo.Aldea;
-            EnfocarCamara(Mapa.Centro, TamanoMapa);
+            EnfocarCamara(Mapa.Centro, LadoCamaraAldea);
         }
 
         // ---------- Guardado ----------
@@ -624,12 +634,13 @@ namespace Altepetl
 
         // ---------- Entrada (ratón en el editor, toque en el móvil) ----------
 
-        private static bool LeerPuntero(out Vector2 posicion, out bool presionado, out bool cancelar)
+        /// <summary>abajo: el dedo o el botón izquierdo está presionado en este momento.</summary>
+        private static bool LeerPuntero(out Vector2 posicion, out bool abajo, out bool cancelar)
         {
 #if ENABLE_INPUT_SYSTEM
             var puntero = Pointer.current;
             posicion = puntero != null ? puntero.position.ReadValue() : Vector2.zero;
-            presionado = puntero != null && puntero.press.wasPressedThisFrame;
+            abajo = puntero != null && puntero.press.isPressed;
             var raton = Mouse.current;
             var teclado = Keyboard.current;
             cancelar = (raton != null && raton.rightButton.wasPressedThisFrame)
@@ -637,10 +648,119 @@ namespace Altepetl
             return puntero != null;
 #else
             posicion = Input.mousePosition;
-            presionado = Input.GetMouseButtonDown(0);
+            abajo = Input.GetMouseButton(0);
             cancelar = Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape);
             return true;
 #endif
+        }
+
+        /// <summary>Rueda del ratón: positivo para acercar.</summary>
+        private static float LeerRueda()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var raton = Mouse.current;
+            return raton != null ? raton.scroll.ReadValue().y : 0f;
+#else
+            return Input.mouseScrollDelta.y;
+#endif
+        }
+
+        /// <summary>Distancia entre dos dedos, o 0 si no hay dos dedos en la pantalla.</summary>
+        private static float LeerPellizco()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var pantalla = Touchscreen.current;
+            if (pantalla == null) return 0f;
+            int dedos = 0;
+            Vector2 a = Vector2.zero, b = Vector2.zero;
+            foreach (var toque in pantalla.touches)
+            {
+                if (!toque.press.isPressed) continue;
+                if (dedos == 0) a = toque.position.ReadValue();
+                else if (dedos == 1) b = toque.position.ReadValue();
+                dedos++;
+            }
+            return dedos >= 2 ? Vector2.Distance(a, b) : 0f;
+#else
+            if (Input.touchCount < 2) return 0f;
+            return Vector2.Distance(Input.GetTouch(0).position, Input.GetTouch(1).position);
+#endif
+        }
+
+        // ---------- Zoom y desplazamiento del mapa ----------
+
+        private const float ZoomMinimo = 0.35f;   // lo más cerca
+        private const float ZoomMaximo = 1.25f;   // lo más lejos
+        private float _zoom = 1f;
+        private Vector3 _desplazamiento;          // cuánto se movió la cámara desde el centro
+        private bool _presionando;
+        private bool _arrastrando;
+        private bool _toqueEnHud;
+        private Vector2 _inicioToque;
+        private Vector2 _ultimaPosicion;
+        private float _pellizcoAnterior;
+
+        /// <summary>
+        /// Zoom con la rueda o pellizcando, y desplazamiento arrastrando el mapa.
+        /// Devuelve true en el cuadro en que se suelta un toque que no arrastró: eso cuenta como "tocar".
+        /// </summary>
+        private bool ManejarCamara(Vector2 posicion, bool abajo)
+        {
+            float rueda = LeerRueda();
+            if (rueda != 0f && !_hud.PunteroSobreHud(posicion)) Zoom(rueda > 0f ? 0.9f : 1f / 0.9f);
+
+            float pellizco = LeerPellizco();
+            if (pellizco > 0f)
+            {
+                if (_pellizcoAnterior > 0f) Zoom(_pellizcoAnterior / pellizco);
+                _pellizcoAnterior = pellizco;
+                _arrastrando = true; // al soltar no cuenta como toque
+                _ultimaPosicion = posicion;
+                return false;
+            }
+            _pellizcoAnterior = 0f;
+
+            if (abajo && !_presionando)
+            {
+                _presionando = true;
+                _arrastrando = false;
+                _toqueEnHud = _hud.PunteroSobreHud(posicion);
+                _inicioToque = posicion;
+                _ultimaPosicion = posicion;
+                return false;
+            }
+            if (abajo)
+            {
+                if (_toqueEnHud) return false;
+                // Unos píxeles de margen (según el tamaño de la pantalla) para no confundir un toque con un arrastre.
+                float umbral = Screen.height * 0.02f;
+                if (!_arrastrando && Vector2.Distance(posicion, _inicioToque) > umbral) _arrastrando = true;
+                if (_arrastrando && PunteroEnSuelo(_ultimaPosicion, out Vector3 antes) && PunteroEnSuelo(posicion, out Vector3 ahora))
+                {
+                    Desplazar(antes - ahora);
+                }
+                _ultimaPosicion = posicion;
+                return false;
+            }
+            if (!_presionando) return false;
+            _presionando = false;
+            return !_arrastrando && !_toqueEnHud;
+        }
+
+        private void Zoom(float factor)
+        {
+            _zoom = Mathf.Clamp(_zoom * factor, ZoomMinimo, ZoomMaximo);
+            AjustarCamara();
+        }
+
+        private void Desplazar(Vector3 delta)
+        {
+            delta.y = 0f;
+            float limite = _ladoCamara * 0.6f;
+            _desplazamiento += delta;
+            _desplazamiento.x = Mathf.Clamp(_desplazamiento.x, -limite, limite);
+            _desplazamiento.z = Mathf.Clamp(_desplazamiento.z, -limite, limite);
+            AjustarCamara();
         }
 
         private bool PunteroEnSuelo(Vector2 posicion, out Vector3 punto)
@@ -678,6 +798,8 @@ namespace Altepetl
         {
             _centroCamara = centro;
             _ladoCamara = lado;
+            _zoom = 1f;
+            _desplazamiento = Vector3.zero;
             if (_camara == null) return;
             _camara.transform.position = centro - _camara.transform.forward * 40f;
             AjustarCamara();
@@ -687,12 +809,13 @@ namespace Altepetl
         private void AjustarCamara()
         {
             if (_camara == null) return;
+            _camara.transform.position = _centroCamara + _desplazamiento - _camara.transform.forward * 40f;
             float diagonal = _ladoCamara * Mathf.Sqrt(2f);
             float alturaNecesaria = diagonal * Mathf.Sin(30f * Mathf.Deg2Rad) + 3f;
             float aspecto = Mathf.Max(_camara.aspect, 0.01f);
             float tamano = Mathf.Max(alturaNecesaria * 0.5f, diagonal / (2f * aspecto));
             // Margen extra para que las barras del HUD no tapen la aldea.
-            _camara.orthographicSize = tamano * 1.3f;
+            _camara.orthographicSize = tamano * 1.3f * _zoom;
         }
 
         private void PrepararLuz()
@@ -719,9 +842,33 @@ namespace Altepetl
         private void ActualizarSuelo()
         {
             if (_suelo == null) return;
-            _suelo.material.color = Pueblo != null && Pueblo.EnLago
-                ? new Color(0.28f, 0.50f, 0.58f)
-                : new Color(0.62f, 0.55f, 0.38f);
+            bool lago = Pueblo != null && Pueblo.EnLago;
+            // Fuera de la zona abierta el suelo es más oscuro (monte o agua honda).
+            _suelo.material.color = lago ? new Color(0.24f, 0.45f, 0.54f) : new Color(0.50f, 0.45f, 0.31f);
+            if (_zona != null) _zona.material.color = lago ? new Color(0.33f, 0.56f, 0.62f) : new Color(0.62f, 0.55f, 0.38f);
+        }
+
+        private int _ladoZona = -1;
+
+        /// <summary>De entrada la cámara encuadra la zona abierta y un poco de lo que la rodea.</summary>
+        private float LadoCamaraAldea => Mathf.Max(_ladoZona, LadoConstruible[0]) + 4f;
+
+        /// <summary>La zona donde se puede construir crece con el tecpan.</summary>
+        private void ActualizarZonaConstruible()
+        {
+            int nivel = Mathf.Clamp(NivelTecpan, 1, LadoConstruible.Length);
+            int lado = LadoConstruible[nivel - 1];
+            if (lado == _ladoZona) return;
+            bool crecio = _ladoZona > 0 && lado > _ladoZona;
+            _ladoZona = lado;
+            Mapa.FijarArea(lado);
+            if (_zona != null)
+            {
+                _zona.transform.localScale = new Vector3(lado, 0.01f, lado);
+                _zona.transform.position = Mapa.Centro + Vector3.up * 0.005f;
+            }
+            if (ModoActual == Modo.Aldea) _ladoCamara = LadoCamaraAldea;
+            if (crecio) MostrarMensaje("¡Se abrió más terreno para construir!");
         }
 
         private void CrearSuelo()
@@ -733,6 +880,11 @@ namespace Altepetl
             suelo.transform.localScale = new Vector3(TamanoMapa / 10f, 1f, TamanoMapa / 10f);
             suelo.transform.position = Mapa.Centro;
             _suelo = suelo.GetComponent<Renderer>();
+
+            var zona = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            zona.name = "Zona construible";
+            Destroy(zona.GetComponent<Collider>());
+            _zona = zona.GetComponent<Renderer>();
             ActualizarSuelo();
         }
 
@@ -754,7 +906,7 @@ namespace Altepetl
                 && !_hud.PunteroSobreHud(posicion) && PunteroEnSuelo(posicion, out Vector3 punto))
             {
                 var origen = Mapa.AjustarOrigen(Mapa.MundoACasilla(punto), Colocando.Tamano);
-                bool libre = Mapa.EstaLibre(origen, Colocando.Tamano);
+                bool libre = Mapa.PuedeConstruir(origen, Colocando.Tamano);
                 _fantasma.position = Mapa.CentroDeArea(origen, Colocando.Tamano) + Vector3.up * 0.05f;
                 _fantasma.localScale = new Vector3(Colocando.Tamano, 0.1f, Colocando.Tamano);
                 _fantasmaRender.material.color = libre ? new Color(0.3f, 0.9f, 0.3f) : new Color(0.9f, 0.25f, 0.2f);

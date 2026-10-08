@@ -30,6 +30,7 @@ namespace Altepetl
         private Transform _modelo;
         private Renderer _render;
         private float _base; // alto de la plataforma sobre el lago (aldea mexica)
+        private bool _chinampaEnOrilla; // chinampa acolhua: parcela más chica para que se vean los canales
         private Transform _uneEste, _uneNorte; // tramos que unen una muralla con la de al lado
 
         public void Inicializar(BuildingDefinition definicion, Pueblo pueblo, Vector2Int origen,
@@ -53,6 +54,7 @@ namespace Altepetl
             _modelo = cubo.transform;
             _render = cubo.GetComponent<Renderer>();
             if (pueblo.EnLago) CrearPlataforma();
+            else if (definicion.Id == BuildingId.Granja && pueblo.NombreGranja == "Chinampa") CrearChinampaEnLaOrilla();
 
             // Capacidad de los niveles ya terminados (al cargar una partida o colocar el tecpan).
             _banco.AgregarCapacidad(Definicion.CapacidadExtra * Nivel);
@@ -189,6 +191,36 @@ namespace Altepetl
             CrearAhuejote(new Vector3(esquina, 0f, esquina));
         }
 
+        /// <summary>
+        /// Fuera del lago (Texcoco, en la orilla) la chinampa se ve rodeada de sus canales:
+        /// se hacían en las zonas pantanosas de la ribera, abriendo zanjas y apilando lodo.
+        /// </summary>
+        private void CrearChinampaEnLaOrilla()
+        {
+            var canal = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            canal.name = "Canal";
+            Destroy(canal.GetComponent<Collider>());
+            canal.transform.SetParent(transform, false);
+            canal.transform.localScale = new Vector3(0.98f, 0.03f, 0.98f);
+            canal.transform.localPosition = new Vector3(0f, 0.015f, 0f);
+            canal.GetComponent<Renderer>().material.color = new Color(0.28f, 0.50f, 0.58f);
+
+            _base = 0.07f;
+            _chinampaEnOrilla = true;
+            float lado = Definicion.Tamano * 0.74f;
+            var parcela = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            parcela.name = "Chinampa";
+            Destroy(parcela.GetComponent<Collider>());
+            parcela.transform.SetParent(transform, false);
+            parcela.transform.localScale = new Vector3(lado, _base, lado);
+            parcela.transform.localPosition = new Vector3(0f, _base * 0.5f, 0f);
+            parcela.GetComponent<Renderer>().material.color = new Color(0.36f, 0.27f, 0.17f);
+
+            float esquina = lado * 0.45f;
+            CrearAhuejote(new Vector3(-esquina, 0f, -esquina));
+            CrearAhuejote(new Vector3(esquina, 0f, esquina));
+        }
+
         private void CrearAhuejote(Vector3 posicion)
         {
             var arbol = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -233,7 +265,7 @@ namespace Altepetl
         private void ActualizarVisual()
         {
             // La muralla es un poste; los tramos hacia sus vecinas completan el muro.
-            float lado = EsMuralla ? 0.55f : Definicion.Tamano * 0.9f;
+            float lado = EsMuralla ? 0.55f : Definicion.Tamano * (_chinampaEnOrilla ? 0.66f : 0.9f);
             // Cada nivel hace el edificio un poco más alto.
             float alturaNivel = Definicion.Altura * (1f + 0.15f * (Mathf.Max(1, Nivel) - 1));
 

@@ -156,31 +156,47 @@ namespace Altepetl
             new CampaignLevel
             {
                 Nombre = "Chapultepec",
-                Descripcion = "Un cerro rodeado de enemigos. Aquí se pierde.",
+                Descripcion = "Un cerro muy defendido. En la historia, aquí se perdió.",
                 Historia =
                     "Ya en el Valle de México, los mexicas se establecieron en Chapultepec. Eran recién llegados, "
                     + "sin tierra propia, y los pueblos del lago no los querían ahí.\n\n"
                     + "Cópil, hijo de Malinalxóchitl, llegó a vengar a su madre. Los mexicas lo mataron y arrojaron su corazón al lago; "
                     + "según el mito, de ahí nacería la piedra donde crecería el nopal de la señal.\n\n"
-                    + "Después, una alianza de pueblos del lago cayó sobre Chapultepec. Esta batalla está pensada para perderse: "
-                    + "pelea lo mejor que puedas, que la historia sigue de todas formas.",
+                    + "Después, una alianza de pueblos del lago cayó sobre Chapultepec y los mexicas fueron derrotados. "
+                    + "Esta batalla es muy difícil: pelea lo mejor que puedas, que la historia sigue aunque pierdas. "
+                    + "Destruirla por completo es un reto para un ejército grande.",
                 Edificios = new[]
                 {
-                    new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 2),
-                    new EdificioEnemigo(BuildingId.Teocalli, 5, 9),
-                    new EdificioEnemigo(BuildingId.Granja, 1, 1),
-                    new EdificioEnemigo(BuildingId.Lenadores, 10, 10),
-                    new EdificioEnemigo(BuildingId.Torre, 3, 3, 2),
-                    new EdificioEnemigo(BuildingId.Torre, 8, 3, 2),
-                    new EdificioEnemigo(BuildingId.Torre, 3, 8, 2),
-                    new EdificioEnemigo(BuildingId.Torre, 8, 8, 2),
-                    new EdificioEnemigo(BuildingId.Muralla, 4, 4),
-                    new EdificioEnemigo(BuildingId.Muralla, 7, 4),
-                    new EdificioEnemigo(BuildingId.Muralla, 4, 7),
-                    new EdificioEnemigo(BuildingId.Muralla, 7, 7),
+                    // El tecpan en lo alto, rodeado de murallas.
+                    new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 4),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 4, 3),
+                    new EdificioEnemigo(BuildingId.Muralla, 5, 4, 3),
+                    new EdificioEnemigo(BuildingId.Muralla, 6, 4, 3),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 4, 3),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 7, 3),
+                    new EdificioEnemigo(BuildingId.Muralla, 5, 7, 3),
+                    new EdificioEnemigo(BuildingId.Muralla, 6, 7, 3),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 7, 3),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 5, 3),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 6, 3),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 5, 3),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 6, 3),
+                    new EdificioEnemigo(BuildingId.Teocalli, 5, 9, 3),
+                    // Seis torres alrededor del cerro.
+                    new EdificioEnemigo(BuildingId.Torre, 2, 2, 4),
+                    new EdificioEnemigo(BuildingId.Torre, 9, 2, 4),
+                    new EdificioEnemigo(BuildingId.Torre, 2, 9, 4),
+                    new EdificioEnemigo(BuildingId.Torre, 9, 9, 4),
+                    new EdificioEnemigo(BuildingId.Torre, 1, 5, 4),
+                    new EdificioEnemigo(BuildingId.Torre, 10, 6, 4),
+                    new EdificioEnemigo(BuildingId.Granja, 0, 0, 3),
+                    new EdificioEnemigo(BuildingId.Granja, 5, 1, 3),
+                    new EdificioEnemigo(BuildingId.Obsidiana, 11, 0, 3),
+                    new EdificioEnemigo(BuildingId.Lenadores, 11, 11, 3),
+                    new EdificioEnemigo(BuildingId.Petlacalco, 0, 10, 3),
                 },
-                Botin = ResourceInfo.Costo(maiz: 600, madera: 600, obsidiana: 150),
-                PlumasPrimeraVez = 25,
+                Botin = ResourceInfo.Costo(maiz: 900, madera: 900, obsidiana: 250),
+                PlumasPrimeraVez = 40,
                 AvanzaAunqueSePierda = true,
                 TextoDerrota = "Como cuenta la historia, los mexicas fueron derrotados en Chapultepec y quedaron sometidos a Culhuacan. "
                                + "La peregrinación continúa.",

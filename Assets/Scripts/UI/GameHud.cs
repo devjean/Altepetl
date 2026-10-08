@@ -20,6 +20,7 @@ namespace Altepetl
         private readonly List<Rect> _zonasHud = new List<Rect>();
         private float _escala = 1f;
         private GUIStyle _titulo;
+        private GUIStyle _estrella;
         private GUIStyle _texto;
         private GUIStyle _textoChico;
         private GUIStyle _textoUnaLinea;
@@ -699,9 +700,11 @@ namespace Altepetl
                 var fila = new Rect(panel.x + 10, y, panel.width - 20, altoFila);
                 GUI.Box(fila, GUIContent.none, _caja);
 
-                string premio = ganado ? "Completado" : $"Primera victoria: {nivel.PlumasPrimeraVez} plumas de quetzal";
-                GUI.Label(new Rect(fila.x + 8, fila.y + 2, fila.width - 140, 24), $"{i + 1}. {nivel.Nombre}", _texto);
-                GUI.Label(new Rect(fila.x + 8, fila.y + 24, fila.width - 140, altoFila - 24),
+                int estrellas = Manager.EstrellasDe(i);
+                string premio = estrellas > 0 ? "Completado" : $"Primera victoria: {nivel.PlumasPrimeraVez} plumas de quetzal";
+                if (ganado) DibujarEstrellas(new Rect(fila.xMax - 220, fila.y + 18, 90, 30), estrellas, 22);
+                GUI.Label(new Rect(fila.x + 8, fila.y + 2, fila.width - 230, 24), $"{i + 1}. {nivel.Nombre}", _texto);
+                GUI.Label(new Rect(fila.x + 8, fila.y + 24, fila.width - 230, altoFila - 24),
                     $"{nivel.Descripcion}\n{premio}", _textoChico);
 
                 GUI.enabled = disponible && ejercito.Total > 0;
@@ -896,6 +899,7 @@ namespace Altepetl
             GUI.Label(new Rect(10, 10, ancho - 20, 24),
                 $"{batalla.Nivel.Nombre}    Destrucción: {Mathf.FloorToInt(batalla.Destruccion * 100)}%    Tiempo: {segundos / 60}:{segundos % 60:00}",
                 _texto);
+            DibujarEstrellas(new Rect(ancho - 110, 6, 100, 30), batalla.Estrellas, 22);
 
             DibujarBarrasDeVida(batalla);
 
@@ -974,15 +978,16 @@ namespace Altepetl
         private void DibujarResultado(BattleManager batalla, float ancho, float alto)
         {
             var resultado = batalla.Resultado;
-            var panel = new Rect((ancho - 480) / 2, (alto - 400) / 2, 480, 400);
+            var panel = new Rect((ancho - 480) / 2, (alto - 440) / 2, 480, 440);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
-            Titulo(new Rect(panel.x + 10, panel.y + 15, panel.width - 20, 34), resultado.Victoria ? "¡Victoria!" : "Derrota");
+            Titulo(new Rect(panel.x + 10, panel.y + 12, panel.width - 20, 34), resultado.Victoria ? "¡Victoria!" : "Derrota");
+            DibujarEstrellas(new Rect(panel.x + (panel.width - 150) / 2, panel.y + 46, 150, 40), resultado.Estrellas, 34);
 
             string botin = TextoCosto(resultado.Botin);
             if (botin.Length > 0 && !string.IsNullOrEmpty(batalla.Nivel.NotaBotin)) botin += $" ({batalla.Nivel.NotaBotin.ToLowerInvariant()})";
-            string texto = (resultado.TecpanDestruido ? "¡Cayó el tecpan! La ciudad se rinde.\n" : "")
-                           + $"Destrucción: {Mathf.FloorToInt(resultado.Porcentaje * 100)}%"
+            string texto = $"Destrucción: {Mathf.FloorToInt(resultado.Porcentaje * 100)}%"
+                           + (resultado.TecpanDestruido ? " · ¡Cayó el tecpan!" : "")
                            + $"\nBotín: {(botin.Length > 0 ? botin : "nada")}";
             if (resultado.Plumas > 0) texto += $"\nPlumas de quetzal: +{resultado.Plumas}";
             if (resultado.Regresan > 0) texto += $"\nRegresan a la aldea: {resultado.Regresan} tropas";
@@ -999,12 +1004,26 @@ namespace Altepetl
             }
             if (ascensos.Count > 0) texto += "\nAscensos: " + string.Join(", ", ascensos);
             if (resultado.AvanzaHistoria) texto += "\n" + batalla.Nivel.TextoDerrota;
-            else if (!resultado.Victoria) texto += $"\nNecesitas destruir al menos {Mathf.RoundToInt(BattleManager.VictoriaMinima * 100)}% para ganar.";
-            GUI.Label(new Rect(panel.x + 20, panel.y + 56, panel.width - 40, 264), texto, _texto);
+            else if (!resultado.Victoria) texto += $"\nPara ganar necesitas una estrella: destruye el {Mathf.RoundToInt(BattleManager.VictoriaMinima * 100)}% o derriba el tecpan.";
+            GUI.Label(new Rect(panel.x + 20, panel.y + 92, panel.width - 40, 268), texto, _texto);
 
             if (GUI.Button(new Rect(panel.x + 100, panel.yMax - 64, panel.width - 200, 48), "Volver a la aldea", _boton))
             {
                 Manager.VolverAAldea();
+            }
+        }
+
+        /// <summary>
+        /// Tres estrellas, como en Clash: una por el 50%, otra por derribar el tecpan y otra por el 100%.
+        /// </summary>
+        private void DibujarEstrellas(Rect rect, int cuantas, int tamano)
+        {
+            _estrella.fontSize = tamano;
+            float paso = rect.width / 3f;
+            for (int i = 0; i < 3; i++)
+            {
+                _estrella.normal.textColor = i < cuantas ? new Color(1f, 0.80f, 0.25f) : new Color(0.35f, 0.32f, 0.28f);
+                GUI.Label(new Rect(rect.x + paso * i, rect.y, paso, rect.height), "★", _estrella);
             }
         }
 
@@ -1049,6 +1068,8 @@ namespace Altepetl
             _titulo = new GUIStyle(_texto) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = false };
 
             _boton = new GUIStyle(GUI.skin.button) { fontSize = 14, wordWrap = true };
+
+            _estrella = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
         }
 
         // Títulos en una sola línea: si no caben, se achica la letra en vez de salirse del panel.

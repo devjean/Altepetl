@@ -5,10 +5,11 @@ namespace Altepetl
 {
     public sealed class ResultadoBatalla
     {
-        public float Porcentaje;   // 0..1 de edificios destruidos
-        public bool Victoria;      // al menos la mitad destruida
+        public float Porcentaje;   // 0..1 de edificios destruidos (sin contar murallas)
+        public int Estrellas;      // 0 a 3, como en Clash: 50%, tecpan y 100%
+        public bool Victoria;      // al menos una estrella
         public int[] Botin = ResourceInfo.Costo();
-        public int Plumas;         // solo en la primera victoria de cada nivel
+        public int Plumas;         // solo la primera vez que se gana cada nivel
         public bool TecpanDestruido;
         public int Cautivos;       // mamaltin capturados (ya incluidos en Botin)
         public int Regresan;       // tropas desplegadas que sobrevivieron
@@ -37,22 +38,39 @@ namespace Altepetl
 
         public Vector3 Centro => Origen + new Vector3(CampaignLevel.TamanoMapa * 0.5f, 0f, CampaignLevel.TamanoMapa * 0.5f);
 
-        /// <summary>Si cae el tecpan, la ciudad se rinde.</summary>
+        /// <summary>Derribar el tecpan da una estrella.</summary>
         public bool TecpanDestruido { get; private set; }
         public IReadOnlyList<EnemyBuilding> Edificios => _edificios;
         public IReadOnlyList<TroopUnit> Tropas => _tropas;
 
+        /// <summary>Parte destruida de la ciudad. Las murallas no cuentan, como en Clash.</summary>
         public float Destruccion
         {
             get
             {
-                if (TecpanDestruido || _edificios.Count == 0) return 1f;
+                int total = 0;
                 int destruidos = 0;
                 foreach (var edificio in _edificios)
                 {
+                    if (edificio.Definicion.Id == BuildingId.Muralla) continue;
+                    total++;
                     if (edificio.Destruido) destruidos++;
                 }
-                return (float)destruidos / _edificios.Count;
+                return total == 0 ? 1f : (float)destruidos / total;
+            }
+        }
+
+        /// <summary>Una estrella por llegar al 50%, otra por derribar el tecpan y otra por destruirlo todo.</summary>
+        public int Estrellas
+        {
+            get
+            {
+                float destruccion = Destruccion;
+                int estrellas = 0;
+                if (destruccion >= VictoriaMinima) estrellas++;
+                if (TecpanDestruido) estrellas++;
+                if (destruccion >= 1f) estrellas++;
+                return estrellas;
             }
         }
 
@@ -246,7 +264,8 @@ namespace Altepetl
             var resultado = new ResultadoBatalla
             {
                 Porcentaje = porcentaje,
-                Victoria = porcentaje >= VictoriaMinima,
+                Estrellas = Estrellas,
+                Victoria = Estrellas > 0,
                 TecpanDestruido = TecpanDestruido,
                 Cautivos = _cautivos,
             };
@@ -358,10 +377,8 @@ namespace Altepetl
                 _cautivos++;
             }
 
-            if (edificio.Definicion.Id != BuildingId.Tecpan) return;
-            // Al caer el tecpan la ciudad se rinde: victoria con todo el botín.
-            TecpanDestruido = true;
-            Terminar();
+            // Derribar el tecpan da una estrella; la batalla sigue.
+            if (edificio.Definicion.Id == BuildingId.Tecpan) TecpanDestruido = true;
         }
 
         public void AlMorirTropa(TroopUnit tropa)

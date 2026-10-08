@@ -7,7 +7,7 @@ namespace Altepetl
     [Serializable]
     public sealed class SaveData
     {
-        public const int VersionActual = 5; // 2: nivel de los edificios. 3: ejército y campaña. 4: rangos y ofrendas. 5: heridos
+        public const int VersionActual = 6; // 2: nivel de los edificios. 3: ejército y campaña. 4: rangos y ofrendas. 5: heridos. 6: estrellas
 
         public int version = VersionActual;
         public PuebloId pueblo;
@@ -21,6 +21,7 @@ namespace Altepetl
         public List<int> colaEntrenamiento = new List<int>();
         public float entrenamientoRestante;
         public int nivelesCompletados; // niveles de campaña ganados, en orden
+        public List<int> estrellas = new List<int>(); // mejor resultado de cada capítulo, 0 a 3 (versión 6)
 
         public int deidadActiva;               // ofrenda activa en el teocalli
         public float ofrendaRestante;          // segundos que le quedan

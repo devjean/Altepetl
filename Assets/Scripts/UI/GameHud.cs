@@ -365,7 +365,7 @@ namespace Altepetl
 
             var def = edificio.Definicion;
             bool entrena = def.Entrena && edificio.Nivel > 0;
-            float altoPanel = entrena ? 370 : def.CamasCuracion > 0 ? 310 : 250;
+            float altoPanel = entrena ? 410 : def.CamasCuracion > 0 ? 310 : 250;
             var panel = new Rect(ancho - 290, AltoBarraSuperior + 10, 280, altoPanel);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
@@ -635,6 +635,15 @@ namespace Altepetl
                 GUI.enabled = true;
                 x += anchoBoton + 5f;
             }
+
+            if (!ejercito.Entrenando) return;
+            int plumas = Manager.CostoTerminarEntrenamiento;
+            GUI.enabled = Manager.Banco.Get(ResourceType.Plumas) >= plumas;
+            if (GUI.Button(new Rect(panel.x + 10, panel.y + 306, panel.width - 20, 40), $"Terminar entrenamiento ({plumas} plumas)", _boton))
+            {
+                Manager.TryTerminarEntrenamiento();
+            }
+            GUI.enabled = true;
         }
 
         private void DibujarBotonAtacar(float alto)

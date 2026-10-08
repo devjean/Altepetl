@@ -335,6 +335,24 @@ namespace Altepetl
                    * (1f - Culto.Bono(TipoBono.Construccion));
         }
 
+        /// <summary>Plumas para terminar ya toda la cola: una por cada 10 segundos, como en las obras.</summary>
+        public int CostoTerminarEntrenamiento =>
+            Mathf.Max(1, Mathf.CeilToInt(Ejercito.SegundosCola(DuracionEntrenamiento) / 10f));
+
+        public bool TryTerminarEntrenamiento()
+        {
+            if (!Ejercito.Entrenando) return false;
+            if (!Banco.TryGastar(ResourceInfo.Costo(plumas: CostoTerminarEntrenamiento)))
+            {
+                MostrarMensaje("No tienes suficientes plumas de quetzal");
+                return false;
+            }
+            int terminadas = Ejercito.TerminarCola();
+            MostrarMensaje(terminadas == 1 ? "Una tropa terminó su entrenamiento" : $"{terminadas} tropas terminaron su entrenamiento");
+            Guardar();
+            return true;
+        }
+
         public float DuracionEntrenamiento(TroopId id)
         {
             float porNivel = 1f + EntrenamientoExtraPorNivel * Mathf.Max(0, NivelTelpochcalli - 1);

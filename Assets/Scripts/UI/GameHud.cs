@@ -93,7 +93,7 @@ namespace Altepetl
         private void DibujarEleccionDePueblo(float ancho, float alto)
         {
             GUI.Box(new Rect(0, 0, ancho, alto), GUIContent.none, _caja);
-            GUI.Label(new Rect(0, 30, ancho, 40), "Altepetl — elige tu pueblo", _titulo);
+            Titulo(new Rect(0, 30, ancho, 40), "Altepetl — elige tu pueblo");
 
             float anchoTarjeta = Mathf.Min(280f, (ancho - 80f) / 3f);
             float x = (ancho - anchoTarjeta * 3f - 40f) / 2f;
@@ -101,7 +101,7 @@ namespace Altepetl
             {
                 var tarjeta = new Rect(x, 100, anchoTarjeta, 300);
                 GUI.Box(tarjeta, GUIContent.none, _caja);
-                GUI.Label(new Rect(tarjeta.x + 10, tarjeta.y + 10, tarjeta.width - 20, 30), pueblo.Nombre, _titulo);
+                Titulo(new Rect(tarjeta.x + 10, tarjeta.y + 10, tarjeta.width - 20, 30), pueblo.Nombre);
                 GUI.Label(new Rect(tarjeta.x + 10, tarjeta.y + 50, tarjeta.width - 20, 160),
                     $"{pueblo.Ciudad}\nEstilo: {pueblo.Estilo}\n\n{pueblo.Descripcion}", _texto);
                 if (GUI.Button(new Rect(tarjeta.x + 20, tarjeta.yMax - 60, tarjeta.width - 40, 44), "Elegir", _boton))
@@ -187,7 +187,7 @@ namespace Altepetl
                 return;
             }
 
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Construir", _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Construir");
 
             // Pestañas
             var categorias = (CategoriaEdificio[])System.Enum.GetValues(typeof(CategoriaEdificio));
@@ -244,7 +244,7 @@ namespace Altepetl
 
         private void DibujarInfoEdificio(Rect panel, BuildingDefinition def)
         {
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), def.NombrePara(Manager.Pueblo), _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), def.NombrePara(Manager.Pueblo));
             GUI.Label(new Rect(panel.x + 20, panel.y + 48, panel.width - 40, 260),
                 def.Descripcion + "\n\n" + DetallesEdificio(def), _texto);
 
@@ -370,7 +370,7 @@ namespace Altepetl
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
 
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), edificio.Nombre, _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), edificio.Nombre);
             if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
             {
                 Manager.Seleccionar(null);
@@ -484,8 +484,7 @@ namespace Altepetl
             var panel = new Rect((ancho - 600) / 2, AltoBarraSuperior + 10, 600, 420);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28),
-                _deidadInfo != null ? _deidadInfo.Nombre : "Ofrendas", _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), _deidadInfo != null ? _deidadInfo.Nombre : "Ofrendas");
             if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
             {
                 _ofrendasAbierto = false;
@@ -672,7 +671,7 @@ namespace Altepetl
             var panel = new Rect((ancho - 560) / 2, AltoBarraSuperior + 10, 560, altoPanel);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), Altepetl.Campana.Titulo(Manager.Pueblo), _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), Altepetl.Campana.Titulo(Manager.Pueblo));
             if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
             {
                 _campanaAbierta = false;
@@ -758,7 +757,7 @@ namespace Altepetl
             var panel = new Rect((ancho - 620) / 2, AltoBarraSuperior + 10, 620, 440);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 20, 28), titulo, _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 20, 28), titulo);
             GUI.Label(new Rect(panel.x + 30, panel.y + 52, panel.width - 60, 310), texto, _texto);
 
             if (epilogo)
@@ -798,7 +797,7 @@ namespace Altepetl
             var panel = new Rect((ancho - 620) / 2, AltoBarraSuperior + 10, 620, 470);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Arma tu ejército", _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Arma tu ejército");
             if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
             {
                 _nivelArmando = -1;
@@ -978,8 +977,7 @@ namespace Altepetl
             var panel = new Rect((ancho - 480) / 2, (alto - 400) / 2, 480, 400);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
-            GUI.Label(new Rect(panel.x + 10, panel.y + 15, panel.width - 20, 34),
-                resultado.Victoria ? "¡Victoria!" : "Derrota", _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 15, panel.width - 20, 34), resultado.Victoria ? "¡Victoria!" : "Derrota");
 
             string botin = TextoCosto(resultado.Botin);
             if (botin.Length > 0 && !string.IsNullOrEmpty(batalla.Nivel.NotaBotin)) botin += $" ({batalla.Nivel.NotaBotin.ToLowerInvariant()})";
@@ -1048,9 +1046,18 @@ namespace Altepetl
             _inicial = new GUIStyle(_texto) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
             _inicial.normal.textColor = new Color(0.12f, 0.09f, 0.07f);
 
-            _titulo = new GUIStyle(_texto) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            _titulo = new GUIStyle(_texto) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = false };
 
             _boton = new GUIStyle(GUI.skin.button) { fontSize = 14, wordWrap = true };
+        }
+
+        // Títulos en una sola línea: si no caben, se achica la letra en vez de salirse del panel.
+        private void Titulo(Rect rect, string texto)
+        {
+            var contenido = new GUIContent(texto);
+            _titulo.fontSize = 22;
+            while (_titulo.fontSize > 13 && _titulo.CalcSize(contenido).x > rect.width) _titulo.fontSize--;
+            GUI.Label(rect, texto, _titulo);
         }
 
         private static Texture2D Textura(Color color)

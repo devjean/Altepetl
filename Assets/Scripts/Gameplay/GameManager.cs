@@ -77,7 +77,7 @@ namespace Altepetl
             _hud.Manager = this;
             var tropasEnAldea = new GameObject("Tropas en la aldea").AddComponent<TropasEnAldea>();
             tropasEnAldea.Manager = this;
-            var paisaje = new GameObject("Paisaje del lago").AddComponent<PaisajeLago>();
+            var paisaje = new GameObject("Paisaje").AddComponent<PaisajeAldea>();
             paisaje.Manager = this;
 
             PrepararCamara();

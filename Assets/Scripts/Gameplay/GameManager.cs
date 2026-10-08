@@ -291,6 +291,51 @@ namespace Altepetl
             Guardar();
         }
 
+        /// <summary>
+        /// Plumas de quetzal para comprar lo que falta de un costo: 1 por cada 25 de maíz o madera
+        /// y 1 por cada 8 de obsidiana. Devuelve -1 si falta algo que no se compra (mamaltin).
+        /// </summary>
+        public int PlumasParaCompletar(int[] costo)
+        {
+            int plumas = 0;
+            for (int i = 0; i < costo.Length; i++)
+            {
+                int falta = costo[i] - Banco.Get((ResourceType)i);
+                if (falta <= 0) continue;
+                switch ((ResourceType)i)
+                {
+                    case ResourceType.Maiz:
+                    case ResourceType.Madera: plumas += Mathf.CeilToInt(falta / 25f); break;
+                    case ResourceType.Obsidiana: plumas += Mathf.CeilToInt(falta / 8f); break;
+                    case ResourceType.Plumas: plumas += falta; break;
+                    default: return -1;
+                }
+            }
+            return plumas;
+        }
+
+        /// <summary>Paga con plumas lo que falta, gasta lo que sí hay y empieza la mejora.</summary>
+        public bool TryMejorarConPlumas(Building edificio)
+        {
+            if (PuedeMejorar(edificio) != EstadoMejora.SinRecursos) return false;
+            var costo = edificio.Definicion.CostoMejora(edificio.Nivel);
+            int plumas = PlumasParaCompletar(costo);
+            if (plumas < 0 || Banco.Get(ResourceType.Plumas) < plumas + costo[(int)ResourceType.Plumas])
+            {
+                MostrarMensaje("No tienes suficientes plumas de quetzal");
+                return false;
+            }
+            Banco.TryGastar(ResourceInfo.Costo(plumas: plumas));
+            for (int i = 0; i < costo.Length; i++)
+            {
+                var tipo = (ResourceType)i;
+                Banco.Establecer(tipo, Mathf.Max(0, Banco.Get(tipo) - costo[i]));
+            }
+            edificio.EmpezarMejora();
+            Guardar();
+            return true;
+        }
+
         // ---------- Ejército ----------
 
         /// <summary>Nivel del mejor telpochcalli terminado (0 si no hay): de él depende si se entrena y qué tan rápido.</summary>

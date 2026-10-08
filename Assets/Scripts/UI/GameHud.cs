@@ -459,11 +459,27 @@ namespace Altepetl
                         ? $" → {edificio.ProduccionEnNivel(edificio.Nivel + 1):0.#}/min"
                         : "";
                     string texto = $"Mejorar a nivel {edificio.Nivel + 1}{extra}\n{TextoCosto(def.CostoMejora(edificio.Nivel))}";
-                    if (GUI.Button(botonRect, texto, _boton))
+                    int plumas = estado == GameManager.EstadoMejora.SinRecursos
+                        ? Manager.PlumasParaCompletar(def.CostoMejora(edificio.Nivel))
+                        : -1;
+                    var rectMejora = botonRect;
+                    // Si falta material, a un lado sale la opción de completarlo con plumas de quetzal.
+                    if (plumas >= 0) rectMejora.width = botonRect.width * 0.62f - 4f;
+                    if (GUI.Button(rectMejora, texto, _boton))
                     {
                         Manager.TryMejorar(edificio);
                     }
                     GUI.enabled = true;
+                    if (plumas >= 0)
+                    {
+                        var rectPlumas = new Rect(rectMejora.xMax + 4f, botonRect.y, botonRect.width - rectMejora.width - 4f, botonRect.height);
+                        GUI.enabled = Manager.Banco.Get(ResourceType.Plumas) >= plumas;
+                        if (GUI.Button(rectPlumas, $"Con plumas\n{plumas} plumas", _boton))
+                        {
+                            Manager.TryMejorarConPlumas(edificio);
+                        }
+                        GUI.enabled = true;
+                    }
                     break;
             }
         }

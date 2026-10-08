@@ -20,7 +20,6 @@ namespace Altepetl
         private readonly List<Rect> _zonasHud = new List<Rect>();
         private float _escala = 1f;
         private GUIStyle _titulo;
-        private GUIStyle _estrella;
         private GUIStyle _texto;
         private GUIStyle _textoChico;
         private GUIStyle _textoUnaLinea;
@@ -1004,7 +1003,7 @@ namespace Altepetl
             }
             if (ascensos.Count > 0) texto += "\nAscensos: " + string.Join(", ", ascensos);
             if (resultado.AvanzaHistoria) texto += "\n" + batalla.Nivel.TextoDerrota;
-            else if (!resultado.Victoria) texto += $"\nPara ganar necesitas una estrella: destruye el {Mathf.RoundToInt(BattleManager.VictoriaMinima * 100)}% o derriba el tecpan.";
+            else if (!resultado.Victoria) texto += $"\nPara ganar necesitas un macuahuitl: destruye el {Mathf.RoundToInt(BattleManager.VictoriaMinima * 100)}% o derriba el tecpan.";
             GUI.Label(new Rect(panel.x + 20, panel.y + 92, panel.width - 40, 268), texto, _texto);
 
             if (GUI.Button(new Rect(panel.x + 100, panel.yMax - 64, panel.width - 200, 48), "Volver a la aldea", _boton))
@@ -1014,17 +1013,57 @@ namespace Altepetl
         }
 
         /// <summary>
-        /// Tres estrellas, como en Clash: una por el 50%, otra por derribar el tecpan y otra por el 100%.
+        /// Tres macuahuitl, como las estrellas de Clash: uno por el 50%, otro por derribar el tecpan
+        /// y otro por el 100%. Los que faltan se ven apagados.
         /// </summary>
         private void DibujarEstrellas(Rect rect, int cuantas, int tamano)
         {
-            _estrella.fontSize = tamano;
             float paso = rect.width / 3f;
             for (int i = 0; i < 3; i++)
             {
-                _estrella.normal.textColor = i < cuantas ? new Color(1f, 0.80f, 0.25f) : new Color(0.35f, 0.32f, 0.28f);
-                GUI.Label(new Rect(rect.x + paso * i, rect.y, paso, rect.height), "★", _estrella);
+                var lugar = new Rect(rect.x + paso * i + (paso - tamano) * 0.5f, rect.y + (rect.height - tamano) * 0.5f, tamano, tamano);
+                DibujarMacuahuitl(lugar, i < cuantas);
             }
+        }
+
+        /// <summary>Un macuahuitl inclinado: mango y hoja de madera con navajas de obsidiana a los lados.</summary>
+        private void DibujarMacuahuitl(Rect rect, bool ganado)
+        {
+            var matriz = GUI.matrix;
+            // Se gira alrededor de su centro en coordenadas del HUD (después de la escala de pantalla).
+            var centro = new Vector3(rect.x + rect.width * 0.5f, rect.y + rect.height * 0.5f, 0f);
+            GUI.matrix = matriz * Matrix4x4.Translate(centro) * Matrix4x4.Rotate(Quaternion.Euler(0f, 0f, 35f))
+                         * Matrix4x4.Translate(new Vector3(-centro.x, -centro.y, 0f));
+
+            float h = rect.height;
+            float cx = rect.x + rect.width * 0.5f;
+            var madera = ganado ? new Color(0.62f, 0.42f, 0.22f) : new Color(0.32f, 0.29f, 0.26f);
+            var obsidiana = ganado ? new Color(0.10f, 0.09f, 0.12f) : new Color(0.24f, 0.23f, 0.22f);
+            var brillo = ganado ? new Color(0.55f, 0.60f, 0.70f) : new Color(0.30f, 0.29f, 0.28f);
+
+            float anchoHoja = h * 0.26f;
+            float anchoMango = h * 0.12f;
+            // Navajas: cuadritos a cada lado de la hoja.
+            float navaja = h * 0.1f;
+            for (int n = 0; n < 4; n++)
+            {
+                float y = rect.y + h * 0.06f + n * h * 0.15f;
+                Rectangulo(new Rect(cx - anchoHoja * 0.5f - navaja * 0.7f, y, navaja, navaja), obsidiana);
+                Rectangulo(new Rect(cx + anchoHoja * 0.5f - navaja * 0.3f, y, navaja, navaja), obsidiana);
+                Rectangulo(new Rect(cx - anchoHoja * 0.5f - navaja * 0.7f, y, navaja * 0.35f, navaja * 0.35f), brillo);
+                Rectangulo(new Rect(cx + anchoHoja * 0.5f - navaja * 0.3f, y, navaja * 0.35f, navaja * 0.35f), brillo);
+            }
+            Rectangulo(new Rect(cx - anchoHoja * 0.5f, rect.y + h * 0.02f, anchoHoja, h * 0.66f), madera);
+            Rectangulo(new Rect(cx - anchoMango * 0.5f, rect.y + h * 0.66f, anchoMango, h * 0.32f), madera);
+
+            GUI.matrix = matriz;
+        }
+
+        private void Rectangulo(Rect rect, Color color)
+        {
+            GUI.color = color;
+            GUI.DrawTexture(rect, _blanco);
+            GUI.color = Color.white;
         }
 
         private void DibujarMensaje(float ancho, float alto)
@@ -1069,7 +1108,6 @@ namespace Altepetl
 
             _boton = new GUIStyle(GUI.skin.button) { fontSize = 14, wordWrap = true };
 
-            _estrella = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
         }
 
         // Títulos en una sola línea: si no caben, se achica la letra en vez de salirse del panel.

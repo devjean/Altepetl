@@ -59,6 +59,12 @@ namespace Altepetl
             // La versión 4 añadió los rangos (Army.Importar pasa las tropas viejas a jóvenes guerreros)
             // y las ofrendas, que empiezan sin ofrenda activa y con el favor a la mitad.
             // La versión 5 añadió los heridos, que empiezan vacíos.
+            // La versión 6 añadió las estrellas: los capítulos ya completados cuentan con una.
+            if (datos.version < 6)
+            {
+                datos.estrellas = new System.Collections.Generic.List<int>();
+                for (int i = 0; i < datos.nivelesCompletados; i++) datos.estrellas.Add(1);
+            }
             if (datos.version < 4)
             {
                 datos.deidadActiva = 0;

@@ -25,6 +25,21 @@ namespace Altepetl
         /// <summary>Ofrendas en el teocalli y favor de Huitzilopochtli.</summary>
         public Culto Culto { get; private set; }
         public int NivelesCompletados { get; private set; }
+        private readonly List<int> _estrellas = new List<int>();
+
+        /// <summary>Mejor resultado en un capítulo, de 0 a 3 estrellas.</summary>
+        public int EstrellasDe(int indice) => indice >= 0 && indice < _estrellas.Count ? _estrellas[indice] : 0;
+        /// <summary>Los capítulos de la campaña del pueblo elegido.</summary>
+        public CampaignLevel[] Campana => Altepetl.Campana.Para(Pueblo);
+        /// <summary>Epílogo por leer al volver a la aldea (título y texto), o null.</summary>
+        public string TituloHistoriaPendiente { get; private set; }
+        public string HistoriaPendiente { get; private set; }
+
+        public void LeerHistoriaPendiente()
+        {
+            TituloHistoriaPendiente = null;
+            HistoriaPendiente = null;
+        }
 
         public enum Modo
         {
@@ -38,6 +53,7 @@ namespace Altepetl
         public string Mensaje { get; private set; }
 
         private readonly List<Building> _edificios = new List<Building>();
+        private Renderer _suelo;
         private Camera _camara;
         private Light _sol;
         private GameHud _hud;
@@ -65,6 +81,9 @@ namespace Altepetl
             _hud.Manager = this;
             var tropasEnAldea = new GameObject("Tropas en la aldea").AddComponent<TropasEnAldea>();
             tropasEnAldea.Manager = this;
+            _tropasEnAldea = tropasEnAldea;
+            var paisaje = new GameObject("Paisaje").AddComponent<PaisajeAldea>();
+            paisaje.Manager = this;
 
             PrepararCamara();
             PrepararLuz();
@@ -80,6 +99,7 @@ namespace Altepetl
         public void ElegirPueblo(Pueblo pueblo)
         {
             Pueblo = pueblo;
+            ActualizarSuelo();
             Culto = new Culto(pueblo.Id);
             Banco = new ResourceBank();
             Banco.Add(ResourceType.Maiz, 300);
@@ -140,6 +160,8 @@ namespace Altepetl
             _mensajeHasta = Time.time + segundos;
         }
 
+        private TropasEnAldea _tropasEnAldea;
+
         private void Update()
         {
             if (Mensaje != null && Time.time > _mensajeHasta) Mensaje = null;
@@ -149,7 +171,9 @@ namespace Altepetl
 
             if (Pueblo == null) return;
             if (NivelTelpochcalli > 0) Ejercito.Avanzar(Time.deltaTime, DuracionEntrenamiento);
-            int curados = Ejercito.Curar(Time.deltaTime, CamasCuracion);
+            // Los heridos empiezan a sanar ya de vuelta en la aldea, cuando llegan al temazcalli.
+            bool curando = ModoActual == Modo.Aldea && !_tropasEnAldea.HeridosLlegando;
+            int curados = curando ? Ejercito.Curar(Time.deltaTime, CamasCuracion) : 0;
             if (curados > 0) MostrarMensaje(curados == 1 ? "Una tropa sanó en el temazcalli" : $"{curados} tropas sanaron en el temazcalli");
             Culto.Avanzar(Time.deltaTime);
             Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
@@ -191,7 +215,10 @@ namespace Altepetl
                 return;
             }
             Construir(definicion, origen, 0, SegundosConstruccion(definicion));
-            Colocando = null;
+            // Las murallas se siguen colocando una tras otra mientras alcancen los recursos.
+            bool otraMuralla = definicion.Id == BuildingId.Muralla && !EnLimite(definicion)
+                && Banco.PuedePagar(definicion.Costo);
+            if (!otraMuralla) Colocando = null;
             Guardar();
         }
 
@@ -203,6 +230,12 @@ namespace Altepetl
             edificio.Inicializar(definicion, Pueblo, origen, Banco, Mapa, nivel, segundosRestantes, acumulado);
             Mapa.Ocupar(origen, definicion.Tamano, edificio);
             _edificios.Add(edificio);
+            if (definicion.Id == BuildingId.Muralla)
+            {
+                edificio.UnirMuralla(Mapa);
+                Mapa.En(origen + new Vector2Int(-1, 0))?.UnirMuralla(Mapa);
+                Mapa.En(origen + new Vector2Int(0, -1))?.UnirMuralla(Mapa);
+            }
             return edificio;
         }
 
@@ -302,6 +335,24 @@ namespace Altepetl
                    * (1f - Culto.Bono(TipoBono.Construccion));
         }
 
+        /// <summary>Plumas para terminar ya toda la cola: una por cada 10 segundos, como en las obras.</summary>
+        public int CostoTerminarEntrenamiento =>
+            Mathf.Max(1, Mathf.CeilToInt(Ejercito.SegundosCola(DuracionEntrenamiento) / 10f));
+
+        public bool TryTerminarEntrenamiento()
+        {
+            if (!Ejercito.Entrenando) return false;
+            if (!Banco.TryGastar(ResourceInfo.Costo(plumas: CostoTerminarEntrenamiento)))
+            {
+                MostrarMensaje("No tienes suficientes plumas de quetzal");
+                return false;
+            }
+            int terminadas = Ejercito.TerminarCola();
+            MostrarMensaje(terminadas == 1 ? "Una tropa terminó su entrenamiento" : $"{terminadas} tropas terminaron su entrenamiento");
+            Guardar();
+            return true;
+        }
+
         public float DuracionEntrenamiento(TroopId id)
         {
             float porNivel = 1f + EntrenamientoExtraPorNivel * Mathf.Max(0, NivelTelpochcalli - 1);
@@ -384,7 +435,7 @@ namespace Altepetl
         public void EmpezarBatalla(int indice, SeleccionEjercito seleccion)
         {
             if (ModoActual == Modo.Batalla) return;
-            if (indice < 0 || indice >= CampaignLevel.Todos.Length || indice > NivelesCompletados) return;
+            if (indice < 0 || indice >= Campana.Length || indice > NivelesCompletados) return;
             if (Ejercito.Total <= 0)
             {
                 MostrarMensaje("Entrena tropas en el telpochcalli antes de atacar");
@@ -413,11 +464,31 @@ namespace Altepetl
             {
                 if (resultado.Botin[i] > 0) Banco.Add((ResourceType)i, resultado.Botin[i]);
             }
-            if (resultado.Victoria && batalla.IndiceNivel == NivelesCompletados)
+            var nivel = batalla.Nivel;
+            int indice = batalla.IndiceNivel;
+            int estrellasAntes = EstrellasDe(indice);
+            if (resultado.Estrellas > estrellasAntes)
+            {
+                while (_estrellas.Count <= indice) _estrellas.Add(0);
+                _estrellas[indice] = resultado.Estrellas;
+            }
+            // Las plumas, la primera vez que se gana (aunque antes se haya perdido, como en Chapultepec).
+            if (resultado.Victoria && estrellasAntes == 0)
+            {
+                resultado.Plumas = nivel.PlumasPrimeraVez;
+                Banco.Add(ResourceType.Plumas, resultado.Plumas);
+            }
+            bool primeraVez = indice == NivelesCompletados;
+            // Algunos capítulos siguen aunque se pierdan, como pasó en la historia (Chapultepec).
+            if (primeraVez && (resultado.Victoria || nivel.AvanzaAunqueSePierda))
             {
                 NivelesCompletados++;
-                resultado.Plumas = batalla.Nivel.PlumasPrimeraVez;
-                Banco.Add(ResourceType.Plumas, resultado.Plumas);
+                resultado.AvanzaHistoria = !resultado.Victoria;
+                if (!string.IsNullOrEmpty(nivel.Epilogo))
+                {
+                    TituloHistoriaPendiente = nivel.Nombre;
+                    HistoriaPendiente = nivel.Epilogo;
+                }
             }
             Guardar();
         }
@@ -462,6 +533,7 @@ namespace Altepetl
                 Batalla.SumarTropasPendientes(datos);
             }
             datos.nivelesCompletados = NivelesCompletados;
+            datos.estrellas = new List<int>(_estrellas);
             Culto.Exportar(datos);
             SaveSystem.Guardar(datos);
         }
@@ -469,6 +541,7 @@ namespace Altepetl
         private void Restaurar(SaveData datos)
         {
             Pueblo = Pueblo.Get(datos.pueblo);
+            ActualizarSuelo();
             Culto = new Culto(Pueblo.Id);
             Culto.Importar(datos);
             Banco = new ResourceBank();
@@ -488,7 +561,9 @@ namespace Altepetl
                 Banco.Establecer((ResourceType)i, datos.recursos[i]);
             }
             Ejercito.Importar(datos);
-            NivelesCompletados = Mathf.Clamp(datos.nivelesCompletados, 0, CampaignLevel.Todos.Length);
+            NivelesCompletados = Mathf.Clamp(datos.nivelesCompletados, 0, Campana.Length);
+            _estrellas.Clear();
+            if (datos.estrellas != null) _estrellas.AddRange(datos.estrellas);
 
             AplicarTiempoAusente(SaveSystem.SegundosDesde(datos));
         }
@@ -640,6 +715,15 @@ namespace Altepetl
             if (_sol != null) _sol.color = Color.Lerp(_sol.color, luz, t);
         }
 
+        /// <summary>Tierra para todos, salvo los mexicas, que viven sobre el lago.</summary>
+        private void ActualizarSuelo()
+        {
+            if (_suelo == null) return;
+            _suelo.material.color = Pueblo != null && Pueblo.EnLago
+                ? new Color(0.28f, 0.50f, 0.58f)
+                : new Color(0.62f, 0.55f, 0.38f);
+        }
+
         private void CrearSuelo()
         {
             var suelo = GameObject.CreatePrimitive(PrimitiveType.Plane);
@@ -648,7 +732,8 @@ namespace Altepetl
             // Un Plane de Unity mide 10x10 unidades.
             suelo.transform.localScale = new Vector3(TamanoMapa / 10f, 1f, TamanoMapa / 10f);
             suelo.transform.position = Mapa.Centro;
-            suelo.GetComponent<Renderer>().material.color = new Color(0.62f, 0.55f, 0.38f);
+            _suelo = suelo.GetComponent<Renderer>();
+            ActualizarSuelo();
         }
 
         private static Transform CrearMarcador(string nombre, out Renderer render)
@@ -682,8 +767,10 @@ namespace Altepetl
             if (haySeleccion)
             {
                 int tamano = Seleccionado.Definicion.Tamano;
-                _marcaSeleccion.position = Mapa.CentroDeArea(Seleccionado.Origen, tamano) + Vector3.up * 0.02f;
-                _marcaSeleccion.localScale = new Vector3(tamano + 0.1f, 0.04f, tamano + 0.1f);
+                // En el lago el marco es más alto para que asome alrededor de la plataforma.
+                float alto = Pueblo.EnLago ? 0.18f : 0.04f;
+                _marcaSeleccion.position = Mapa.CentroDeArea(Seleccionado.Origen, tamano) + Vector3.up * (alto * 0.5f);
+                _marcaSeleccion.localScale = new Vector3(tamano + 0.1f, alto, tamano + 0.1f);
             }
             _marcaSeleccion.gameObject.SetActive(haySeleccion);
         }

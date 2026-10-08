@@ -20,6 +20,9 @@ namespace Altepetl
         public string Descripcion;
         public string NombreGranja; // Chinampa o Cultivos
 
+        /// <summary>Tenochtitlan se levantó sobre el lago: la aldea mexica es agua, con edificios sobre plataformas.</summary>
+        public bool EnLago => Id == PuebloId.Mexicas;
+
         public float MultiplicadorMaiz = 1f;
         public float MultiplicadorTiempoConstruccion = 1f;
         public float MultiplicadorVidaMurallas = 1f;

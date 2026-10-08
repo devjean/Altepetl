@@ -10,12 +10,13 @@ namespace Altepetl
     /// Cada monito tiene el color de su tipo y es más grande según su rango.
     /// Las recién entrenadas salen del telpochcalli, las que vuelven de batalla entran por la
     /// orilla de la aldea y las que sanan se levantan y caminan del temazcalli al calpulli.
+    /// En la aldea mexica, sobre el lago, cada tropa va en su acalli (canoa).
     /// </summary>
     public sealed class TropasEnAldea : MonoBehaviour
     {
         private const float Separacion = 0.4f;   // distancia entre monitos
         private const float Margen = 0.3f;       // distancia del borde del edificio a la primera fila
-        private const int Filas = 3;             // filas alrededor de cada edificio
+        private const int MaximoFilas = 12;      // filas alrededor de cada edificio, si hacen falta
         private const float Velocidad = 1.4f;    // casillas por segundo al caminar
 
         private sealed class Monito
@@ -24,12 +25,29 @@ namespace Altepetl
             public int Rango;
             public bool Herido;
             public Transform Cuerpo;
+            public Transform Acalli;   // canoa, solo en la aldea mexica sobre el lago
+            public float Rumbo;        // hacia dónde mira la canoa, en grados
             public Vector3 Destino;
             public float Fase;
             public float Tamano;
         }
 
         public GameManager Manager;
+
+        /// <summary>¿Hay heridos que todavía van llegando al temazcalli? Mientras tanto no se curan.</summary>
+        public bool HeridosLlegando
+        {
+            get
+            {
+                foreach (var monito in _monitos)
+                {
+                    if (!monito.Herido) continue;
+                    Vector3 actual = monito.Cuerpo.localPosition;
+                    if ((monito.Destino - new Vector3(actual.x, 0f, actual.z)).sqrMagnitude > 0.0004f) return true;
+                }
+                return false;
+            }
+        }
 
         private readonly List<Monito> _monitos = new List<Monito>();
         private string _firma = "";
@@ -71,6 +89,20 @@ namespace Altepetl
             {
                 float paso = Velocidad * Time.deltaTime;
                 plano = hacia.magnitude <= paso ? monito.Destino : plano + hacia.normalized * paso;
+                monito.Rumbo = Mathf.Atan2(hacia.x, hacia.z) * Mathf.Rad2Deg;
+            }
+
+            if (monito.Acalli != null)
+            {
+                // En canoa: se mecen sobre el agua en vez de dar pasos.
+                float vaiven = Mathf.Sin(Time.time * 1.8f + monito.Fase) * 0.015f;
+                monito.Acalli.localPosition = new Vector3(plano.x, 0.03f + vaiven, plano.z);
+                monito.Acalli.localRotation = Quaternion.Euler(0f, monito.Rumbo, 0f);
+                bool tendido = monito.Herido && !caminando;
+                cuerpo.localRotation = tendido ? Quaternion.Euler(90f, monito.Rumbo, 0f) : Quaternion.Euler(0f, 0f, 0f);
+                float sobreCanoa = 0.07f + vaiven + (tendido ? monito.Tamano * 0.5f : monito.Tamano);
+                cuerpo.localPosition = new Vector3(plano.x, sobreCanoa, plano.z);
+                return;
             }
 
             // Los heridos se acuestan al llegar; los sanos se balancean un poco (más al caminar).
@@ -86,7 +118,7 @@ namespace Altepetl
             cuerpo.localPosition = new Vector3(plano.x, altura, plano.z);
         }
 
-        /// <summary>Cambia cuando cambian las tropas o los edificios donde se paran.</summary>
+        /// <summary>Cambia cuando cambian las tropas o los edificios.</summary>
         private string Firma()
         {
             var texto = new StringBuilder();
@@ -98,6 +130,8 @@ namespace Altepetl
                     texto.Append(ejercito.Get(tropa.Id, r)).Append(',').Append(ejercito.HeridosDe(tropa.Id, r)).Append(';');
                 }
             }
+            // Cualquier edificio nuevo (una muralla, por ejemplo) puede ocupar un lugar.
+            texto.Append(Manager.Edificios.Count).Append('#');
             foreach (var edificio in Manager.Edificios)
             {
                 if (edificio.Nivel <= 0) continue;
@@ -124,8 +158,8 @@ namespace Altepetl
                 if (edificio.Definicion.Entrena && telpochcalli == null) telpochcalli = edificio;
             }
 
-            var lugaresCalpulli = Lugares(calpullis);
-            var lugaresTemazcalli = temazcallis.Count > 0 ? Lugares(temazcallis) : null;
+            var lugaresCalpulli = Lugares(calpullis, Manager.Ejercito.Total);
+            var lugaresTemazcalli = temazcallis.Count > 0 ? Lugares(temazcallis, Manager.Ejercito.Heridos.Count) : null;
             int siguienteCalpulli = 0;
             int siguienteTemazcalli = 0;
 
@@ -213,6 +247,7 @@ namespace Altepetl
             foreach (var sobra in libres)
             {
                 if (sobra.Cuerpo != null) Destroy(sobra.Cuerpo.gameObject);
+                if (sobra.Acalli != null) Destroy(sobra.Acalli.gameObject);
             }
 
             _monitos.Clear();
@@ -241,26 +276,39 @@ namespace Altepetl
         }
 
         /// <summary>Puntos alrededor de los edificios, fila por fila.</summary>
-        private static List<Vector3> Lugares(List<Building> edificios)
+        /// <summary>
+        /// Lugares alrededor de los edificios, fila por fila. Se saltan las casillas ocupadas
+        /// (murallas u otros edificios) y las de fuera del mapa, y se agregan filas hasta tener
+        /// lugar para todos.
+        /// </summary>
+        private List<Vector3> Lugares(List<Building> edificios, int necesarios)
         {
             var lugares = new List<Vector3>();
-            foreach (var edificio in edificios)
+            var mapa = Manager.Mapa;
+            for (int fila = 0; fila < MaximoFilas && lugares.Count < necesarios; fila++)
             {
-                Vector3 centro = edificio.transform.position;
-                centro.y = 0f;
-                for (int fila = 0; fila < Filas; fila++)
+                foreach (var edificio in edificios)
                 {
+                    Vector3 centro = edificio.transform.position;
+                    centro.y = 0f;
                     float mitad = edificio.Definicion.Tamano * 0.5f + Margen + Separacion * fila;
                     int porLado = Mathf.Max(1, Mathf.RoundToInt(mitad * 2f / Separacion));
                     float paso = mitad * 2f / porLado;
                     // Empieza por el frente (el lado que mira a la cámara) y sigue alrededor.
-                    for (int i = 0; i < porLado; i++) lugares.Add(centro + new Vector3(-mitad + paso * i, 0f, -mitad));
-                    for (int i = 0; i < porLado; i++) lugares.Add(centro + new Vector3(mitad, 0f, -mitad + paso * i));
-                    for (int i = 0; i < porLado; i++) lugares.Add(centro + new Vector3(mitad - paso * i, 0f, mitad));
-                    for (int i = 0; i < porLado; i++) lugares.Add(centro + new Vector3(-mitad, 0f, mitad - paso * i));
+                    for (int i = 0; i < porLado; i++) Agregar(lugares, mapa, centro + new Vector3(-mitad + paso * i, 0f, -mitad));
+                    for (int i = 0; i < porLado; i++) Agregar(lugares, mapa, centro + new Vector3(mitad, 0f, -mitad + paso * i));
+                    for (int i = 0; i < porLado; i++) Agregar(lugares, mapa, centro + new Vector3(mitad - paso * i, 0f, mitad));
+                    for (int i = 0; i < porLado; i++) Agregar(lugares, mapa, centro + new Vector3(-mitad, 0f, mitad - paso * i));
                 }
             }
             return lugares;
+        }
+
+        private static void Agregar(List<Vector3> lugares, GridMap mapa, Vector3 punto)
+        {
+            var casilla = mapa.MundoACasilla(punto);
+            if (!mapa.DentroDelMapa(casilla) || mapa.En(casilla) != null) return;
+            lugares.Add(punto);
         }
 
         /// <summary>Los heridos se ven más apagados.</summary>
@@ -285,6 +333,17 @@ namespace Altepetl
             cuerpo.GetComponent<Renderer>().material.color = ColorDe(monito);
 
             monito.Cuerpo = cuerpo.transform;
+            if (Manager.Pueblo.EnLago)
+            {
+                var acalli = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                acalli.name = "Acalli";
+                Destroy(acalli.GetComponent<Collider>());
+                acalli.transform.SetParent(transform, false);
+                acalli.transform.localScale = new Vector3(0.13f, 0.06f, 0.38f);
+                acalli.transform.localPosition = new Vector3(inicio.x, 0.03f, inicio.z);
+                acalli.GetComponent<Renderer>().material.color = new Color(0.45f, 0.30f, 0.18f);
+                monito.Acalli = acalli.transform;
+            }
             monito.Fase = Random.value * Mathf.PI * 2f;
         }
     }

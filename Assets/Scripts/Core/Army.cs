@@ -237,6 +237,25 @@ namespace Altepetl
         }
 
         /// <summary>Avanza el entrenamiento. duracion da los segundos de cada tipo de tropa.</summary>
+        /// <summary>Segundos que faltan para terminar toda la cola.</summary>
+        public float SegundosCola(Func<TroopId, float> duracion)
+        {
+            if (_cola.Count == 0) return 0f;
+            float total = _restante;
+            for (int i = 1; i < _cola.Count; i++) total += duracion(_cola[i]);
+            return total;
+        }
+
+        /// <summary>Termina de golpe todo lo que está en cola (se pagó con plumas).</summary>
+        public int TerminarCola()
+        {
+            int terminadas = _cola.Count;
+            foreach (var id in _cola) _tropas[Indice(id, Rangos.Joven)]++;
+            _cola.Clear();
+            _restante = 0f;
+            return terminadas;
+        }
+
         public void Avanzar(float segundos, Func<TroopId, float> duracion)
         {
             while (segundos > 0f && _cola.Count > 0)

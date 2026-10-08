@@ -30,6 +30,7 @@ namespace Altepetl
         private bool _campanaAbierta;
         private bool _menuAbierto;
         private bool _ofrendasAbierto;
+        private int _nivelHistoria = -1;        // capítulo cuya historia se está leyendo
         private int _nivelArmando = -1;         // nivel de campaña para el que se arma el ejército
         private SeleccionEjercito _seleccion;
         private Deidad _deidadInfo;
@@ -78,6 +79,7 @@ namespace Altepetl
             DibujarBotonAtacar(alto);
             DibujarPanelSeleccion(ancho);
             DibujarCampana(ancho);
+            DibujarHistoria(ancho);
             DibujarArmarEjercito(ancho);
             DibujarOfrendas(ancho);
             DibujarMensaje(ancho, alto);
@@ -91,7 +93,7 @@ namespace Altepetl
         private void DibujarEleccionDePueblo(float ancho, float alto)
         {
             GUI.Box(new Rect(0, 0, ancho, alto), GUIContent.none, _caja);
-            GUI.Label(new Rect(0, 30, ancho, 40), "Altepetl — elige tu pueblo", _titulo);
+            Titulo(new Rect(0, 30, ancho, 40), "Altepetl — elige tu pueblo");
 
             float anchoTarjeta = Mathf.Min(280f, (ancho - 80f) / 3f);
             float x = (ancho - anchoTarjeta * 3f - 40f) / 2f;
@@ -99,7 +101,7 @@ namespace Altepetl
             {
                 var tarjeta = new Rect(x, 100, anchoTarjeta, 300);
                 GUI.Box(tarjeta, GUIContent.none, _caja);
-                GUI.Label(new Rect(tarjeta.x + 10, tarjeta.y + 10, tarjeta.width - 20, 30), pueblo.Nombre, _titulo);
+                Titulo(new Rect(tarjeta.x + 10, tarjeta.y + 10, tarjeta.width - 20, 30), pueblo.Nombre);
                 GUI.Label(new Rect(tarjeta.x + 10, tarjeta.y + 50, tarjeta.width - 20, 160),
                     $"{pueblo.Ciudad}\nEstilo: {pueblo.Estilo}\n\n{pueblo.Descripcion}", _texto);
                 if (GUI.Button(new Rect(tarjeta.x + 20, tarjeta.yMax - 60, tarjeta.width - 40, 44), "Elegir", _boton))
@@ -185,7 +187,7 @@ namespace Altepetl
                 return;
             }
 
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Construir", _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Construir");
 
             // Pestañas
             var categorias = (CategoriaEdificio[])System.Enum.GetValues(typeof(CategoriaEdificio));
@@ -242,7 +244,7 @@ namespace Altepetl
 
         private void DibujarInfoEdificio(Rect panel, BuildingDefinition def)
         {
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), def.NombrePara(Manager.Pueblo), _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), def.NombrePara(Manager.Pueblo));
             GUI.Label(new Rect(panel.x + 20, panel.y + 48, panel.width - 40, 260),
                 def.Descripcion + "\n\n" + DetallesEdificio(def), _texto);
 
@@ -363,12 +365,12 @@ namespace Altepetl
 
             var def = edificio.Definicion;
             bool entrena = def.Entrena && edificio.Nivel > 0;
-            float altoPanel = entrena ? 370 : def.CamasCuracion > 0 ? 310 : 250;
+            float altoPanel = entrena ? 410 : def.CamasCuracion > 0 ? 310 : 250;
             var panel = new Rect(ancho - 290, AltoBarraSuperior + 10, 280, altoPanel);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
 
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), edificio.Nombre, _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), edificio.Nombre);
             if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
             {
                 Manager.Seleccionar(null);
@@ -472,7 +474,7 @@ namespace Altepetl
         {
             if (!_ofrendasAbierto) return;
             if (Manager.Seleccionado != null || Manager.Colocando != null || _menuAbierto || _campanaAbierta
-                || _nivelArmando >= 0)
+                || _nivelArmando >= 0 || _nivelHistoria >= 0 || Manager.HistoriaPendiente != null)
             {
                 _ofrendasAbierto = false;
                 return;
@@ -482,8 +484,7 @@ namespace Altepetl
             var panel = new Rect((ancho - 600) / 2, AltoBarraSuperior + 10, 600, 420);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28),
-                _deidadInfo != null ? _deidadInfo.Nombre : "Ofrendas", _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), _deidadInfo != null ? _deidadInfo.Nombre : "Ofrendas");
             if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
             {
                 _ofrendasAbierto = false;
@@ -634,6 +635,15 @@ namespace Altepetl
                 GUI.enabled = true;
                 x += anchoBoton + 5f;
             }
+
+            if (!ejercito.Entrenando) return;
+            int plumas = Manager.CostoTerminarEntrenamiento;
+            GUI.enabled = Manager.Banco.Get(ResourceType.Plumas) >= plumas;
+            if (GUI.Button(new Rect(panel.x + 10, panel.y + 306, panel.width - 20, 40), $"Terminar entrenamiento ({plumas} plumas)", _boton))
+            {
+                Manager.TryTerminarEntrenamiento();
+            }
+            GUI.enabled = true;
         }
 
         private void DibujarBotonAtacar(float alto)
@@ -643,8 +653,9 @@ namespace Altepetl
             Zona(rect);
             if (GUI.Button(rect, $"Atacar\n({Manager.Ejercito.Total} tropas)", _boton))
             {
-                _campanaAbierta = !_campanaAbierta && _nivelArmando < 0;
+                _campanaAbierta = !_campanaAbierta && _nivelArmando < 0 && _nivelHistoria < 0;
                 _nivelArmando = -1;
+                _nivelHistoria = -1;
                 if (_campanaAbierta)
                 {
                     _menuAbierto = false;
@@ -663,10 +674,13 @@ namespace Altepetl
                 return;
             }
 
-            var panel = new Rect((ancho - 480) / 2, AltoBarraSuperior + 10, 480, 394);
+            var campana = Manager.Campana;
+            const float altoFila = 66f;
+            float altoPanel = Mathf.Min(470f, 96f + campana.Length * (altoFila + 6f) + 4f);
+            var panel = new Rect((ancho - 560) / 2, AltoBarraSuperior + 10, 560, altoPanel);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Campaña", _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), Altepetl.Campana.Titulo(Manager.Pueblo));
             if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
             {
                 _campanaAbierta = false;
@@ -686,27 +700,95 @@ namespace Altepetl
                 + (veteranosCampana.Length > 0 ? "\nCon rango: " + veteranosCampana : ""), _texto);
 
             float y = panel.y + 96;
-            for (int i = 0; i < CampaignLevel.Todos.Length; i++)
+            for (int i = 0; i < campana.Length; i++)
             {
-                var nivel = CampaignLevel.Todos[i];
+                var nivel = campana[i];
                 bool ganado = i < Manager.NivelesCompletados;
                 bool disponible = i <= Manager.NivelesCompletados;
-                var fila = new Rect(panel.x + 10, y, panel.width - 20, 88);
+                var fila = new Rect(panel.x + 10, y, panel.width - 20, altoFila);
                 GUI.Box(fila, GUIContent.none, _caja);
 
-                string premio = ganado ? "Ganado" : $"Primera victoria: {nivel.PlumasPrimeraVez} plumas de quetzal";
-                GUI.Label(new Rect(fila.x + 8, fila.y + 4, fila.width - 140, 84),
-                    $"{i + 1}. {nivel.Nombre}\n{nivel.Descripcion}\n{premio}", _texto);
+                int estrellas = Manager.EstrellasDe(i);
+                string premio = estrellas > 0 ? "Completado" : $"Primera victoria: {nivel.PlumasPrimeraVez} plumas de quetzal";
+                if (ganado) DibujarEstrellas(new Rect(fila.xMax - 220, fila.y + 18, 90, 30), estrellas, 22);
+                GUI.Label(new Rect(fila.x + 8, fila.y + 2, fila.width - 230, 24), $"{i + 1}. {nivel.Nombre}", _texto);
+                GUI.Label(new Rect(fila.x + 8, fila.y + 24, fila.width - 230, altoFila - 24),
+                    $"{nivel.Descripcion}\n{premio}", _textoChico);
 
                 GUI.enabled = disponible && ejercito.Total > 0;
-                if (GUI.Button(new Rect(fila.xMax - 120, fila.y + 20, 110, 48), disponible ? "Atacar" : "Bloqueado", _boton))
+                if (GUI.Button(new Rect(fila.xMax - 120, fila.y + 11, 110, 44), disponible ? "Atacar" : "Bloqueado", _boton))
                 {
                     _campanaAbierta = false;
-                    _nivelArmando = i;
-                    _seleccion = Manager.SeleccionPorDefecto();
+                    if (string.IsNullOrEmpty(nivel.Historia))
+                    {
+                        _nivelArmando = i;
+                        _seleccion = Manager.SeleccionPorDefecto();
+                    }
+                    else
+                    {
+                        _nivelHistoria = i;
+                    }
                 }
                 GUI.enabled = true;
-                y += 96;
+                y += altoFila + 6f;
+            }
+        }
+
+        // ---------- Historia de la campaña ----------
+
+        /// <summary>La historia del capítulo antes de la batalla, o el epílogo al volver a la aldea.</summary>
+        private void DibujarHistoria(float ancho)
+        {
+            string titulo;
+            string texto;
+            bool epilogo = false;
+            if (Manager.HistoriaPendiente != null)
+            {
+                titulo = Manager.TituloHistoriaPendiente;
+                texto = Manager.HistoriaPendiente;
+                epilogo = true;
+                _nivelHistoria = -1;
+            }
+            else if (_nivelHistoria >= 0)
+            {
+                if (Manager.Seleccionado != null || Manager.Colocando != null || _menuAbierto || _campanaAbierta)
+                {
+                    _nivelHistoria = -1;
+                    return;
+                }
+                var nivel = Manager.Campana[_nivelHistoria];
+                titulo = $"{_nivelHistoria + 1}. {nivel.Nombre}";
+                texto = nivel.Historia;
+            }
+            else
+            {
+                return;
+            }
+
+            var panel = new Rect((ancho - 620) / 2, AltoBarraSuperior + 10, 620, 440);
+            Zona(panel);
+            GUI.Box(panel, GUIContent.none, _caja);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 20, 28), titulo);
+            GUI.Label(new Rect(panel.x + 30, panel.y + 52, panel.width - 60, 310), texto, _texto);
+
+            if (epilogo)
+            {
+                if (GUI.Button(new Rect(panel.x + (panel.width - 200) / 2, panel.yMax - 60, 200, 44), "Continuar", _boton))
+                {
+                    Manager.LeerHistoriaPendiente();
+                }
+                return;
+            }
+            if (GUI.Button(new Rect(panel.x + 20, panel.yMax - 60, 160, 44), "Volver", _boton))
+            {
+                _nivelHistoria = -1;
+                _campanaAbierta = true;
+            }
+            if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), "Preparar el ejército", _boton))
+            {
+                _nivelArmando = _nivelHistoria;
+                _seleccion = Manager.SeleccionPorDefecto();
+                _nivelHistoria = -1;
             }
         }
 
@@ -722,11 +804,11 @@ namespace Altepetl
             }
 
             var ejercito = Manager.Ejercito;
-            var nivel = CampaignLevel.Todos[_nivelArmando];
+            var nivel = Manager.Campana[_nivelArmando];
             var panel = new Rect((ancho - 620) / 2, AltoBarraSuperior + 10, 620, 470);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
-            GUI.Label(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Arma tu ejército", _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Arma tu ejército");
             if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
             {
                 _nivelArmando = -1;
@@ -825,6 +907,7 @@ namespace Altepetl
             GUI.Label(new Rect(10, 10, ancho - 20, 24),
                 $"{batalla.Nivel.Nombre}    Destrucción: {Mathf.FloorToInt(batalla.Destruccion * 100)}%    Tiempo: {segundos / 60}:{segundos % 60:00}",
                 _texto);
+            DibujarEstrellas(new Rect(ancho - 110, 6, 100, 30), batalla.Estrellas, 22);
 
             DibujarBarrasDeVida(batalla);
 
@@ -903,15 +986,16 @@ namespace Altepetl
         private void DibujarResultado(BattleManager batalla, float ancho, float alto)
         {
             var resultado = batalla.Resultado;
-            var panel = new Rect((ancho - 420) / 2, (alto - 340) / 2, 420, 340);
+            var panel = new Rect((ancho - 480) / 2, (alto - 440) / 2, 480, 440);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
-            GUI.Label(new Rect(panel.x + 10, panel.y + 15, panel.width - 20, 34),
-                resultado.Victoria ? "¡Victoria!" : "Derrota", _titulo);
+            Titulo(new Rect(panel.x + 10, panel.y + 12, panel.width - 20, 34), resultado.Victoria ? "¡Victoria!" : "Derrota");
+            DibujarEstrellas(new Rect(panel.x + (panel.width - 150) / 2, panel.y + 46, 150, 40), resultado.Estrellas, 34);
 
             string botin = TextoCosto(resultado.Botin);
-            string texto = (resultado.TecpanDestruido ? "¡Cayó el tecpan! La ciudad se rinde.\n" : "")
-                           + $"Destrucción: {Mathf.FloorToInt(resultado.Porcentaje * 100)}%"
+            if (botin.Length > 0 && !string.IsNullOrEmpty(batalla.Nivel.NotaBotin)) botin += $" ({batalla.Nivel.NotaBotin.ToLowerInvariant()})";
+            string texto = $"Destrucción: {Mathf.FloorToInt(resultado.Porcentaje * 100)}%"
+                           + (resultado.TecpanDestruido ? " · ¡Cayó el tecpan!" : "")
                            + $"\nBotín: {(botin.Length > 0 ? botin : "nada")}";
             if (resultado.Plumas > 0) texto += $"\nPlumas de quetzal: +{resultado.Plumas}";
             if (resultado.Regresan > 0) texto += $"\nRegresan a la aldea: {resultado.Regresan} tropas";
@@ -927,13 +1011,68 @@ namespace Altepetl
                 if (resultado.Ascensos[r] > 0) ascensos.Add($"{resultado.Ascensos[r]} a {Rangos.Nombre(Manager.Pueblo, r).ToLowerInvariant()}");
             }
             if (ascensos.Count > 0) texto += "\nAscensos: " + string.Join(", ", ascensos);
-            if (!resultado.Victoria) texto += $"\nNecesitas destruir al menos {Mathf.RoundToInt(BattleManager.VictoriaMinima * 100)}% para ganar.";
-            GUI.Label(new Rect(panel.x + 20, panel.y + 60, panel.width - 40, 200), texto, _texto);
+            if (resultado.AvanzaHistoria) texto += "\n" + batalla.Nivel.TextoDerrota;
+            else if (!resultado.Victoria) texto += $"\nPara ganar necesitas un macuahuitl: destruye el {Mathf.RoundToInt(BattleManager.VictoriaMinima * 100)}% o derriba el tecpan.";
+            GUI.Label(new Rect(panel.x + 20, panel.y + 92, panel.width - 40, 268), texto, _texto);
 
             if (GUI.Button(new Rect(panel.x + 100, panel.yMax - 64, panel.width - 200, 48), "Volver a la aldea", _boton))
             {
                 Manager.VolverAAldea();
             }
+        }
+
+        /// <summary>
+        /// Tres macuahuitl, como las estrellas de Clash: uno por el 50%, otro por derribar el tecpan
+        /// y otro por el 100%. Los que faltan se ven apagados.
+        /// </summary>
+        private void DibujarEstrellas(Rect rect, int cuantas, int tamano)
+        {
+            float paso = rect.width / 3f;
+            for (int i = 0; i < 3; i++)
+            {
+                var lugar = new Rect(rect.x + paso * i + (paso - tamano) * 0.5f, rect.y + (rect.height - tamano) * 0.5f, tamano, tamano);
+                DibujarMacuahuitl(lugar, i < cuantas);
+            }
+        }
+
+        /// <summary>Un macuahuitl inclinado: mango y hoja de madera con navajas de obsidiana a los lados.</summary>
+        private void DibujarMacuahuitl(Rect rect, bool ganado)
+        {
+            var matriz = GUI.matrix;
+            // Se gira alrededor de su centro en coordenadas del HUD (después de la escala de pantalla).
+            var centro = new Vector3(rect.x + rect.width * 0.5f, rect.y + rect.height * 0.5f, 0f);
+            GUI.matrix = matriz * Matrix4x4.Translate(centro) * Matrix4x4.Rotate(Quaternion.Euler(0f, 0f, 35f))
+                         * Matrix4x4.Translate(new Vector3(-centro.x, -centro.y, 0f));
+
+            float h = rect.height;
+            float cx = rect.x + rect.width * 0.5f;
+            var madera = ganado ? new Color(0.62f, 0.42f, 0.22f) : new Color(0.32f, 0.29f, 0.26f);
+            var obsidiana = ganado ? new Color(0.10f, 0.09f, 0.12f) : new Color(0.24f, 0.23f, 0.22f);
+            var brillo = ganado ? new Color(0.55f, 0.60f, 0.70f) : new Color(0.30f, 0.29f, 0.28f);
+
+            float anchoHoja = h * 0.26f;
+            float anchoMango = h * 0.12f;
+            // Navajas: cuadritos a cada lado de la hoja.
+            float navaja = h * 0.1f;
+            for (int n = 0; n < 4; n++)
+            {
+                float y = rect.y + h * 0.06f + n * h * 0.15f;
+                Rectangulo(new Rect(cx - anchoHoja * 0.5f - navaja * 0.7f, y, navaja, navaja), obsidiana);
+                Rectangulo(new Rect(cx + anchoHoja * 0.5f - navaja * 0.3f, y, navaja, navaja), obsidiana);
+                Rectangulo(new Rect(cx - anchoHoja * 0.5f - navaja * 0.7f, y, navaja * 0.35f, navaja * 0.35f), brillo);
+                Rectangulo(new Rect(cx + anchoHoja * 0.5f - navaja * 0.3f, y, navaja * 0.35f, navaja * 0.35f), brillo);
+            }
+            Rectangulo(new Rect(cx - anchoHoja * 0.5f, rect.y + h * 0.02f, anchoHoja, h * 0.66f), madera);
+            Rectangulo(new Rect(cx - anchoMango * 0.5f, rect.y + h * 0.66f, anchoMango, h * 0.32f), madera);
+
+            GUI.matrix = matriz;
+        }
+
+        private void Rectangulo(Rect rect, Color color)
+        {
+            GUI.color = color;
+            GUI.DrawTexture(rect, _blanco);
+            GUI.color = Color.white;
         }
 
         private void DibujarMensaje(float ancho, float alto)
@@ -974,9 +1113,19 @@ namespace Altepetl
             _inicial = new GUIStyle(_texto) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
             _inicial.normal.textColor = new Color(0.12f, 0.09f, 0.07f);
 
-            _titulo = new GUIStyle(_texto) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            _titulo = new GUIStyle(_texto) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = false };
 
             _boton = new GUIStyle(GUI.skin.button) { fontSize = 14, wordWrap = true };
+
+        }
+
+        // Títulos en una sola línea: si no caben, se achica la letra en vez de salirse del panel.
+        private void Titulo(Rect rect, string texto)
+        {
+            var contenido = new GUIContent(texto);
+            _titulo.fontSize = 22;
+            while (_titulo.fontSize > 13 && _titulo.CalcSize(contenido).x > rect.width) _titulo.fontSize--;
+            GUI.Label(rect, texto, _titulo);
         }
 
         private static Texture2D Textura(Color color)

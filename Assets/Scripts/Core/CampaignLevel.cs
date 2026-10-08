@@ -119,9 +119,7 @@ namespace Altepetl
                     "Los mexicas contaban que venían de Aztlán, un lugar rodeado de agua en algún punto del norte. "
                     + "No sabemos si existió como un lugar real o si es sobre todo un origen sagrado.\n\n"
                     + "Huitzilopochtli les habló: había una tierra que les correspondía y debían buscarla. "
-                    + "Los teomamaque, los cargadores del dios, llevaban a cuestas su bulto sagrado, y el pueblo los seguía. "
-                    + "Algunas crónicas escritas después de la conquista cuentan que Huitzilopochtli había sido un caudillo "
-                    + "de carne y hueso; al morir, lo guardaron en el bulto y desde ahí siguió guiando a su pueblo como dios.\n\n"
+                    + "Los teomamaque, los cargadores del dios, llevaban a cuestas su bulto sagrado, y el pueblo los seguía.\n\n"
                     + "En el camino no todos los pueblos los recibían en paz.",
                 Edificios = new[]
                 {

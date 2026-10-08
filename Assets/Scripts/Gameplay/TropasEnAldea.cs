@@ -10,6 +10,7 @@ namespace Altepetl
     /// Cada monito tiene el color de su tipo y es más grande según su rango.
     /// Las recién entrenadas salen del telpochcalli, las que vuelven de batalla entran por la
     /// orilla de la aldea y las que sanan se levantan y caminan del temazcalli al calpulli.
+    /// En la aldea mexica, sobre el lago, cada tropa va en su acalli (canoa).
     /// </summary>
     public sealed class TropasEnAldea : MonoBehaviour
     {
@@ -24,6 +25,8 @@ namespace Altepetl
             public int Rango;
             public bool Herido;
             public Transform Cuerpo;
+            public Transform Acalli;   // canoa, solo en la aldea mexica sobre el lago
+            public float Rumbo;        // hacia dónde mira la canoa, en grados
             public Vector3 Destino;
             public float Fase;
             public float Tamano;
@@ -71,6 +74,20 @@ namespace Altepetl
             {
                 float paso = Velocidad * Time.deltaTime;
                 plano = hacia.magnitude <= paso ? monito.Destino : plano + hacia.normalized * paso;
+                monito.Rumbo = Mathf.Atan2(hacia.x, hacia.z) * Mathf.Rad2Deg;
+            }
+
+            if (monito.Acalli != null)
+            {
+                // En canoa: se mecen sobre el agua en vez de dar pasos.
+                float vaiven = Mathf.Sin(Time.time * 1.8f + monito.Fase) * 0.015f;
+                monito.Acalli.localPosition = new Vector3(plano.x, 0.03f + vaiven, plano.z);
+                monito.Acalli.localRotation = Quaternion.Euler(0f, monito.Rumbo, 0f);
+                bool tendido = monito.Herido && !caminando;
+                cuerpo.localRotation = tendido ? Quaternion.Euler(90f, monito.Rumbo, 0f) : Quaternion.Euler(0f, 0f, 0f);
+                float sobreCanoa = 0.07f + vaiven + (tendido ? monito.Tamano * 0.5f : monito.Tamano);
+                cuerpo.localPosition = new Vector3(plano.x, sobreCanoa, plano.z);
+                return;
             }
 
             // Los heridos se acuestan al llegar; los sanos se balancean un poco (más al caminar).
@@ -213,6 +230,7 @@ namespace Altepetl
             foreach (var sobra in libres)
             {
                 if (sobra.Cuerpo != null) Destroy(sobra.Cuerpo.gameObject);
+                if (sobra.Acalli != null) Destroy(sobra.Acalli.gameObject);
             }
 
             _monitos.Clear();
@@ -285,6 +303,17 @@ namespace Altepetl
             cuerpo.GetComponent<Renderer>().material.color = ColorDe(monito);
 
             monito.Cuerpo = cuerpo.transform;
+            if (Manager.Pueblo.EnLago)
+            {
+                var acalli = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                acalli.name = "Acalli";
+                Destroy(acalli.GetComponent<Collider>());
+                acalli.transform.SetParent(transform, false);
+                acalli.transform.localScale = new Vector3(0.13f, 0.06f, 0.38f);
+                acalli.transform.localPosition = new Vector3(inicio.x, 0.03f, inicio.z);
+                acalli.GetComponent<Renderer>().material.color = new Color(0.45f, 0.30f, 0.18f);
+                monito.Acalli = acalli.transform;
+            }
             monito.Fase = Random.value * Mathf.PI * 2f;
         }
     }

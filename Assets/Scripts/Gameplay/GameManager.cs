@@ -49,6 +49,7 @@ namespace Altepetl
         public string Mensaje { get; private set; }
 
         private readonly List<Building> _edificios = new List<Building>();
+        private Renderer _suelo;
         private Camera _camara;
         private Light _sol;
         private GameHud _hud;
@@ -91,6 +92,7 @@ namespace Altepetl
         public void ElegirPueblo(Pueblo pueblo)
         {
             Pueblo = pueblo;
+            ActualizarSuelo();
             Culto = new Culto(pueblo.Id);
             Banco = new ResourceBank();
             Banco.Add(ResourceType.Maiz, 300);
@@ -492,6 +494,7 @@ namespace Altepetl
         private void Restaurar(SaveData datos)
         {
             Pueblo = Pueblo.Get(datos.pueblo);
+            ActualizarSuelo();
             Culto = new Culto(Pueblo.Id);
             Culto.Importar(datos);
             Banco = new ResourceBank();
@@ -663,6 +666,15 @@ namespace Altepetl
             if (_sol != null) _sol.color = Color.Lerp(_sol.color, luz, t);
         }
 
+        /// <summary>Tierra para todos, salvo los mexicas, que viven sobre el lago.</summary>
+        private void ActualizarSuelo()
+        {
+            if (_suelo == null) return;
+            _suelo.material.color = Pueblo != null && Pueblo.EnLago
+                ? new Color(0.28f, 0.50f, 0.58f)
+                : new Color(0.62f, 0.55f, 0.38f);
+        }
+
         private void CrearSuelo()
         {
             var suelo = GameObject.CreatePrimitive(PrimitiveType.Plane);
@@ -671,7 +683,8 @@ namespace Altepetl
             // Un Plane de Unity mide 10x10 unidades.
             suelo.transform.localScale = new Vector3(TamanoMapa / 10f, 1f, TamanoMapa / 10f);
             suelo.transform.position = Mapa.Centro;
-            suelo.GetComponent<Renderer>().material.color = new Color(0.62f, 0.55f, 0.38f);
+            _suelo = suelo.GetComponent<Renderer>();
+            ActualizarSuelo();
         }
 
         private static Transform CrearMarcador(string nombre, out Renderer render)
@@ -705,8 +718,10 @@ namespace Altepetl
             if (haySeleccion)
             {
                 int tamano = Seleccionado.Definicion.Tamano;
-                _marcaSeleccion.position = Mapa.CentroDeArea(Seleccionado.Origen, tamano) + Vector3.up * 0.02f;
-                _marcaSeleccion.localScale = new Vector3(tamano + 0.1f, 0.04f, tamano + 0.1f);
+                // En el lago el marco es más alto para que asome alrededor de la plataforma.
+                float alto = Pueblo.EnLago ? 0.18f : 0.04f;
+                _marcaSeleccion.position = Mapa.CentroDeArea(Seleccionado.Origen, tamano) + Vector3.up * (alto * 0.5f);
+                _marcaSeleccion.localScale = new Vector3(tamano + 0.1f, alto, tamano + 0.1f);
             }
             _marcaSeleccion.gameObject.SetActive(haySeleccion);
         }

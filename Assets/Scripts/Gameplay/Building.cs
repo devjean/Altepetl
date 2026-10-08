@@ -29,6 +29,7 @@ namespace Altepetl
         private float _acumulado;
         private Transform _modelo;
         private Renderer _render;
+        private float _base; // alto de la plataforma sobre el lago (aldea mexica)
 
         public void Inicializar(BuildingDefinition definicion, Pueblo pueblo, Vector2Int origen,
             ResourceBank banco, GridMap mapa, int nivel, float segundosRestantes, float acumulado = 0f)
@@ -50,6 +51,7 @@ namespace Altepetl
             cubo.transform.SetParent(transform, false);
             _modelo = cubo.transform;
             _render = cubo.GetComponent<Renderer>();
+            if (pueblo.EnLago) CrearPlataforma();
 
             // Capacidad de los niveles ya terminados (al cargar una partida o colocar el tecpan).
             _banco.AgregarCapacidad(Definicion.CapacidadExtra * Nivel);
@@ -159,6 +161,44 @@ namespace Altepetl
             ActualizarVisual();
         }
 
+        /// <summary>
+        /// En el lago, cada edificio se levanta sobre una plataforma de piedra y tierra. La chinampa es
+        /// una parcela de lodo y vegetación sujeta con estacas y ahuejotes, los árboles que la anclan.
+        /// </summary>
+        private void CrearPlataforma()
+        {
+            bool chinampa = Definicion.Id == BuildingId.Granja;
+            _base = chinampa ? 0.08f : 0.14f;
+            float lado = Definicion.Tamano * (chinampa ? 0.98f : 0.96f);
+
+            var plataforma = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            plataforma.name = chinampa ? "Chinampa" : "Plataforma";
+            Destroy(plataforma.GetComponent<Collider>());
+            plataforma.transform.SetParent(transform, false);
+            plataforma.transform.localScale = new Vector3(lado, _base, lado);
+            plataforma.transform.localPosition = new Vector3(0f, _base * 0.5f, 0f);
+            plataforma.GetComponent<Renderer>().material.color = chinampa
+                ? new Color(0.36f, 0.27f, 0.17f)
+                : new Color(0.66f, 0.62f, 0.55f);
+
+            if (!chinampa) return;
+            // Dos ahuejotes en esquinas opuestas.
+            float esquina = lado * 0.45f;
+            CrearAhuejote(new Vector3(-esquina, 0f, -esquina));
+            CrearAhuejote(new Vector3(esquina, 0f, esquina));
+        }
+
+        private void CrearAhuejote(Vector3 posicion)
+        {
+            var arbol = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            arbol.name = "Ahuejote";
+            Destroy(arbol.GetComponent<Collider>());
+            arbol.transform.SetParent(transform, false);
+            arbol.transform.localScale = new Vector3(0.12f, 0.45f, 0.12f); // un Cylinder mide 2 de alto
+            arbol.transform.localPosition = posicion + new Vector3(0f, 0.45f, 0f);
+            arbol.GetComponent<Renderer>().material.color = new Color(0.30f, 0.50f, 0.25f);
+        }
+
         private void ActualizarVisual()
         {
             float lado = Definicion.Tamano * 0.9f;
@@ -174,7 +214,7 @@ namespace Altepetl
             altura = Mathf.Max(0.05f, altura);
 
             _modelo.localScale = new Vector3(lado, altura, lado);
-            _modelo.localPosition = new Vector3(0f, altura * 0.5f, 0f);
+            _modelo.localPosition = new Vector3(0f, _base + altura * 0.5f, 0f);
             _render.material.color = EnConstruccion
                 ? Color.Lerp(Color.gray, Definicion.Color, 0.4f)
                 : Definicion.Color;

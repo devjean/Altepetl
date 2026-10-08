@@ -34,6 +34,21 @@ namespace Altepetl
 
         public GameManager Manager;
 
+        /// <summary>¿Hay heridos que todavía van llegando al temazcalli? Mientras tanto no se curan.</summary>
+        public bool HeridosLlegando
+        {
+            get
+            {
+                foreach (var monito in _monitos)
+                {
+                    if (!monito.Herido) continue;
+                    Vector3 actual = monito.Cuerpo.localPosition;
+                    if ((monito.Destino - new Vector3(actual.x, 0f, actual.z)).sqrMagnitude > 0.0004f) return true;
+                }
+                return false;
+            }
+        }
+
         private readonly List<Monito> _monitos = new List<Monito>();
         private string _firma = "";
         private bool _volviendoDeBatalla;

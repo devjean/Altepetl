@@ -77,6 +77,7 @@ namespace Altepetl
             _hud.Manager = this;
             var tropasEnAldea = new GameObject("Tropas en la aldea").AddComponent<TropasEnAldea>();
             tropasEnAldea.Manager = this;
+            _tropasEnAldea = tropasEnAldea;
             var paisaje = new GameObject("Paisaje").AddComponent<PaisajeAldea>();
             paisaje.Manager = this;
 
@@ -155,6 +156,8 @@ namespace Altepetl
             _mensajeHasta = Time.time + segundos;
         }
 
+        private TropasEnAldea _tropasEnAldea;
+
         private void Update()
         {
             if (Mensaje != null && Time.time > _mensajeHasta) Mensaje = null;
@@ -164,7 +167,9 @@ namespace Altepetl
 
             if (Pueblo == null) return;
             if (NivelTelpochcalli > 0) Ejercito.Avanzar(Time.deltaTime, DuracionEntrenamiento);
-            int curados = Ejercito.Curar(Time.deltaTime, CamasCuracion);
+            // Los heridos empiezan a sanar ya de vuelta en la aldea, cuando llegan al temazcalli.
+            bool curando = ModoActual == Modo.Aldea && !_tropasEnAldea.HeridosLlegando;
+            int curados = curando ? Ejercito.Curar(Time.deltaTime, CamasCuracion) : 0;
             if (curados > 0) MostrarMensaje(curados == 1 ? "Una tropa sanó en el temazcalli" : $"{curados} tropas sanaron en el temazcalli");
             Culto.Avanzar(Time.deltaTime);
             Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);

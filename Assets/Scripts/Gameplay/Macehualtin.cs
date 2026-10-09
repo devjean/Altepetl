@@ -27,6 +27,7 @@ namespace Altepetl
             public Building Obra;
             public Building Casa;       // edificio donde entró
             public bool CasaDeAfuera;   // entró a una casita de los alrededores (en Puerta)
+            public bool VaAChinampa;    // va a trabajar (o ya trabaja) en una chinampa de los alrededores
             public Vector3 Puerta;
             public Vector3 Destino;
             public float Hasta;         // hasta cuándo espera, está adentro o sigue en el mismo lugar de la obra
@@ -147,6 +148,7 @@ namespace Altepetl
             persona.Obra = null;
             persona.Casa = null;
             persona.CasaDeAfuera = false;
+            persona.VaAChinampa = false;
             persona.Destino = PuntoDePaseo();
             persona.Hasta = 0f;
         }
@@ -177,13 +179,16 @@ namespace Altepetl
                 Llego(persona);
             }
 
-            // Trabajando dan golpecitos rápidos; paseando se balancean al caminar.
-            bool trabajando = persona.Estado == Estado.Obra && !caminando;
+            // Trabajando (en una obra o en la chinampa) dan golpecitos rápidos; paseando se balancean al caminar.
+            bool trabajando = !caminando && (persona.Estado == Estado.Obra || (persona.VaAChinampa && persona.Hasta > 0f));
             float ritmo = trabajando ? 14f : caminando ? 8f : 2f;
             float salto = trabajando ? 0.05f : caminando ? 0.05f : 0.015f;
             float altura = Mathf.Abs(Mathf.Sin(Time.time * ritmo + persona.Fase)) * salto;
 
-            if (persona.Acalli != null)
+            // En el lago (todo Tenochtitlan, o la orilla de Texcoco) van en acalli.
+            bool enAgua = persona.Acalli != null && Manager.Paisaje != null && Manager.Paisaje.EnAgua(plano);
+            if (persona.Acalli != null && persona.Acalli.gameObject.activeSelf != enAgua) persona.Acalli.gameObject.SetActive(enAgua);
+            if (enAgua)
             {
                 float vaiven = Mathf.Sin(Time.time * 1.8f + persona.Fase) * 0.015f;
                 persona.Acalli.localPosition = new Vector3(plano.x, 0.03f + vaiven, plano.z);
@@ -207,7 +212,13 @@ namespace Altepetl
                     }
                     break;
                 case Estado.Paseo:
-                    if (persona.Hasta < 0f)
+                    if (persona.VaAChinampa)
+                    {
+                        // Llegó a la chinampa: trabaja un rato y luego sigue paseando.
+                        if (persona.Hasta < 0f) persona.Hasta = Time.time + Random.Range(8f, 20f);
+                        else if (Time.time >= persona.Hasta) Pasear(persona);
+                    }
+                    else if (persona.Hasta < 0f)
                     {
                         // Iba a entrar a un edificio (o a una casita de afuera): entra si sigue ahí.
                         if (persona.Casa != null || persona.CasaDeAfuera) Entrar(persona);
@@ -215,21 +226,30 @@ namespace Altepetl
                     }
                     else if (persona.Hasta == 0f)
                     {
-                        persona.Hasta = Time.time + Random.Range(1f, 4f);   // se queda un rato
+                        // Se quedan un rato parados; a veces un buen rato, platicando o mirando.
+                        persona.Hasta = Time.time + (Random.value < 0.3f ? Random.Range(6f, 15f) : Random.Range(1f, 4f));
                     }
                     else if (Time.time >= persona.Hasta)
                     {
                         // A veces van a meterse a un edificio o a su casa en los alrededores; si no, siguen paseando.
                         var afuera = Manager.Paisaje != null ? Manager.Paisaje.CasasAfuera : null;
+                        var chinampas = Manager.Paisaje != null ? Manager.Paisaje.Chinampas : null;
                         float suerte = Random.value;
-                        if (suerte < 0.15f && afuera != null && afuera.Count > 0)
+                        if (suerte < 0.12f && chinampas != null && chinampas.Count > 0)
+                        {
+                            persona.VaAChinampa = true;
+                            persona.Destino = chinampas[Random.Range(0, chinampas.Count)]
+                                              + new Vector3(Random.Range(-0.6f, 0.6f), 0f, Random.Range(-0.6f, 0.6f));
+                            persona.Hasta = -1f;
+                        }
+                        else if (suerte < 0.25f && afuera != null && afuera.Count > 0)
                         {
                             persona.CasaDeAfuera = true;
                             persona.Puerta = afuera[Random.Range(0, afuera.Count)];
                             persona.Destino = persona.Puerta;
                             persona.Hasta = -1f;
                         }
-                        else if (suerte < 0.3f && EdificioAlAzar() is Building casa)
+                        else if (suerte < 0.4f && EdificioAlAzar() is Building casa)
                         {
                             persona.Casa = casa;
                             persona.Destino = PuntoAlrededor(casa);
@@ -263,8 +283,7 @@ namespace Altepetl
             }
             persona.Casa = null;
             persona.CasaDeAfuera = false;
-            persona.Cuerpo.gameObject.SetActive(true);
-            if (persona.Acalli != null) persona.Acalli.gameObject.SetActive(true);
+            persona.Cuerpo.gameObject.SetActive(true);   // la canoa la muestra Avanzar si está en el agua
         }
 
         // ---------- Lugares ----------
@@ -366,7 +385,7 @@ namespace Altepetl
             cuerpo.GetComponent<Renderer>().material.color = new Color(0.90f + tono, 0.86f + tono, 0.74f + tono);
             persona.Cuerpo = cuerpo.transform;
 
-            if (Manager.Pueblo.EnLago)
+            if (Manager.Pueblo.Id == PuebloId.Mexicas || Manager.Pueblo.Id == PuebloId.Acolhuas)
             {
                 var acalli = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 acalli.name = "Acalli";

@@ -40,6 +40,24 @@ namespace Altepetl
         /// <summary>Casas de los alrededores a ras de suelo (o sobre islotes), adonde también va la gente del pueblo.</summary>
         public IReadOnlyList<Vector3> CasasAfuera => _casasAfuera;
 
+        private readonly List<Vector3> _chinampas = new List<Vector3>();
+
+        /// <summary>Chinampas de los alrededores, donde la gente va a trabajar un rato.</summary>
+        public IReadOnlyList<Vector3> Chinampas => _chinampas;
+
+        /// <summary>¿Ese punto está sobre el lago? Ahí la gente va en acalli.</summary>
+        public bool EnAgua(Vector3 p)
+        {
+            if (_pueblo == null) return false;
+            switch (_pueblo.Id)
+            {
+                case PuebloId.Mexicas: return true;
+                // El lago de Texcoco queda al oeste de la aldea (ver FijoAcolhua).
+                case PuebloId.Acolhuas: return p.x < -1f && Mathf.Abs(p.z - Lado * 0.5f) < 45f;
+                default: return false;
+            }
+        }
+
         private float Lado => GameManager.TamanoMapa;
         private Vector3 CentroMapa => new Vector3(Lado * 0.5f, 0f, Lado * 0.5f);
 
@@ -65,6 +83,7 @@ namespace Altepetl
                 _nivel = nivel;
                 if (_ciudad != null) Destroy(_ciudad.gameObject);
                 _casasAfuera.Clear();
+                _chinampas.Clear();
                 _ciudad = Grupo("Ciudad");
                 CrearCiudad(nivel);
             }
@@ -251,6 +270,7 @@ namespace Altepetl
         private void Chinampa(Vector3 p, bool larga)
         {
             var tam = larga ? new Vector3(1.2f, 0.08f, 2.4f) : new Vector3(2.4f, 0.08f, 1.2f);
+            _chinampas.Add(new Vector3(p.x, 0f, p.z));
             Pieza(_ciudad, PrimitiveType.Cube, p + new Vector3(0f, 0.04f, 0f), tam, Lodo);
             Pieza(_ciudad, PrimitiveType.Cube, p + new Vector3(0f, 0.1f, 0f), new Vector3(tam.x * 0.8f, 0.04f, tam.z * 0.8f), Siembra);
             var esquina = new Vector3(tam.x * 0.45f, 0f, tam.z * 0.45f);

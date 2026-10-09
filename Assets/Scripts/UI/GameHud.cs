@@ -157,7 +157,7 @@ namespace Altepetl
 
             var boton = new Rect(ancho - 160, alto - 60, 150, 50);
             Zona(boton);
-            if (GUI.Button(boton, "Construir", _boton))
+            if (GUI.Button(boton, Terminos.BotonConstruir, _boton))
             {
                 _menuAbierto = !_menuAbierto;
                 _info = null;
@@ -190,7 +190,7 @@ namespace Altepetl
                 return;
             }
 
-            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Construir");
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), Terminos.TituloConstruir);
 
             // Pestañas
             var categorias = (CategoriaEdificio[])System.Enum.GetValues(typeof(CategoriaEdificio));
@@ -554,8 +554,8 @@ namespace Altepetl
             if (GUI.Button(new Rect(panel.x + 300, y - 4, 130, 36), "Español", _boton)) Terminos.Nahuatl = false;
             GUI.enabled = true;
             GUI.Label(new Rect(panel.x + 20, y + 38, panel.width - 40, 40),
-                Terminos.Nahuatl ? "Las tropas se llaman yaoquizqueh, «los que salen a la guerra»."
-                                 : "Las tropas se llaman tropas.", _textoChico);
+                Terminos.Nahuatl ? "Tropas: yaoquizqueh, «los que salen a la guerra». Construir: calquetza, «levantar casa»."
+                                 : "Tropas y Construir en español.", _textoChico);
 
             y += 92;
             GUI.Label(new Rect(panel.x + 20, y, 140, 30), "Idioma", _texto);

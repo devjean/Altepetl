@@ -32,6 +32,10 @@ namespace Altepetl
         public static string TropasMayuscula => Nahuatl ? "Yaoquizqueh" : "Tropas";
         public static string TropasCuenta(int n) => n == 1 ? $"1 {Tropa}" : $"{n} {Tropas}";
 
+        // Calquetza: "levantar casa, edificar" (calli + quetza). Molina lo da como edificar.
+        public static string BotonConstruir => Nahuatl ? "Calquetza\n(construir)" : "Construir";
+        public static string TituloConstruir => Nahuatl ? "Calquetza" : "Construir";
+
         // Concordancia: yaoquizqui es masculino; tropa, femenino.
         public static string Un => Nahuatl ? "Un" : "Una";
         public static string Los => Nahuatl ? "los" : "las";

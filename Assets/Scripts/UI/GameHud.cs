@@ -25,6 +25,7 @@ namespace Altepetl
         private GUIStyle _textoUnaLinea;
         private GUIStyle _inicial;
         private GUIStyle _boton;
+        private GUIStyle _botonChico;     // sin cortar palabras, para botones angostos
         private GUIStyle _caja;
         private Texture2D _blanco;
         private Texture2D _engrane;
@@ -63,7 +64,8 @@ namespace Altepetl
 
             if (Manager.Pueblo == null)
             {
-                DibujarEleccionDePueblo(ancho, alto);
+                if (!Terminos.Elegido) DibujarEleccionTerminos(ancho, alto);
+                else DibujarEleccionDePueblo(ancho, alto);
                 return;
             }
 
@@ -91,6 +93,36 @@ namespace Altepetl
         private void Zona(Rect rect)
         {
             if (Event.current.type == EventType.Layout) _zonasHud.Add(rect);
+        }
+
+        private void DibujarEleccionTerminos(float ancho, float alto)
+        {
+            GUI.Box(new Rect(0, 0, ancho, alto), GUIContent.none, _caja);
+            Titulo(new Rect(0, 30, ancho, 40), "Altepetl — ¿cómo quieres los términos?");
+
+            float anchoTarjeta = Mathf.Min(360f, (ancho - 60f) / 2f);
+            float x = (ancho - anchoTarjeta * 2f - 20f) / 2f;
+            float izquierda = x;
+            for (int i = 0; i < 2; i++)
+            {
+                bool nahuatl = i == 0;
+                var tarjeta = new Rect(x, 100, anchoTarjeta, 300);
+                GUI.Box(tarjeta, GUIContent.none, _caja);
+                Titulo(new Rect(tarjeta.x + 10, tarjeta.y + 10, tarjeta.width - 20, 30), nahuatl ? "Náhuatl" : "Español");
+                GUI.Label(new Rect(tarjeta.x + 14, tarjeta.y + 50, tarjeta.width - 28, 170), nahuatl
+                    ? "Las tropas son yaoquizqueh, el maíz es tlaolli, la madera cuahuitl, la obsidiana itztli "
+                      + "y las plumas quetzalli. Atacar es yaoyotl y construir, calquetza."
+                    : "Tropas, recursos y botones en español sencillo: maíz, madera, obsidiana, plumas, "
+                      + "atacar y construir.", _texto);
+                GUI.Label(new Rect(tarjeta.x + 14, tarjeta.y + 190, tarjeta.width - 28, 40),
+                    "Edificios, dioses y rangos llevan su nombre náhuatl en los dos.", _textoChico);
+                if (GUI.Button(new Rect(tarjeta.x + 20, tarjeta.yMax - 60, tarjeta.width - 40, 44), "Elegir", _boton))
+                {
+                    Terminos.Nahuatl = nahuatl;
+                }
+                x += anchoTarjeta + 20f;
+            }
+            GUI.Label(new Rect(izquierda, 420, anchoTarjeta * 2f + 20f, 30), "Puedes cambiarlo cuando quieras en Ajustes (el engrane).", _textoChico);
         }
 
         private void DibujarEleccionDePueblo(float ancho, float alto)
@@ -146,7 +178,8 @@ namespace Altepetl
                 Zona(barra);
                 GUI.Box(barra, GUIContent.none, _caja);
                 GUI.Label(new Rect(20, barra.y + 18, ancho - 200, 30),
-                    $"Toca el mapa para colocar: {Manager.Colocando.NombrePara(Manager.Pueblo)}", _texto);
+                    $"Toca el mapa para colocar: {Manager.Colocando.NombrePara(Manager.Pueblo)}"
+                    + (Manager.ColocandoConPlumas ? $" (con {Plumas(Manager.PlumasParaCompletar(Manager.Colocando.Costo))})" : ""), _texto);
                 if (GUI.Button(new Rect(ancho - 170, barra.y + 8, 150, 48), "Cancelar", _boton))
                 {
                     Manager.CancelarColocacion();
@@ -157,7 +190,7 @@ namespace Altepetl
 
             var boton = new Rect(ancho - 160, alto - 60, 150, 50);
             Zona(boton);
-            if (GUI.Button(boton, "Construir", _boton))
+            if (GUI.Button(boton, Terminos.BotonConstruir, _boton))
             {
                 _menuAbierto = !_menuAbierto;
                 _info = null;
@@ -190,7 +223,7 @@ namespace Altepetl
                 return;
             }
 
-            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Construir");
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), Terminos.TituloConstruir);
 
             // Pestañas
             var categorias = (CategoriaEdificio[])System.Enum.GetValues(typeof(CategoriaEdificio));
@@ -232,11 +265,28 @@ namespace Altepetl
                 GUI.Label(new Rect(tarjeta.x + 8, tarjeta.yMax - 162, tarjeta.width - 16, 64), TextoLimite(def), _textoChico);
             }
 
-            GUI.enabled = PuedeConstruir(def);
-            if (GUI.Button(new Rect(tarjeta.x + 8, tarjeta.yMax - 96, tarjeta.width - 16, 44), "Construir", _boton))
+            var botonConstruir = new Rect(tarjeta.x + 8, tarjeta.yMax - 96, tarjeta.width - 16, 44);
+            bool faltaMaterial = def.Construible && !Manager.EnLimite(def) && !Manager.Banco.PuedePagar(def.Costo);
+            if (faltaMaterial)
             {
-                _menuAbierto = false;
-                Manager.EmpezarColocacion(def);
+                // Como en las mejoras: lo que falta se completa con plumas de quetzal.
+                int plumas = Manager.PlumasParaCompletar(def.Costo);
+                GUI.enabled = Manager.PuedePagarConPlumas(def.Costo);
+                string texto = plumas < 0 ? "Faltan mamaltin" : $"Con plumas\n{Plumas(plumas)}";
+                if (GUI.Button(botonConstruir, texto, _boton))
+                {
+                    _menuAbierto = false;
+                    Manager.EmpezarColocacion(def, conPlumas: true);
+                }
+            }
+            else
+            {
+                GUI.enabled = PuedeConstruir(def);
+                if (GUI.Button(botonConstruir, "Construir", _boton))
+                {
+                    _menuAbierto = false;
+                    Manager.EmpezarColocacion(def);
+                }
             }
             GUI.enabled = true;
             if (GUI.Button(new Rect(tarjeta.x + 8, tarjeta.yMax - 46, tarjeta.width - 16, 36), "Información", _boton))
@@ -255,13 +305,16 @@ namespace Altepetl
             {
                 _info = null;
             }
-            GUI.enabled = PuedeConstruir(def);
-            string texto = def.Construible ? $"Construir\n{TextoCosto(def.Costo)}" : "Próximamente";
+            bool conPlumas = def.Construible && !Manager.EnLimite(def) && !Manager.Banco.PuedePagar(def.Costo);
+            GUI.enabled = conPlumas ? Manager.PuedePagarConPlumas(def.Costo) : PuedeConstruir(def);
+            string texto = !def.Construible ? "Próximamente"
+                : conPlumas ? $"Con plumas\n{Plumas(Mathf.Max(0, Manager.PlumasParaCompletar(def.Costo)))}"
+                : $"Construir\n{TextoCosto(def.Costo)}";
             if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), texto, _boton))
             {
                 _menuAbierto = false;
                 _info = null;
-                Manager.EmpezarColocacion(def);
+                Manager.EmpezarColocacion(def, conPlumas);
             }
             GUI.enabled = true;
         }
@@ -396,7 +449,7 @@ namespace Altepetl
             }
             else if (def.Produce)
             {
-                info += $"\nProduce {edificio.ProduccionPorMinuto:0.#} de {ResourceInfo.Nombre(def.Recurso)} por minuto";
+                info += $"\nProduce {edificio.ProduccionPorMinuto:0.#} de {ResourceInfo.Nombre(def.Recurso).ToLowerInvariant()} por minuto";
                 if (Manager.Banco.EstaLleno(def.Recurso)) info += "\nAlmacén lleno: construye o mejora un petlacalco";
             }
             info += $"\nVida: {edificio.Vida}";
@@ -496,7 +549,7 @@ namespace Altepetl
                     {
                         var rectPlumas = new Rect(rectMejora.xMax + 4f, botonRect.y, botonRect.width - rectMejora.width - 4f, botonRect.height);
                         GUI.enabled = Manager.Banco.Get(ResourceType.Plumas) >= plumas;
-                        if (GUI.Button(rectPlumas, $"Con plumas\n{plumas} plumas", _boton))
+                        if (GUI.Button(rectPlumas, $"Con plumas\n{Plumas(plumas)}", _boton))
                         {
                             Manager.TryMejorarConPlumas(edificio);
                         }
@@ -535,7 +588,7 @@ namespace Altepetl
                 return;
             }
 
-            var panel = new Rect((ancho - 460) / 2, AltoBarraSuperior + 10, 460, 300);
+            var panel = new Rect((ancho - 460) / 2, AltoBarraSuperior + 10, 460, 356);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
             Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Ajustes");
@@ -553,11 +606,14 @@ namespace Altepetl
             GUI.enabled = nahuatl;
             if (GUI.Button(new Rect(panel.x + 300, y - 4, 130, 36), "Español", _boton)) Terminos.Nahuatl = false;
             GUI.enabled = true;
-            GUI.Label(new Rect(panel.x + 20, y + 38, panel.width - 40, 40),
-                Terminos.Nahuatl ? "Las tropas se llaman yaoquizqueh, «los que salen a la guerra»."
-                                 : "Las tropas se llaman tropas.", _textoChico);
+            GUI.Label(new Rect(panel.x + 20, y + 38, panel.width - 40, 100),
+                Terminos.Nahuatl
+                    ? "Yaoquizqueh: tropas. Calquetza: construir. Yaoyotl: guerra. Altepetl: aldea. Tlaolli: maíz. "
+                      + "Cuahuitl: madera. Itztli: obsidiana. Quetzalli: plumas. Tropas por su arma: macuahuitl, "
+                      + "tlahuitolli (arco), tematlatl (honda)."
+                    : "Tropas, recursos y botones en español. Edificios, dioses y rangos siguen en náhuatl.", _textoChico);
 
-            y += 92;
+            y += 146;
             GUI.Label(new Rect(panel.x + 20, y, 140, 30), "Idioma", _texto);
             GUI.Label(new Rect(panel.x + 160, y, 270, 30), "Español (más idiomas próximamente)", _textoChico);
             y += 40;
@@ -698,6 +754,8 @@ namespace Altepetl
             }
         }
 
+        private static string Plumas(int cantidad) => cantidad == 1 ? "1 pluma" : $"{cantidad} plumas";
+
         private static string TextoTiempo(float segundos)
         {
             int total = Mathf.CeilToInt(segundos);
@@ -714,9 +772,9 @@ namespace Altepetl
             {
                 var actual = TroopCatalog.Get(ejercito.Actual);
                 estado += $"\nEntrenando {actual.Nombre.ToLowerInvariant()}: {Mathf.CeilToInt(ejercito.SegundosRestantes)} s"
-                          + (ejercito.EnCola > 1 ? $" (+{ejercito.EnCola - 1} en cola)" : "");
+                          + (ejercito.EnCola > 1 ? $", +{ejercito.EnCola - 1} en cola" : "");
             }
-            GUI.Label(new Rect(panel.x + 10, panel.y + 160, panel.width - 20, 48), estado, _texto);
+            GUI.Label(new Rect(panel.x + 10, panel.y + 164, panel.width - 20, 44), estado, _textoChico);
 
             float anchoBoton = (panel.width - 30f) / TroopCatalog.Count;
             float x = panel.x + 10f;
@@ -725,8 +783,8 @@ namespace Altepetl
             {
                 var costo = Manager.CostoEntrenamiento(tropa.Id);
                 GUI.enabled = hayEspacio && Manager.Banco.PuedePagar(costo);
-                string texto = $"{tropa.Nombre} ({ejercito.Get(tropa.Id)})\n{TextoCosto(costo)}";
-                if (GUI.Button(new Rect(x, panel.y + 212, anchoBoton - 5f, 88), texto, _boton))
+                string texto = $"{tropa.Nombre}\n({ejercito.Get(tropa.Id)})\n{TextoCosto(costo)}";
+                if (GUI.Button(new Rect(x, panel.y + 212, anchoBoton - 5f, 88), texto, _botonChico))
                 {
                     Manager.TryEntrenar(tropa.Id);
                 }
@@ -737,7 +795,7 @@ namespace Altepetl
             if (!ejercito.Entrenando) return;
             int plumas = Manager.CostoTerminarEntrenamiento;
             GUI.enabled = Manager.Banco.Get(ResourceType.Plumas) >= plumas;
-            if (GUI.Button(new Rect(panel.x + 10, panel.y + 306, panel.width - 20, 40), $"Terminar entrenamiento ({plumas} plumas)", _boton))
+            if (GUI.Button(new Rect(panel.x + 10, panel.y + 306, panel.width - 20, 40), $"Terminar entrenamiento ({Plumas(plumas)})", _boton))
             {
                 Manager.TryTerminarEntrenamiento();
             }
@@ -749,7 +807,7 @@ namespace Altepetl
             if (Manager.Colocando != null) return;
             var rect = new Rect(10, alto - 60, 150, 50);
             Zona(rect);
-            if (GUI.Button(rect, $"Atacar\n({Manager.Ejercito.Total} {Terminos.Tropas})", _boton))
+            if (GUI.Button(rect, $"{Terminos.Atacar}\n({Manager.Ejercito.Total} {Terminos.Tropas})", _boton))
             {
                 _campanaAbierta = !_campanaAbierta && _nivelArmando < 0 && _nivelHistoria < 0;
                 _nivelArmando = -1;
@@ -814,7 +872,7 @@ namespace Altepetl
                     $"{nivel.Descripcion}\n{premio}", _textoChico);
 
                 GUI.enabled = disponible && ejercito.Total > 0;
-                if (GUI.Button(new Rect(fila.xMax - 120, fila.y + 11, 110, 44), disponible ? "Atacar" : "Bloqueado", _boton))
+                if (GUI.Button(new Rect(fila.xMax - 120, fila.y + 11, 110, 44), disponible ? Terminos.AtacarCorto : "Bloqueado", _boton))
                 {
                     _campanaAbierta = false;
                     if (string.IsNullOrEmpty(nivel.Historia))
@@ -1103,7 +1161,7 @@ namespace Altepetl
                            + $"\nBotín: {(botin.Length > 0 ? botin : "nada")}";
             if (resultado.Plumas > 0) texto += $"\nPlumas de quetzal: +{resultado.Plumas}";
             if (resultado.DefensoresDerrotados > 0) texto += $"\nDefensores vencidos: {resultado.DefensoresDerrotados}";
-            if (resultado.Regresan > 0) texto += $"\nRegresan a la aldea: {resultado.Regresan} {Terminos.Tropas}";
+            if (resultado.Regresan > 0) texto += $"\nRegresan {Terminos.AlAldea}: {resultado.Regresan} {Terminos.Tropas}";
             if (resultado.Heridos > 0)
             {
                 texto += Manager.CamasCuracion > 0
@@ -1120,7 +1178,7 @@ namespace Altepetl
             else if (!resultado.Victoria) texto += $"\nPara ganar necesitas un macuahuitl: destruye el {Mathf.RoundToInt(BattleManager.VictoriaMinima * 100)}% o derriba el tecpan.";
             GUI.Label(new Rect(panel.x + 20, panel.y + 92, panel.width - 40, 268), texto, _texto);
 
-            if (GUI.Button(new Rect(panel.x + 100, panel.yMax - 64, panel.width - 200, 48), "Volver a la aldea", _boton))
+            if (GUI.Button(new Rect(panel.x + 100, panel.yMax - 64, panel.width - 200, 48), $"Volver {Terminos.AlAldea}", _boton))
             {
                 Manager.VolverAAldea();
             }
@@ -1222,6 +1280,7 @@ namespace Altepetl
             _titulo = new GUIStyle(_texto) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = false };
 
             _boton = new GUIStyle(GUI.skin.button) { fontSize = 14, wordWrap = true };
+            _botonChico = new GUIStyle(_boton) { fontSize = 12, wordWrap = false, clipping = TextClipping.Clip };
 
         }
 

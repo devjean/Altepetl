@@ -27,10 +27,29 @@ namespace Altepetl
             }
         }
 
+        /// <summary>¿El jugador ya eligió? Se pregunta la primera vez, antes de elegir pueblo.</summary>
+        public static bool Elegido => PlayerPrefs.HasKey(Clave);
+
+        /// <summary>Olvida la elección para que se vuelva a preguntar (menú del editor).</summary>
+        public static void Olvidar()
+        {
+            PlayerPrefs.DeleteKey(Clave);
+            _nahuatl = -1;
+        }
+
         public static string Tropa => Nahuatl ? "yaoquizqui" : "tropa";
         public static string Tropas => Nahuatl ? "yaoquizqueh" : "tropas";
         public static string TropasMayuscula => Nahuatl ? "Yaoquizqueh" : "Tropas";
         public static string TropasCuenta(int n) => n == 1 ? $"1 {Tropa}" : $"{n} {Tropas}";
+
+        // Calquetza: "levantar casa, edificar" (calli + quetza). Molina lo da como edificar.
+        public static string BotonConstruir => Nahuatl ? "Calquetza\n(construir)" : "Construir";
+        public static string TituloConstruir => Nahuatl ? "Calquetza" : "Construir";
+
+        // Yaoyotl: "guerra" (sustantivo). Altepetl: el pueblo o señorío, en vez de "aldea".
+        public static string Atacar => Nahuatl ? "Yaoyotl (atacar)" : "Atacar";
+        public static string AtacarCorto => Nahuatl ? "Yaoyotl" : "Atacar";
+        public static string AlAldea => Nahuatl ? "al altepetl" : "a la aldea";
 
         // Concordancia: yaoquizqui es masculino; tropa, femenino.
         public static string Un => Nahuatl ? "Un" : "Una";

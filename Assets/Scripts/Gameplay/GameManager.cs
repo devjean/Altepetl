@@ -131,7 +131,10 @@ namespace Altepetl
         /// <summary>¿Ya tiene todos los que permite el nivel actual del tecpan?</summary>
         public bool EnLimite(BuildingDefinition definicion) => Cantidad(definicion.Id) >= Maximo(definicion);
 
-        public void EmpezarColocacion(BuildingDefinition definicion)
+        /// <summary>Se está colocando un edificio cuyos recursos faltantes se pagarán con plumas.</summary>
+        public bool ColocandoConPlumas { get; private set; }
+
+        public void EmpezarColocacion(BuildingDefinition definicion, bool conPlumas = false)
         {
             Seleccionar(null);
             if (EnLimite(definicion))
@@ -139,12 +142,14 @@ namespace Altepetl
                 MostrarMensaje("Mejora el tecpan para construir más");
                 return;
             }
-            if (!Banco.PuedePagar(definicion.Costo))
+            bool alcanza = Banco.PuedePagar(definicion.Costo);
+            if (!alcanza && !(conPlumas && PuedePagarConPlumas(definicion.Costo)))
             {
-                MostrarMensaje("Recursos insuficientes");
+                MostrarMensaje(conPlumas ? "No tienes suficientes plumas de quetzal" : "Recursos insuficientes");
                 return;
             }
             Colocando = definicion;
+            ColocandoConPlumas = !alcanza;
         }
 
         public void CancelarColocacion()
@@ -217,12 +222,16 @@ namespace Altepetl
                 MostrarMensaje("Ese lugar está ocupado");
                 return;
             }
-            if (!Banco.TryGastar(definicion.Costo))
+            bool pagado = ColocandoConPlumas && !Banco.PuedePagar(definicion.Costo)
+                ? PagarConPlumas(definicion.Costo)
+                : Banco.TryGastar(definicion.Costo);
+            if (!pagado)
             {
-                MostrarMensaje("Recursos insuficientes");
+                MostrarMensaje(ColocandoConPlumas ? "No tienes suficientes plumas de quetzal" : "Recursos insuficientes");
                 Colocando = null;
                 return;
             }
+            ColocandoConPlumas = false;
             Construir(definicion, origen, 0, SegundosConstruccion(definicion));
             // Las murallas se siguen colocando una tras otra mientras alcancen los recursos.
             bool otraMuralla = definicion.Id == BuildingId.Muralla && !EnLimite(definicion)
@@ -368,22 +377,33 @@ namespace Altepetl
             return plumas;
         }
 
-        /// <summary>Paga con plumas lo que falta, gasta lo que sí hay y empieza la mejora.</summary>
-        public bool TryMejorarConPlumas(Building edificio)
+        public bool PuedePagarConPlumas(int[] costo)
         {
-            if (PuedeMejorar(edificio) != EstadoMejora.SinRecursos) return false;
-            var costo = edificio.Definicion.CostoMejora(edificio.Nivel);
             int plumas = PlumasParaCompletar(costo);
-            if (plumas < 0 || Banco.Get(ResourceType.Plumas) < plumas + costo[(int)ResourceType.Plumas])
-            {
-                MostrarMensaje("No tienes suficientes plumas de quetzal");
-                return false;
-            }
-            Banco.TryGastar(ResourceInfo.Costo(plumas: plumas));
+            return plumas >= 0 && Banco.Get(ResourceType.Plumas) >= plumas + costo[(int)ResourceType.Plumas];
+        }
+
+        /// <summary>Paga con plumas lo que falta y gasta lo que sí hay. Falso si no alcanzan las plumas.</summary>
+        private bool PagarConPlumas(int[] costo)
+        {
+            if (!PuedePagarConPlumas(costo)) return false;
+            Banco.TryGastar(ResourceInfo.Costo(plumas: PlumasParaCompletar(costo)));
             for (int i = 0; i < costo.Length; i++)
             {
                 var tipo = (ResourceType)i;
                 Banco.Establecer(tipo, Mathf.Max(0, Banco.Get(tipo) - costo[i]));
+            }
+            return true;
+        }
+
+        /// <summary>Paga con plumas lo que falta, gasta lo que sí hay y empieza la mejora.</summary>
+        public bool TryMejorarConPlumas(Building edificio)
+        {
+            if (PuedeMejorar(edificio) != EstadoMejora.SinRecursos) return false;
+            if (!PagarConPlumas(edificio.Definicion.CostoMejora(edificio.Nivel)))
+            {
+                MostrarMensaje("No tienes suficientes plumas de quetzal");
+                return false;
             }
             edificio.EmpezarMejora();
             Guardar();

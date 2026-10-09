@@ -17,10 +17,12 @@ namespace Altepetl
         {
             switch (type)
             {
-                case ResourceType.Maiz: return "Maíz";
-                case ResourceType.Madera: return "Madera";
-                case ResourceType.Obsidiana: return "Obsidiana";
-                case ResourceType.Plumas: return "Plumas de quetzal";
+                // Con términos nahuas: tlaolli (maíz desgranado), cuahuitl (árbol, madera),
+                // itztli (obsidiana), quetzalli (pluma preciosa).
+                case ResourceType.Maiz: return Terminos.Nahuatl ? "Tlaolli" : "Maíz";
+                case ResourceType.Madera: return Terminos.Nahuatl ? "Cuahuitl" : "Madera";
+                case ResourceType.Obsidiana: return Terminos.Nahuatl ? "Itztli" : "Obsidiana";
+                case ResourceType.Plumas: return Terminos.Nahuatl ? "Quetzalli" : "Plumas de quetzal";
                 case ResourceType.Cautivos: return "Mamaltin";
                 default: return type.ToString();
             }

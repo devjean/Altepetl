@@ -13,7 +13,9 @@ namespace Altepetl
     public sealed class TroopDefinition
     {
         public TroopId Id;
-        public string Nombre;
+        public string NombreEspanol;
+        public string NombreNahuatl;     // por su arma: macuahuitl, tlahuitolli (arco), tematlatl (honda)
+        public string Nombre => Terminos.Nahuatl ? NombreNahuatl : NombreEspanol;
         public string Descripcion;
         public int[] Costo = ResourceInfo.Costo();
         public float SegundosEntrenamiento = 5f;
@@ -34,7 +36,8 @@ namespace Altepetl
             new TroopDefinition
             {
                 Id = TroopId.Macuahuitl,
-                Nombre = "Guerrero",
+                NombreEspanol = "Guerrero",
+                NombreNahuatl = "Macuahuitl",
                 Descripcion = "Cuerpo a cuerpo con macuahuitl. Resistente.",
                 Costo = ResourceInfo.Costo(maiz: 25),
                 SegundosEntrenamiento = 6f,
@@ -47,7 +50,8 @@ namespace Altepetl
             new TroopDefinition
             {
                 Id = TroopId.Arquero,
-                Nombre = "Arquero",
+                NombreEspanol = "Arquero",
+                NombreNahuatl = "Tlahuitolli",
                 Descripcion = "Ataca de lejos, pero aguanta poco.",
                 Costo = ResourceInfo.Costo(maiz: 35),
                 SegundosEntrenamiento = 8f,
@@ -60,7 +64,8 @@ namespace Altepetl
             new TroopDefinition
             {
                 Id = TroopId.Hondero,
-                Nombre = "Hondero",
+                NombreEspanol = "Hondero",
+                NombreNahuatl = "Tematlatl",
                 Descripcion = "Va primero contra las torres.",
                 Costo = ResourceInfo.Costo(maiz: 45),
                 SegundosEntrenamiento = 10f,

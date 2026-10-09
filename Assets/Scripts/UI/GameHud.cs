@@ -281,7 +281,13 @@ namespace Altepetl
 
             var botonConstruir = new Rect(tarjeta.x + 8, tarjeta.yMax - 96, tarjeta.width - 16, 44);
             bool faltaMaterial = def.Construible && !Manager.EnLimite(def) && !Manager.Banco.PuedePagar(def.Costo);
-            if (faltaMaterial)
+            bool sinGente = def.Construible && def.Id != BuildingId.Muralla && !Manager.HayGenteParaObra;
+            if (sinGente)
+            {
+                GUI.enabled = false;
+                GUI.Button(botonConstruir, $"{Terminos.GenteMayuscula}\nocupados", _boton);
+            }
+            else if (faltaMaterial)
             {
                 // Como en las mejoras: lo que falta se completa con plumas de quetzal.
                 int plumas = Manager.PlumasParaCompletar(def.Costo);
@@ -543,6 +549,9 @@ namespace Altepetl
                     break;
                 case GameManager.EstadoMejora.FaltanEdificios:
                     GUI.Label(botonRect, "Faltan edificios para mejorar", _texto);
+                    break;
+                case GameManager.EstadoMejora.SinGente:
+                    GUI.Label(botonRect, Manager.TextoSinGente, _texto);
                     break;
                 case GameManager.EstadoMejora.RequiereTecpan:
                     GUI.Label(botonRect, $"Mejora el tecpan a nivel {edificio.Nivel + 1} para seguir", _texto);
@@ -826,6 +835,12 @@ namespace Altepetl
             if (Manager.EnModoColocar) return;
             var rect = new Rect(10, alto - 60, 150, 50);
             Zona(rect);
+            // Junto a Atacar: cuánta gente queda libre para obras.
+            var gente = new Rect(rect.xMax + 10, rect.y, 150, rect.height);
+            Zona(gente);
+            GUI.Box(gente, GUIContent.none, _caja);
+            GUI.Label(new Rect(gente.x + 8, gente.y + 4, gente.width - 16, gente.height - 8),
+                $"{Terminos.GenteMayuscula}\n{Manager.MacehualtinLibres} de {Manager.Poblacion} libres", _textoChico);
             if (GUI.Button(rect, $"{Terminos.Atacar}\n({Manager.Ejercito.Total} {Terminos.Tropas})", _boton))
             {
                 _campanaAbierta = !_campanaAbierta && _nivelArmando < 0 && _nivelHistoria < 0;

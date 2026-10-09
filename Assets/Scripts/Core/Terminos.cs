@@ -51,6 +51,10 @@ namespace Altepetl
         public static string AtacarCorto => Nahuatl ? "Yaoyotl" : "Atacar";
         public static string AlAldea => Nahuatl ? "al altepetl" : "a la aldea";
 
+        // Macehualtin: la gente del pueblo (singular macehualli), que levanta las obras.
+        public static string Gente => Nahuatl ? "macehualtin" : "pobladores";
+        public static string GenteMayuscula => Nahuatl ? "Macehualtin" : "Pobladores";
+
         // Concordancia: yaoquizqui es masculino; tropa, femenino.
         public static string Un => Nahuatl ? "Un" : "Una";
         public static string Los => Nahuatl ? "los" : "las";

@@ -177,7 +177,8 @@ namespace Altepetl
                 Zona(barra);
                 GUI.Box(barra, GUIContent.none, _caja);
                 GUI.Label(new Rect(20, barra.y + 18, ancho - 200, 30),
-                    $"Toca el mapa para colocar: {Manager.Colocando.NombrePara(Manager.Pueblo)}", _texto);
+                    $"Toca el mapa para colocar: {Manager.Colocando.NombrePara(Manager.Pueblo)}"
+                    + (Manager.ColocandoConPlumas ? $" (con {Manager.PlumasParaCompletar(Manager.Colocando.Costo)} plumas)" : ""), _texto);
                 if (GUI.Button(new Rect(ancho - 170, barra.y + 8, 150, 48), "Cancelar", _boton))
                 {
                     Manager.CancelarColocacion();
@@ -263,11 +264,28 @@ namespace Altepetl
                 GUI.Label(new Rect(tarjeta.x + 8, tarjeta.yMax - 162, tarjeta.width - 16, 64), TextoLimite(def), _textoChico);
             }
 
-            GUI.enabled = PuedeConstruir(def);
-            if (GUI.Button(new Rect(tarjeta.x + 8, tarjeta.yMax - 96, tarjeta.width - 16, 44), "Construir", _boton))
+            var botonConstruir = new Rect(tarjeta.x + 8, tarjeta.yMax - 96, tarjeta.width - 16, 44);
+            bool faltaMaterial = def.Construible && !Manager.EnLimite(def) && !Manager.Banco.PuedePagar(def.Costo);
+            if (faltaMaterial)
             {
-                _menuAbierto = false;
-                Manager.EmpezarColocacion(def);
+                // Como en las mejoras: lo que falta se completa con plumas de quetzal.
+                int plumas = Manager.PlumasParaCompletar(def.Costo);
+                GUI.enabled = Manager.PuedePagarConPlumas(def.Costo);
+                string texto = plumas < 0 ? "Faltan mamaltin" : $"Con plumas\n{plumas} plumas";
+                if (GUI.Button(botonConstruir, texto, _boton))
+                {
+                    _menuAbierto = false;
+                    Manager.EmpezarColocacion(def, conPlumas: true);
+                }
+            }
+            else
+            {
+                GUI.enabled = PuedeConstruir(def);
+                if (GUI.Button(botonConstruir, "Construir", _boton))
+                {
+                    _menuAbierto = false;
+                    Manager.EmpezarColocacion(def);
+                }
             }
             GUI.enabled = true;
             if (GUI.Button(new Rect(tarjeta.x + 8, tarjeta.yMax - 46, tarjeta.width - 16, 36), "Información", _boton))
@@ -286,13 +304,16 @@ namespace Altepetl
             {
                 _info = null;
             }
-            GUI.enabled = PuedeConstruir(def);
-            string texto = def.Construible ? $"Construir\n{TextoCosto(def.Costo)}" : "Próximamente";
+            bool conPlumas = def.Construible && !Manager.EnLimite(def) && !Manager.Banco.PuedePagar(def.Costo);
+            GUI.enabled = conPlumas ? Manager.PuedePagarConPlumas(def.Costo) : PuedeConstruir(def);
+            string texto = !def.Construible ? "Próximamente"
+                : conPlumas ? $"Con plumas\n{Mathf.Max(0, Manager.PlumasParaCompletar(def.Costo))} plumas"
+                : $"Construir\n{TextoCosto(def.Costo)}";
             if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), texto, _boton))
             {
                 _menuAbierto = false;
                 _info = null;
-                Manager.EmpezarColocacion(def);
+                Manager.EmpezarColocacion(def, conPlumas);
             }
             GUI.enabled = true;
         }

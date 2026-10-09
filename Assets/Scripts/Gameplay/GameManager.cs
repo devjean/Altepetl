@@ -466,6 +466,9 @@ namespace Altepetl
         public void AlAvisarAsalto()
         {
             MostrarMensaje(Asalto.HayVigia ? "¡La torre de vigía avisa: se acercan enemigos!" : "¡Se acercan enemigos!", 4f);
+            // La gente corre a meterse a las casas y el ejército se junta en el tecpan.
+            _macehualtin.Resguardar = true;
+            _tropasEnAldea.Resguardar = true;
         }
 
         /// <summary>Durante el ataque, la gente se resguarda y solo se ven los defensores.</summary>
@@ -480,6 +483,8 @@ namespace Altepetl
         {
             _tropasEnAldea.gameObject.SetActive(true);
             _macehualtin.gameObject.SetActive(true);
+            _tropasEnAldea.Resguardar = false;
+            _macehualtin.Resguardar = false;
             Guardar();
         }
 

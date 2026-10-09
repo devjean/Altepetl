@@ -160,7 +160,7 @@ namespace Altepetl
                 _invasores.Add(Crear(TroopCatalog.Get(tipo), rango, invasor: true, posicion));
             }
 
-            // Tus defensores salen del calpulli (o del tecpan si aún no hay).
+            // Tus defensores salen del tecpan, donde se resguardó el ejército.
             var puesto = PuestoDefensores();
             foreach (var tropa in TroopCatalog.Todos)
             {
@@ -244,7 +244,8 @@ namespace Altepetl
         public void Cerrar()
         {
             if (EstadoActual != Estado.Resultado) return;
-            foreach (var edificio in Manager.Edificios) edificio.Reparar();
+            // Los derribados se levantan poco a poco, unos después de otros.
+            foreach (var edificio in Manager.Edificios) edificio.Reparar(Random.Range(0f, 4f));
             Resultado = null;
             EstadoActual = Estado.Tranquilo;
             _proximo = Random.Range(EntreAtaquesMin, EntreAtaquesMax);
@@ -395,13 +396,11 @@ namespace Altepetl
 
         private Vector3 PuestoDefensores()
         {
-            Building tecpan = null;
             foreach (var edificio in Manager.Edificios)
             {
-                if (edificio.Definicion.Id == BuildingId.Calpulli && edificio.Nivel > 0) return edificio.transform.position;
-                if (edificio.Definicion.Id == BuildingId.Tecpan) tecpan = edificio;
+                if (edificio.Definicion.Id == BuildingId.Tecpan) return edificio.transform.position;
             }
-            return tecpan != null ? tecpan.transform.position : Manager.Mapa.Centro;
+            return Manager.Mapa.Centro;
         }
     }
 

@@ -44,6 +44,72 @@ namespace Altepetl
         private float _proximoReparto;
         private bool _colocados;   // al abrir el juego aparecen ya repartidos, sin caminar
         private Pueblo _pueblo;    // con partida nueva (otro pueblo) se vuelve a crear a la gente
+        private const int ReconstruyenPorEdificio = 3;
+        private bool _resguardar;
+
+        /// <summary>
+        /// Cuando se acercan enemigos, cada quien corre a la casa o edificio más cercano y se mete;
+        /// al terminar el ataque van saliendo poco a poco.
+        /// </summary>
+        public bool Resguardar
+        {
+            get => _resguardar;
+            set
+            {
+                if (_resguardar == value) return;
+                _resguardar = value;
+                foreach (var persona in _gente)
+                {
+                    if (value) Resguardarse(persona);
+                    else if (persona.Estado == Estado.Adentro) persona.Hasta = Time.time + Random.Range(0.5f, 4f);
+                    else Pasear(persona);
+                }
+            }
+        }
+
+        private void Resguardarse(Persona persona)
+        {
+            if (persona.Estado == Estado.Adentro)
+            {
+                persona.Hasta = float.MaxValue; // ya estaba adentro: ahí se queda
+                return;
+            }
+            persona.Estado = Estado.Paseo;
+            persona.Obra = null;
+            persona.VaAChinampa = false;
+            persona.Casa = null;
+            persona.CasaDeAfuera = false;
+
+            // La casa más cercana: un edificio de la aldea o una casita de los alrededores.
+            Vector3 aqui = Plano(persona);
+            float mejor = float.MaxValue;
+            foreach (var edificio in Manager.Edificios)
+            {
+                if (edificio == null || edificio.Definicion.Id == BuildingId.Muralla || edificio.Definicion.EsDefensa) continue;
+                float distancia = (edificio.transform.position - aqui).sqrMagnitude;
+                if (distancia < mejor)
+                {
+                    mejor = distancia;
+                    persona.Casa = edificio;
+                }
+            }
+            var afuera = Manager.Paisaje != null ? Manager.Paisaje.CasasAfuera : null;
+            if (afuera != null)
+            {
+                foreach (var puerta in afuera)
+                {
+                    float distancia = (puerta - aqui).sqrMagnitude;
+                    if (distancia >= mejor) continue;
+                    mejor = distancia;
+                    persona.Casa = null;
+                    persona.CasaDeAfuera = true;
+                    persona.Puerta = puerta;
+                }
+            }
+            if (persona.Casa == null && !persona.CasaDeAfuera) return;
+            persona.Destino = persona.CasaDeAfuera ? persona.Puerta : PuntoAlrededor(persona.Casa);
+            persona.Hasta = -1f; // al llegar, entra
+        }
 
         private void Update()
         {
@@ -56,7 +122,7 @@ namespace Altepetl
                 _colocados = false;
             }
             AjustarCantidad(Manager.Poblacion);
-            if (Time.time >= _proximoReparto)
+            if (!_resguardar && Time.time >= _proximoReparto)
             {
                 _proximoReparto = Time.time + CadaCuantoReparte;
                 Repartir();
@@ -71,7 +137,7 @@ namespace Altepetl
             _obras.Clear();
             foreach (var edificio in Manager.Edificios)
             {
-                if (edificio != null && edificio.EnConstruccion) _obras.Add(edificio);
+                if (edificio != null && (edificio.EnConstruccion || edificio.Reconstruyendo)) _obras.Add(edificio);
             }
 
             // Primero se sueltan los que ya no tienen obra (terminó, se movió o se demolió).
@@ -79,7 +145,7 @@ namespace Altepetl
             foreach (var persona in _gente)
             {
                 if (persona.Estado != Estado.Obra) continue;
-                if (persona.Obra == null || !persona.Obra.EnConstruccion || !_obras.Contains(persona.Obra))
+                if (persona.Obra == null || !_obras.Contains(persona.Obra))
                 {
                     Pasear(persona);
                     continue;
@@ -88,17 +154,19 @@ namespace Altepetl
                 _asignados[persona.Obra] = cuantos + 1;
             }
 
-            // Luego cada obra recibe a su gente: 10 en edificios y mejoras, un par en murallas si sobra gente.
+            // Luego cada obra recibe a su gente: 10 en edificios y mejoras, un par en murallas si sobra gente
+            // y unos cuantos en cada edificio que se levanta después de un ataque.
             foreach (var obra in _obras)
             {
                 bool muralla = obra.Definicion.Id == BuildingId.Muralla;
-                int necesarios = muralla ? AyudanEnMuralla : GameManager.MacehualtinPorObra;
+                bool reconstruye = !obra.EnConstruccion;
+                int necesarios = reconstruye ? ReconstruyenPorEdificio : muralla ? AyudanEnMuralla : GameManager.MacehualtinPorObra;
                 _asignados.TryGetValue(obra, out int tiene);
                 for (int i = tiene; i < necesarios; i++)
                 {
                     var persona = Libre(obra.transform.position);
                     if (persona == null) break;
-                    if (muralla && Libres() <= GameManager.MacehualtinPorObra) break; // no quitarle gente a la próxima obra
+                    if ((muralla || reconstruye) && Libres() <= GameManager.MacehualtinPorObra) break; // no quitarle gente a la próxima obra
                     MandarAObra(persona, obra);
                 }
             }
@@ -160,8 +228,8 @@ namespace Altepetl
         {
             if (persona.Estado == Estado.Adentro)
             {
-                // Sale cuando se le acaba el rato o si su casa ya no está.
-                if ((persona.Casa != null || persona.CasaDeAfuera) && Time.time < persona.Hasta) return;
+                // Sale cuando se le acaba el rato o si su casa ya no está; resguardados, no salen.
+                if (_resguardar || ((persona.Casa != null || persona.CasaDeAfuera) && Time.time < persona.Hasta)) return;
                 Salir(persona);
                 Pasear(persona);
             }

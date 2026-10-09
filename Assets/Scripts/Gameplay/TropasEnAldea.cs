@@ -53,6 +53,23 @@ namespace Altepetl
         private string _firma = "";
         private bool _volviendoDeBatalla;
         private bool _colocados; // al abrir el juego aparecen ya en su lugar, sin caminar
+        private bool _resguardar;
+        private bool _saliendoDelTecpan;
+
+        /// <summary>
+        /// Cuando se acercan enemigos, todo el ejército camina al tecpan y entra; al terminar el ataque
+        /// salen del tecpan y vuelven a su lugar.
+        /// </summary>
+        public bool Resguardar
+        {
+            get => _resguardar;
+            set
+            {
+                if (_resguardar == value) return;
+                _resguardar = value;
+                if (!value) SalirDelTecpan();
+            }
+        }
 
         private void Update()
         {
@@ -74,7 +91,52 @@ namespace Altepetl
                 _volviendoDeBatalla = false;
             }
 
+            if (_resguardar)
+            {
+                Vector3 refugio = Refugio();
+                foreach (var monito in _monitos)
+                {
+                    monito.Destino = refugio;
+                    Mover(monito);
+                    Vector3 actual = monito.Cuerpo.localPosition;
+                    if ((new Vector3(actual.x, 0f, actual.z) - refugio).sqrMagnitude < 0.01f) Ocultar(monito, true);
+                }
+                return;
+            }
             foreach (var monito in _monitos) Mover(monito);
+        }
+
+        /// <summary>El centro del tecpan, a ras de suelo.</summary>
+        private Vector3 Refugio()
+        {
+            foreach (var edificio in Manager.Edificios)
+            {
+                if (edificio.Definicion.Id != BuildingId.Tecpan) continue;
+                var centro = edificio.transform.position;
+                return new Vector3(centro.x, 0f, centro.z);
+            }
+            return new Vector3(Manager.Mapa.Centro.x, 0f, Manager.Mapa.Centro.z);
+        }
+
+        private static void Ocultar(Monito monito, bool oculto)
+        {
+            if (monito.Cuerpo.gameObject.activeSelf == oculto) monito.Cuerpo.gameObject.SetActive(!oculto);
+            if (monito.Acalli != null && monito.Acalli.gameObject.activeSelf == oculto) monito.Acalli.gameObject.SetActive(!oculto);
+        }
+
+        /// <summary>Todos salen del tecpan y caminan de vuelta a su lugar (los que cambiaron, también desde ahí).</summary>
+        private void SalirDelTecpan()
+        {
+            Vector3 refugio = Refugio();
+            foreach (var monito in _monitos)
+            {
+                if (monito.Cuerpo.gameObject.activeSelf) continue;
+                monito.Cuerpo.localPosition = new Vector3(refugio.x, monito.Tamano, refugio.z);
+                if (monito.Acalli != null) monito.Acalli.localPosition = new Vector3(refugio.x, 0.03f, refugio.z);
+                Ocultar(monito, false);
+            }
+            _saliendoDelTecpan = true;
+            _firma = ""; // que vuelva a repartir los lugares
         }
 
         private void Mover(Monito monito)
@@ -231,6 +293,10 @@ namespace Altepetl
                 {
                     inicio = deseado.Destino;
                 }
+                else if (_saliendoDelTecpan)
+                {
+                    inicio = Refugio();
+                }
                 else if (_volviendoDeBatalla || deseado.Herido || telpochcalli == null)
                 {
                     inicio = Entrada(llegada++);
@@ -253,6 +319,7 @@ namespace Altepetl
             _monitos.Clear();
             _monitos.AddRange(nuevos);
             _colocados = true;
+            _saliendoDelTecpan = false;
         }
 
         private static Monito Tomar(List<Monito> libres, TroopId tipo, int rango, bool herido)

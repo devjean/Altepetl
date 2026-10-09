@@ -251,7 +251,7 @@ namespace Altepetl
             }
             if (rango < 0)
             {
-                _manager.MostrarMensaje("No te quedan yaoquizqueh de ese tipo");
+                _manager.MostrarMensaje($"No te quedan {Terminos.Tropas} de ese tipo");
                 return;
             }
 

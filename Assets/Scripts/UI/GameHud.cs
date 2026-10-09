@@ -30,6 +30,7 @@ namespace Altepetl
         private bool _campanaAbierta;
         private bool _menuAbierto;
         private bool _ofrendasAbierto;
+        private bool _ajustesAbierto;
         private int _nivelHistoria = -1;        // capítulo cuya historia se está leyendo
         private int _nivelArmando = -1;         // nivel de campaña para el que se arma el ejército
         private SeleccionEjercito _seleccion;
@@ -82,6 +83,7 @@ namespace Altepetl
             DibujarHistoria(ancho);
             DibujarArmarEjercito(ancho);
             DibujarOfrendas(ancho);
+            DibujarAjustes(ancho, alto);
             DibujarMensaje(ancho, alto);
         }
 
@@ -103,7 +105,7 @@ namespace Altepetl
                 GUI.Box(tarjeta, GUIContent.none, _caja);
                 Titulo(new Rect(tarjeta.x + 10, tarjeta.y + 10, tarjeta.width - 20, 30), pueblo.Nombre);
                 GUI.Label(new Rect(tarjeta.x + 10, tarjeta.y + 50, tarjeta.width - 20, 160),
-                    $"{pueblo.Ciudad}\nEstilo: {pueblo.Estilo}\n\n{pueblo.Descripcion}", _texto);
+                    $"{pueblo.Ciudad}\nEstilo: {pueblo.Estilo}\n\n{Terminos.Aplicar(pueblo.Descripcion)}", _texto);
                 if (GUI.Button(new Rect(tarjeta.x + 20, tarjeta.yMax - 60, tarjeta.width - 40, 44), "Elegir", _boton))
                 {
                     Manager.ElegirPueblo(pueblo);
@@ -246,7 +248,7 @@ namespace Altepetl
         {
             Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), def.NombrePara(Manager.Pueblo));
             GUI.Label(new Rect(panel.x + 20, panel.y + 48, panel.width - 40, 260),
-                def.Descripcion + "\n\n" + DetallesEdificio(def), _texto);
+                Terminos.Aplicar(def.Descripcion) + "\n\n" + DetallesEdificio(def), _texto);
 
             if (GUI.Button(new Rect(panel.x + 20, panel.yMax - 60, 160, 44), "Volver", _boton))
             {
@@ -311,8 +313,8 @@ namespace Altepetl
         {
             if (def.Produce) return $"+{ProduccionInicial(def):0.#} {ResourceInfo.Nombre(def.Recurso).ToLowerInvariant()}/min";
             if (def.CapacidadExtra > 0) return $"+{def.CapacidadExtra} de almacén";
-            if (def.CapacidadTropas > 0) return $"{def.CapacidadTropas} de espacio para yaoquizqueh";
-            if (def.Entrena) return "Entrena yaoquizqueh";
+            if (def.CapacidadTropas > 0) return $"{def.CapacidadTropas} de espacio para {Terminos.Tropas}";
+            if (def.Entrena) return $"Entrena {Terminos.Tropas}";
             if (def.CamasCuracion > 0) return $"Cura {def.CamasCuracion} heridos a la vez";
             if (def.EsDefensa) return $"{def.DanoDefensaPorSegundo:0.#} de daño por segundo";
             if (def.Id == BuildingId.Teocalli) return "Ofrendas a los dioses";
@@ -329,7 +331,7 @@ namespace Altepetl
             };
             if (def.Produce) lineas.Add($"Produce {ProduccionInicial(def):0.#} de {ResourceInfo.Nombre(def.Recurso).ToLowerInvariant()} por minuto");
             if (def.CapacidadExtra > 0) lineas.Add($"Almacén: +{def.CapacidadExtra} de cada recurso");
-            if (def.CapacidadTropas > 0) lineas.Add($"Espacio para yaoquizqueh: {def.CapacidadTropas} por nivel");
+            if (def.CapacidadTropas > 0) lineas.Add($"Espacio para {Terminos.Tropas}: {def.CapacidadTropas} por nivel");
             if (def.Entrena)
             {
                 lineas.Add($"Entrena guerreros, arqueros y honderos. Cada nivel entrena {Mathf.RoundToInt(GameManager.EntrenamientoExtraPorNivel * 100)}% más rápido; el espacio lo da el calpulli");
@@ -382,7 +384,7 @@ namespace Altepetl
                 return;
             }
 
-            string info = (edificio.Nivel > 0 ? $"Nivel {edificio.Nivel}. " : "") + def.Descripcion + "\n";
+            string info = (edificio.Nivel > 0 ? $"Nivel {edificio.Nivel}. " : "") + Terminos.Aplicar(def.Descripcion) + "\n";
             if (edificio.Mejorando)
             {
                 info += $"\nMejorando a nivel {edificio.Nivel + 1}: {Mathf.CeilToInt(edificio.SegundosRestantes)} s";
@@ -504,6 +506,63 @@ namespace Altepetl
         }
 
         // ---------- Teocalli ----------
+
+        private void DibujarAjustes(float ancho, float alto)
+        {
+            if (Manager.Colocando != null) return;
+            var boton = new Rect(170, alto - 60, 110, 50);
+            Zona(boton);
+            if (GUI.Button(boton, "Ajustes", _boton))
+            {
+                _ajustesAbierto = !_ajustesAbierto;
+                if (_ajustesAbierto)
+                {
+                    Manager.Seleccionar(null);
+                    _menuAbierto = false;
+                    _campanaAbierta = false;
+                    _ofrendasAbierto = false;
+                }
+            }
+            if (!_ajustesAbierto) return;
+            if (Manager.Seleccionado != null || _menuAbierto || _campanaAbierta || _ofrendasAbierto
+                || _nivelArmando >= 0 || _nivelHistoria >= 0 || Manager.HistoriaPendiente != null)
+            {
+                _ajustesAbierto = false;
+                return;
+            }
+
+            var panel = new Rect((ancho - 460) / 2, AltoBarraSuperior + 10, 460, 300);
+            Zona(panel);
+            GUI.Box(panel, GUIContent.none, _caja);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Ajustes");
+            if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
+            {
+                _ajustesAbierto = false;
+                return;
+            }
+
+            float y = panel.y + 52;
+            GUI.Label(new Rect(panel.x + 20, y, 140, 30), "Términos", _texto);
+            bool nahuatl = Terminos.Nahuatl;
+            GUI.enabled = !nahuatl;
+            if (GUI.Button(new Rect(panel.x + 160, y - 4, 130, 36), "Náhuatl", _boton)) Terminos.Nahuatl = true;
+            GUI.enabled = nahuatl;
+            if (GUI.Button(new Rect(panel.x + 300, y - 4, 130, 36), "Español", _boton)) Terminos.Nahuatl = false;
+            GUI.enabled = true;
+            GUI.Label(new Rect(panel.x + 20, y + 38, panel.width - 40, 40),
+                Terminos.Nahuatl ? "Las tropas se llaman yaoquizqueh, «los que salen a la guerra»."
+                                 : "Las tropas se llaman tropas.", _textoChico);
+
+            y += 92;
+            GUI.Label(new Rect(panel.x + 20, y, 140, 30), "Idioma", _texto);
+            GUI.Label(new Rect(panel.x + 160, y, 270, 30), "Español (más idiomas próximamente)", _textoChico);
+            y += 40;
+            GUI.Label(new Rect(panel.x + 20, y, 140, 30), "Música", _texto);
+            GUI.Label(new Rect(panel.x + 160, y, 270, 30), "Próximamente", _textoChico);
+            y += 40;
+            GUI.Label(new Rect(panel.x + 20, y, 140, 30), "Sonido", _texto);
+            GUI.Label(new Rect(panel.x + 160, y, 270, 30), "Próximamente", _textoChico);
+        }
 
         private void DibujarOfrendas(float ancho)
         {
@@ -627,10 +686,10 @@ namespace Altepetl
                 case TipoBono.Ataque: return $"+{porcentaje}% de ataque";
                 case TipoBono.Entrenamiento: return $"Entrenar {porcentaje}% más rápido";
                 case TipoBono.Construccion: return $"Construir {porcentaje}% más rápido";
-                case TipoBono.Velocidad: return $"Yaoquizqueh {porcentaje}% más veloces";
+                case TipoBono.Velocidad: return $"{Terminos.TropasMayuscula} {porcentaje}% más veloces";
                 case TipoBono.DanoDistancia: return $"+{porcentaje}% daño de arqueros y honderos";
                 case TipoBono.Almacen: return $"+{porcentaje}% de almacén";
-                case TipoBono.Reembolso: return $"Yaoquizqueh caídos devuelven {porcentaje}% de su maíz";
+                case TipoBono.Reembolso: return $"{Terminos.TropasMayuscula} caíd{Terminos.O}s devuelven {porcentaje}% de su maíz";
                 default: return "";
             }
         }
@@ -686,7 +745,7 @@ namespace Altepetl
             if (Manager.Colocando != null) return;
             var rect = new Rect(10, alto - 60, 150, 50);
             Zona(rect);
-            if (GUI.Button(rect, $"Atacar\n({Manager.Ejercito.Total} yaoquizqueh)", _boton))
+            if (GUI.Button(rect, $"Atacar\n({Manager.Ejercito.Total} {Terminos.Tropas})", _boton))
             {
                 _campanaAbierta = !_campanaAbierta && _nivelArmando < 0 && _nivelHistoria < 0;
                 _nivelArmando = -1;
@@ -854,7 +913,7 @@ namespace Altepetl
                 _textoChico);
 
             float y = panel.y + 84;
-            GUI.Label(new Rect(panel.x + 20, y, 250, 24), "Yaoquizqui", _textoChico);
+            GUI.Label(new Rect(panel.x + 20, y, 250, 24), Terminos.TropasMayuscula, _textoChico);
             GUI.Label(new Rect(panel.x + 280, y, 140, 24), "Sanas", _textoChico);
             GUI.Label(new Rect(panel.x + 435, y, 170, 24), "Heridas", _textoChico);
             y += 26;
@@ -884,7 +943,7 @@ namespace Altepetl
             }
             if (!hayFilas)
             {
-                GUI.Label(new Rect(panel.x + 20, y, panel.width - 40, 30), "No tienes yaoquizqueh.", _texto);
+                GUI.Label(new Rect(panel.x + 20, y, panel.width - 40, 30), $"No tienes {Terminos.Tropas}.", _texto);
             }
 
             if (GUI.Button(new Rect(panel.x + 20, panel.yMax - 60, 140, 44), "Volver", _boton))
@@ -906,7 +965,7 @@ namespace Altepetl
             }
             int total = _seleccion.Total;
             GUI.enabled = total > 0;
-            if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), total == 1 ? "¡A la batalla! (1 yaoquizqui)" : $"¡A la batalla! ({total} yaoquizqueh)", _boton))
+            if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), $"¡A la batalla! ({Terminos.TropasCuenta(total)})", _boton))
             {
                 int indice = _nivelArmando;
                 _nivelArmando = -1;
@@ -978,7 +1037,7 @@ namespace Altepetl
                 x += 160f;
             }
             GUI.Label(new Rect(x + 10, abajo.y + 20, ancho - x - 200, 70),
-                "Toca el campo, fuera de los edificios, para desplegar al yaoquizqui elegido.", _texto);
+                $"Toca el campo, fuera de los edificios, para desplegar {(Terminos.Nahuatl ? "al" : "la")} {Terminos.Tropa} elegid{Terminos.O}.", _texto);
             if (GUI.Button(new Rect(ancho - 170, abajo.y + 30, 150, 50), "Retirarse", _boton))
             {
                 batalla.Terminar();
@@ -1040,7 +1099,7 @@ namespace Altepetl
                            + $"\nBotín: {(botin.Length > 0 ? botin : "nada")}";
             if (resultado.Plumas > 0) texto += $"\nPlumas de quetzal: +{resultado.Plumas}";
             if (resultado.DefensoresDerrotados > 0) texto += $"\nDefensores vencidos: {resultado.DefensoresDerrotados}";
-            if (resultado.Regresan > 0) texto += $"\nRegresan a la aldea: {resultado.Regresan} yaoquizqueh";
+            if (resultado.Regresan > 0) texto += $"\nRegresan a la aldea: {resultado.Regresan} {Terminos.Tropas}";
             if (resultado.Heridos > 0)
             {
                 texto += Manager.CamasCuracion > 0

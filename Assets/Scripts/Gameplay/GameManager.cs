@@ -178,7 +178,7 @@ namespace Altepetl
             // Los heridos empiezan a sanar ya de vuelta en la aldea, cuando llegan al temazcalli.
             bool curando = ModoActual == Modo.Aldea && !_tropasEnAldea.HeridosLlegando;
             int curados = curando ? Ejercito.Curar(Time.deltaTime, CamasCuracion) : 0;
-            if (curados > 0) MostrarMensaje(curados == 1 ? "Un yaoquizqui sanó en el temazcalli" : $"{curados} yaoquizqueh sanaron en el temazcalli");
+            if (curados > 0) MostrarMensaje(curados == 1 ? $"{Terminos.Un} {Terminos.Tropa} sanó en el temazcalli" : $"{curados} {Terminos.Tropas} sanaron en el temazcalli");
             Culto.Avanzar(Time.deltaTime);
             Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
             if (Time.time >= _proximoAutoguardado) Guardar();
@@ -457,7 +457,7 @@ namespace Altepetl
                 return false;
             }
             int terminadas = Ejercito.TerminarCola();
-            MostrarMensaje(terminadas == 1 ? "Un yaoquizqui terminó su entrenamiento" : $"{terminadas} yaoquizqueh terminaron su entrenamiento");
+            MostrarMensaje(terminadas == 1 ? $"{Terminos.Un} {Terminos.Tropa} terminó su entrenamiento" : $"{terminadas} {Terminos.Tropas} terminaron su entrenamiento");
             Guardar();
             return true;
         }
@@ -547,12 +547,12 @@ namespace Altepetl
             if (indice < 0 || indice >= Campana.Length || indice > NivelesCompletados) return;
             if (Ejercito.Total <= 0)
             {
-                MostrarMensaje("Entrena yaoquizqueh en el telpochcalli antes de atacar");
+                MostrarMensaje($"Entrena {Terminos.Tropas} en el telpochcalli antes de atacar");
                 return;
             }
             if (seleccion == null || seleccion.Total <= 0)
             {
-                MostrarMensaje("Elige al menos un yaoquizqui");
+                MostrarMensaje($"Elige al menos {Terminos.Un.ToLowerInvariant()} {Terminos.Tropa}");
                 return;
             }
 
@@ -712,8 +712,8 @@ namespace Altepetl
             Culto.Avanzar(segundos);
             Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
             int tropasNuevas = Ejercito.Total - tropasAntes;
-            if (tropasNuevas > 0) ganancias.Add($"+{tropasNuevas} yaoquizqueh");
-            if (curados > 0) ganancias.Add($"{curados} yaoquizqueh curados");
+            if (tropasNuevas > 0) ganancias.Add($"+{tropasNuevas} {Terminos.Tropas}");
+            if (curados > 0) ganancias.Add($"{curados} {Terminos.Tropas} curad{Terminos.O}s");
             if (ganancias.Count > 0)
             {
                 MostrarMensaje("Mientras no estabas: " + string.Join(", ", ganancias), 5f);
@@ -895,7 +895,7 @@ namespace Altepetl
                 bool quieto = !dedo.Arrastra && !dedo.Soltando && !dedo.EnHud;
                 if (quieto && batalla && dedo.SinTropas && Time.time - dedo.Desde < SegundosParaSoltarSeguido)
                 {
-                    MostrarMensaje("No te quedan yaoquizqueh de ese tipo");
+                    MostrarMensaje($"No te quedan {Terminos.Tropas} de ese tipo");
                     continue;
                 }
                 if (quieto && (!batalla || dedo.Despliega))

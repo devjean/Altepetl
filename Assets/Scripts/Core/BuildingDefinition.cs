@@ -114,7 +114,7 @@ namespace Altepetl
             {
                 Id = BuildingId.Granja,
                 Nombre = "Granja",
-                Descripcion = "Campos de maíz: el alimento de tu pueblo y el pago para entrenar yaoquizqueh.",
+                Descripcion = "Campos de maíz: el alimento de tu pueblo y el pago para entrenar [tropas].",
                 Altura = 0.3f,
                 Color = new Color(0.45f, 0.70f, 0.30f),
                 Costo = ResourceInfo.Costo(madera: 50),
@@ -173,7 +173,7 @@ namespace Altepetl
             {
                 Id = BuildingId.Telpochcalli,
                 Nombre = "Telpochcalli",
-                Descripcion = "Casa de los jóvenes, donde aprenden el manejo de las armas. Entrena yaoquizqueh, «los que salen a la guerra».",
+                Descripcion = "Casa de los jóvenes, donde aprenden el manejo de las armas. Entrena [tropas][glosa].",
                 Tamano = 2,
                 Altura = 1.1f,
                 Color = new Color(0.60f, 0.25f, 0.20f),
@@ -189,7 +189,7 @@ namespace Altepetl
                 Id = BuildingId.Calpulli,
                 Nombre = "Calpulli",
                 Descripcion = "Barrio de familias. Los guerreros eran hombres del calpulli que se movilizaban "
-                              + "para cada campaña. Da espacio para yaoquizqueh.",
+                              + "para cada campaña. Da espacio para [tropas].",
                 Tamano = 2,
                 Altura = 0.8f,
                 Color = new Color(0.72f, 0.58f, 0.40f),
@@ -204,7 +204,7 @@ namespace Altepetl
             {
                 Id = BuildingId.Temazcalli,
                 Nombre = "Temazcalli",
-                Descripcion = "Baño de vapor donde el ticitl cura a los yaoquizqueh heridos con plantas medicinales, "
+                Descripcion = "Baño de vapor donde el ticitl cura a [los] [tropas] herid[o]s con plantas medicinales, "
                               + "suturas y férulas.",
                 Tamano = 2,
                 Altura = 0.9f,
@@ -235,7 +235,7 @@ namespace Altepetl
             {
                 Id = BuildingId.Torre,
                 Nombre = "Torre de vigía",
-                Descripcion = "Vigila los alrededores y dispara a los yaoquizqueh enemigos que se acercan.",
+                Descripcion = "Vigila los alrededores y dispara a [los] [tropas] enemig[o]s que se acercan.",
                 Altura = 1.8f,
                 Color = new Color(0.55f, 0.50f, 0.45f),
                 Costo = ResourceInfo.Costo(madera: 120, obsidiana: 60),
@@ -251,7 +251,7 @@ namespace Altepetl
             {
                 Id = BuildingId.Muralla,
                 Nombre = "Muralla",
-                Descripcion = "Frena a los yaoquizqueh enemigos. Los tlaxcaltecas, famosos por sus murallas, las hacen más resistentes.",
+                Descripcion = "Frena a [los] [tropas] enemig[o]s. Los tlaxcaltecas, famosos por sus murallas, las hacen más resistentes.",
                 Altura = 0.9f,
                 Color = new Color(0.70f, 0.68f, 0.62f),
                 Costo = ResourceInfo.Costo(madera: 10, obsidiana: 5),

@@ -182,11 +182,10 @@ namespace Altepetl
             Culto.Avanzar(Time.deltaTime);
             Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
             if (Time.time >= _proximoAutoguardado) Guardar();
-            if (!LeerPuntero(out Vector2 posicion, out bool abajo, out bool cancelar)) return;
-
+            LeerPuntero(out _, out _, out bool cancelar);
             if (cancelar) CancelarColocacion();
             // Arrastrar mueve el mapa; un toque sin arrastrar es lo que selecciona, coloca o despliega.
-            if (!ManejarCamara(posicion, abajo) || _hud.PunteroSobreHud(posicion)) return;
+            if (!ManejarToques(out Vector2 posicion) || _hud.PunteroSobreHud(posicion)) return;
             if (!PunteroEnSuelo(posicion, out Vector3 punto)) return;
 
             if (ModoActual == Modo.Batalla)
@@ -765,86 +764,150 @@ namespace Altepetl
 #endif
         }
 
-        /// <summary>Distancia entre dos dedos, o 0 si no hay dos dedos en la pantalla.</summary>
-        private static float LeerPellizco()
+        /// <summary>Dedos en la pantalla (o el botón izquierdo del ratón, con id -1) en este cuadro.</summary>
+        private static void LeerDedos(List<KeyValuePair<int, Vector2>> dedos)
         {
+            dedos.Clear();
 #if ENABLE_INPUT_SYSTEM
             var pantalla = Touchscreen.current;
-            if (pantalla == null) return 0f;
-            int dedos = 0;
-            Vector2 a = Vector2.zero, b = Vector2.zero;
-            foreach (var toque in pantalla.touches)
+            if (pantalla != null)
             {
-                if (!toque.press.isPressed) continue;
-                if (dedos == 0) a = toque.position.ReadValue();
-                else if (dedos == 1) b = toque.position.ReadValue();
-                dedos++;
+                foreach (var toque in pantalla.touches)
+                {
+                    if (toque.press.isPressed) dedos.Add(new KeyValuePair<int, Vector2>(toque.touchId.ReadValue(), toque.position.ReadValue()));
+                }
             }
-            return dedos >= 2 ? Vector2.Distance(a, b) : 0f;
+            var raton = Mouse.current;
+            if (dedos.Count == 0 && raton != null && raton.leftButton.isPressed)
+            {
+                dedos.Add(new KeyValuePair<int, Vector2>(-1, raton.position.ReadValue()));
+            }
 #else
-            if (Input.touchCount < 2) return 0f;
-            return Vector2.Distance(Input.GetTouch(0).position, Input.GetTouch(1).position);
+            for (int i = 0; i < Input.touchCount; i++)
+            {
+                var toque = Input.GetTouch(i);
+                dedos.Add(new KeyValuePair<int, Vector2>(toque.fingerId, toque.position));
+            }
+            if (dedos.Count == 0 && Input.GetMouseButton(0)) dedos.Add(new KeyValuePair<int, Vector2>(-1, Input.mousePosition));
 #endif
         }
 
-        // ---------- Zoom y desplazamiento del mapa ----------
+        // ---------- Toques: zoom, desplazamiento y despliegue ----------
 
         private const float ZoomMinimo = 0.35f;   // lo más cerca
         private const float ZoomMaximo = 1.25f;   // lo más lejos
+        private const float SegundosParaSoltarSeguido = 0.3f; // dedo quieto este tiempo: suelta tropas seguidas
+        private const float SegundosEntreTropas = 0.12f;
         private float _zoom = 1f;
         private Vector3 _desplazamiento;          // cuánto se movió la cámara desde el centro
-        private bool _presionando;
-        private bool _arrastrando;
-        private bool _toqueEnHud;
-        private Vector2 _inicioToque;
-        private Vector2 _ultimaPosicion;
-        private float _pellizcoAnterior;
+
+        private sealed class Dedo
+        {
+            public int Id;
+            public Vector2 Inicio;
+            public Vector2 Ultima;
+            public Vector2 Actual;
+            public float Desde;
+            public bool Arrastra;       // se movió: mueve el mapa o hace zoom
+            public bool Soltando;       // se quedó quieto en batalla: suelta tropas seguidas
+            public float SiguienteTropa;
+            public bool EnHud;
+        }
+
+        private readonly Dictionary<int, Dedo> _dedos = new Dictionary<int, Dedo>();
+        private readonly List<KeyValuePair<int, Vector2>> _lecturaDedos = new List<KeyValuePair<int, Vector2>>();
+        private readonly List<int> _dedosSoltados = new List<int>();
 
         /// <summary>
-        /// Zoom con la rueda o pellizcando, y desplazamiento arrastrando el mapa.
-        /// Devuelve true en el cuadro en que se suelta un toque que no arrastró: eso cuenta como "tocar".
+        /// Cada dedo por separado (también el ratón):
+        /// tocar y soltar sin moverse es un toque (seleccionar, colocar o desplegar una tropa);
+        /// en batalla, dejarlo quieto suelta tropas seguidas, y con varios dedos quietos se suelta en todos;
+        /// arrastrar un dedo mueve el mapa; abrir o cerrar dos dedos hace zoom. La rueda del ratón también hace zoom.
+        /// Devuelve true si este cuadro hubo un toque, y dónde.
         /// </summary>
-        private bool ManejarCamara(Vector2 posicion, bool abajo)
+        private bool ManejarToques(out Vector2 toque)
         {
+            toque = Vector2.zero;
+            bool huboToque = false;
+
+            LeerPuntero(out Vector2 raton, out _, out _);
             float rueda = LeerRueda();
-            if (rueda != 0f && !_hud.PunteroSobreHud(posicion)) Zoom(rueda > 0f ? 0.9f : 1f / 0.9f);
+            if (rueda != 0f && !_hud.PunteroSobreHud(raton)) Zoom(rueda > 0f ? 0.9f : 1f / 0.9f);
 
-            float pellizco = LeerPellizco();
-            if (pellizco > 0f)
-            {
-                if (_pellizcoAnterior > 0f) Zoom(_pellizcoAnterior / pellizco);
-                _pellizcoAnterior = pellizco;
-                _arrastrando = true; // al soltar no cuenta como toque
-                _ultimaPosicion = posicion;
-                return false;
-            }
-            _pellizcoAnterior = 0f;
+            LeerDedos(_lecturaDedos);
+            float umbral = Screen.height * 0.02f;
+            bool batalla = ModoActual == Modo.Batalla && Batalla != null && !Batalla.Terminada;
 
-            if (abajo && !_presionando)
+            // Dedos nuevos y dedos que siguen.
+            foreach (var lectura in _lecturaDedos)
             {
-                _presionando = true;
-                _arrastrando = false;
-                _toqueEnHud = _hud.PunteroSobreHud(posicion);
-                _inicioToque = posicion;
-                _ultimaPosicion = posicion;
-                return false;
-            }
-            if (abajo)
-            {
-                if (_toqueEnHud) return false;
-                // Unos píxeles de margen (según el tamaño de la pantalla) para no confundir un toque con un arrastre.
-                float umbral = Screen.height * 0.02f;
-                if (!_arrastrando && Vector2.Distance(posicion, _inicioToque) > umbral) _arrastrando = true;
-                if (_arrastrando && PunteroEnSuelo(_ultimaPosicion, out Vector3 antes) && PunteroEnSuelo(posicion, out Vector3 ahora))
+                if (!_dedos.TryGetValue(lectura.Key, out var dedo))
                 {
-                    Desplazar(antes - ahora);
+                    dedo = new Dedo
+                    {
+                        Id = lectura.Key, Inicio = lectura.Value, Ultima = lectura.Value, Actual = lectura.Value,
+                        Desde = Time.time, EnHud = _hud.PunteroSobreHud(lectura.Value),
+                    };
+                    _dedos[lectura.Key] = dedo;
+                    continue;
                 }
-                _ultimaPosicion = posicion;
-                return false;
+                dedo.Ultima = dedo.Actual;
+                dedo.Actual = lectura.Value;
+                if (dedo.EnHud || dedo.Soltando) continue;
+                if (!dedo.Arrastra && Vector2.Distance(dedo.Actual, dedo.Inicio) > umbral) dedo.Arrastra = true;
+                if (batalla && !dedo.Arrastra && Time.time - dedo.Desde >= SegundosParaSoltarSeguido)
+                {
+                    dedo.Soltando = true;
+                    dedo.SiguienteTropa = Time.time;
+                }
             }
-            if (!_presionando) return false;
-            _presionando = false;
-            return !_arrastrando && !_toqueEnHud;
+
+            // Dedos que se levantaron: si no se movieron, cuentan como toque.
+            _dedosSoltados.Clear();
+            foreach (var par in _dedos)
+            {
+                bool sigue = false;
+                foreach (var lectura in _lecturaDedos) sigue |= lectura.Key == par.Key;
+                if (!sigue) _dedosSoltados.Add(par.Key);
+            }
+            foreach (int id in _dedosSoltados)
+            {
+                var dedo = _dedos[id];
+                _dedos.Remove(id);
+                if (!dedo.Arrastra && !dedo.Soltando && !dedo.EnHud)
+                {
+                    huboToque = true;
+                    toque = dedo.Actual;
+                }
+            }
+
+            // Soltar tropas seguidas con cada dedo quieto (se puede ir deslizando mientras suelta).
+            foreach (var dedo in _dedos.Values)
+            {
+                if (!dedo.Soltando || !batalla || Time.time < dedo.SiguienteTropa) continue;
+                dedo.SiguienteTropa = Time.time + SegundosEntreTropas;
+                if (PunteroEnSuelo(dedo.Actual, out Vector3 punto)) Batalla.Desplegar(punto);
+            }
+
+            // Mover el mapa o hacer zoom con los dedos que arrastran.
+            Dedo primero = null, segundo = null;
+            foreach (var dedo in _dedos.Values)
+            {
+                if (!dedo.Arrastra || dedo.EnHud) continue;
+                if (primero == null) primero = dedo;
+                else if (segundo == null) segundo = dedo;
+            }
+            if (primero != null && segundo != null)
+            {
+                float antes = Vector2.Distance(primero.Ultima, segundo.Ultima);
+                float ahora = Vector2.Distance(primero.Actual, segundo.Actual);
+                if (antes > 1f && ahora > 1f) Zoom(antes / ahora);
+            }
+            else if (primero != null && PunteroEnSuelo(primero.Ultima, out Vector3 desde) && PunteroEnSuelo(primero.Actual, out Vector3 hasta))
+            {
+                Desplazar(desde - hasta);
+            }
+            return huboToque;
         }
 
         private void Zoom(float factor)

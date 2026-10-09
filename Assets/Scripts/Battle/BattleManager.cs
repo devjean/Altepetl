@@ -28,7 +28,7 @@ namespace Altepetl
         public static readonly Vector3 Origen = new Vector3(100f, 0f, 0f);
         public const float SegundosLimite = 120f;
         public const float VictoriaMinima = 0.5f;
-        private const int MargenDespliegue = 3; // casillas alrededor del mapa donde también se puede desplegar
+        private const int MargenDespliegue = 8; // casillas alrededor del mapa donde también se puede desplegar (como en Clash, casi todo el campo)
 
         public int IndiceNivel { get; private set; }
         public CampaignLevel Nivel { get; private set; }

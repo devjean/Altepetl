@@ -365,7 +365,12 @@ namespace Altepetl
 
             var def = edificio.Definicion;
             bool entrena = def.Entrena && edificio.Nivel > 0;
+            // Al tecpan le faltan edificios para subir: se listan en el panel.
+            var faltan = def.Id == BuildingId.Tecpan && !edificio.EnConstruccion
+                ? Manager.RequisitosFaltantesTecpan(edificio.Nivel + 1)
+                : new List<RequisitoTecpan>();
             float altoPanel = entrena ? 410 : def.CamasCuracion > 0 ? 310 : 250;
+            if (faltan.Count > 0) altoPanel += 22 + 19 * faltan.Count;
             var panel = new Rect(ancho - 290, AltoBarraSuperior + 10, 280, altoPanel);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
@@ -392,6 +397,17 @@ namespace Altepetl
                 if (Manager.Banco.EstaLleno(def.Recurso)) info += "\nAlmacén lleno: construye o mejora un petlacalco";
             }
             info += $"\nVida: {edificio.Vida}";
+            if (faltan.Count > 0)
+            {
+                info += $"\n\nPara subir a nivel {edificio.Nivel + 1} necesitas:";
+                foreach (var requisito in faltan)
+                {
+                    string nombre = BuildingCatalog.Get(requisito.Id).NombrePara(Manager.Pueblo);
+                    info += requisito.Cantidad > 1
+                        ? $"\n• {requisito.Cantidad} {nombre.ToLowerInvariant()}s nivel {requisito.Nivel}"
+                        : $"\n• {nombre} nivel {requisito.Nivel}";
+                }
+            }
             if (def.Id == BuildingId.Teocalli && edificio.Nivel > 0)
             {
                 var culto = Manager.Culto;
@@ -449,6 +465,9 @@ namespace Altepetl
                         break;
                     }
                     GUI.Label(botonRect, "Nivel máximo", _texto);
+                    break;
+                case GameManager.EstadoMejora.FaltanEdificios:
+                    GUI.Label(botonRect, "Faltan edificios para mejorar", _texto);
                     break;
                 case GameManager.EstadoMejora.RequiereTecpan:
                     GUI.Label(botonRect, $"Mejora el tecpan a nivel {edificio.Nivel + 1} para seguir", _texto);

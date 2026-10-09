@@ -270,6 +270,7 @@ namespace Altepetl
             EnObra,
             NivelMaximo,
             RequiereTecpan,
+            FaltanEdificios,   // el tecpan pide antes ciertos edificios
             SinRecursos,
         }
 
@@ -279,8 +280,62 @@ namespace Altepetl
             if (edificio.Nivel >= edificio.Definicion.NivelMaximo) return EstadoMejora.NivelMaximo;
             if (edificio.Definicion.Id != BuildingId.Tecpan && edificio.Nivel >= NivelTecpan)
                 return EstadoMejora.RequiereTecpan;
+            if (edificio.Definicion.Id == BuildingId.Tecpan && RequisitosFaltantesTecpan(edificio.Nivel + 1).Count > 0)
+                return EstadoMejora.FaltanEdificios;
             if (!Banco.PuedePagar(edificio.Definicion.CostoMejora(edificio.Nivel))) return EstadoMejora.SinRecursos;
             return EstadoMejora.Disponible;
+        }
+
+        /// <summary>
+        /// Lo que pide el tecpan para subir a cada nivel, para que la aldea no se quede atrás
+        /// (y vulnerable) por correr a subirlo. Índice = nivel al que se sube.
+        /// </summary>
+        public static readonly RequisitoTecpan[][] RequisitosTecpan =
+        {
+            new RequisitoTecpan[0],
+            new RequisitoTecpan[0],
+            new[]
+            {
+                new RequisitoTecpan(BuildingId.Granja, 1), new RequisitoTecpan(BuildingId.Lenadores, 1),
+                new RequisitoTecpan(BuildingId.Telpochcalli, 1), new RequisitoTecpan(BuildingId.Calpulli, 1),
+            },
+            new[]
+            {
+                new RequisitoTecpan(BuildingId.Granja, 2), new RequisitoTecpan(BuildingId.Lenadores, 2),
+                new RequisitoTecpan(BuildingId.Obsidiana, 1), new RequisitoTecpan(BuildingId.Petlacalco, 1),
+                new RequisitoTecpan(BuildingId.Teocalli, 1), new RequisitoTecpan(BuildingId.Muralla, 1, 10),
+            },
+            new[]
+            {
+                new RequisitoTecpan(BuildingId.Granja, 3), new RequisitoTecpan(BuildingId.Lenadores, 3),
+                new RequisitoTecpan(BuildingId.Obsidiana, 2), new RequisitoTecpan(BuildingId.Petlacalco, 2),
+                new RequisitoTecpan(BuildingId.Telpochcalli, 2), new RequisitoTecpan(BuildingId.Calpulli, 2),
+                new RequisitoTecpan(BuildingId.Temazcalli, 1), new RequisitoTecpan(BuildingId.Muralla, 1, 20),
+            },
+            new[]
+            {
+                new RequisitoTecpan(BuildingId.Granja, 4), new RequisitoTecpan(BuildingId.Lenadores, 4),
+                new RequisitoTecpan(BuildingId.Obsidiana, 3), new RequisitoTecpan(BuildingId.Petlacalco, 3),
+                new RequisitoTecpan(BuildingId.Telpochcalli, 3), new RequisitoTecpan(BuildingId.Calpulli, 3),
+                new RequisitoTecpan(BuildingId.Temazcalli, 2), new RequisitoTecpan(BuildingId.Muralla, 2, 40),
+            },
+        };
+
+        /// <summary>Requisitos que aún no se cumplen para subir el tecpan a ese nivel.</summary>
+        public List<RequisitoTecpan> RequisitosFaltantesTecpan(int nivel)
+        {
+            var faltan = new List<RequisitoTecpan>();
+            if (nivel < 0 || nivel >= RequisitosTecpan.Length) return faltan;
+            foreach (var requisito in RequisitosTecpan[nivel])
+            {
+                int tiene = 0;
+                foreach (var edificio in _edificios)
+                {
+                    if (edificio.Definicion.Id == requisito.Id && edificio.Nivel >= requisito.Nivel) tiene++;
+                }
+                if (tiene < requisito.Cantidad) faltan.Add(requisito);
+            }
+            return faltan;
         }
 
         public void TryMejorar(Building edificio)
@@ -970,6 +1025,21 @@ namespace Altepetl
                 _marcaSeleccion.localScale = new Vector3(tamano + 0.1f, alto, tamano + 0.1f);
             }
             _marcaSeleccion.gameObject.SetActive(haySeleccion);
+        }
+    }
+
+    /// <summary>Un edificio (o varios) a cierto nivel que el tecpan pide antes de subir.</summary>
+    public struct RequisitoTecpan
+    {
+        public BuildingId Id;
+        public int Nivel;
+        public int Cantidad;
+
+        public RequisitoTecpan(BuildingId id, int nivel, int cantidad = 1)
+        {
+            Id = id;
+            Nivel = nivel;
+            Cantidad = cantidad;
         }
     }
 }

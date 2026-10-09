@@ -25,6 +25,7 @@ namespace Altepetl
         private GUIStyle _textoUnaLinea;
         private GUIStyle _inicial;
         private GUIStyle _boton;
+        private GUIStyle _botonChico;     // sin cortar palabras, para botones angostos
         private GUIStyle _caja;
         private Texture2D _blanco;
         private Texture2D _engrane;
@@ -178,7 +179,7 @@ namespace Altepetl
                 GUI.Box(barra, GUIContent.none, _caja);
                 GUI.Label(new Rect(20, barra.y + 18, ancho - 200, 30),
                     $"Toca el mapa para colocar: {Manager.Colocando.NombrePara(Manager.Pueblo)}"
-                    + (Manager.ColocandoConPlumas ? $" (con {Manager.PlumasParaCompletar(Manager.Colocando.Costo)} plumas)" : ""), _texto);
+                    + (Manager.ColocandoConPlumas ? $" (con {Plumas(Manager.PlumasParaCompletar(Manager.Colocando.Costo))})" : ""), _texto);
                 if (GUI.Button(new Rect(ancho - 170, barra.y + 8, 150, 48), "Cancelar", _boton))
                 {
                     Manager.CancelarColocacion();
@@ -271,7 +272,7 @@ namespace Altepetl
                 // Como en las mejoras: lo que falta se completa con plumas de quetzal.
                 int plumas = Manager.PlumasParaCompletar(def.Costo);
                 GUI.enabled = Manager.PuedePagarConPlumas(def.Costo);
-                string texto = plumas < 0 ? "Faltan mamaltin" : $"Con plumas\n{plumas} plumas";
+                string texto = plumas < 0 ? "Faltan mamaltin" : $"Con plumas\n{Plumas(plumas)}";
                 if (GUI.Button(botonConstruir, texto, _boton))
                 {
                     _menuAbierto = false;
@@ -307,7 +308,7 @@ namespace Altepetl
             bool conPlumas = def.Construible && !Manager.EnLimite(def) && !Manager.Banco.PuedePagar(def.Costo);
             GUI.enabled = conPlumas ? Manager.PuedePagarConPlumas(def.Costo) : PuedeConstruir(def);
             string texto = !def.Construible ? "Próximamente"
-                : conPlumas ? $"Con plumas\n{Mathf.Max(0, Manager.PlumasParaCompletar(def.Costo))} plumas"
+                : conPlumas ? $"Con plumas\n{Plumas(Mathf.Max(0, Manager.PlumasParaCompletar(def.Costo)))}"
                 : $"Construir\n{TextoCosto(def.Costo)}";
             if (GUI.Button(new Rect(panel.xMax - 260, panel.yMax - 60, 240, 44), texto, _boton))
             {
@@ -548,7 +549,7 @@ namespace Altepetl
                     {
                         var rectPlumas = new Rect(rectMejora.xMax + 4f, botonRect.y, botonRect.width - rectMejora.width - 4f, botonRect.height);
                         GUI.enabled = Manager.Banco.Get(ResourceType.Plumas) >= plumas;
-                        if (GUI.Button(rectPlumas, $"Con plumas\n{plumas} plumas", _boton))
+                        if (GUI.Button(rectPlumas, $"Con plumas\n{Plumas(plumas)}", _boton))
                         {
                             Manager.TryMejorarConPlumas(edificio);
                         }
@@ -753,6 +754,8 @@ namespace Altepetl
             }
         }
 
+        private static string Plumas(int cantidad) => cantidad == 1 ? "1 pluma" : $"{cantidad} plumas";
+
         private static string TextoTiempo(float segundos)
         {
             int total = Mathf.CeilToInt(segundos);
@@ -769,9 +772,9 @@ namespace Altepetl
             {
                 var actual = TroopCatalog.Get(ejercito.Actual);
                 estado += $"\nEntrenando {actual.Nombre.ToLowerInvariant()}: {Mathf.CeilToInt(ejercito.SegundosRestantes)} s"
-                          + (ejercito.EnCola > 1 ? $" (+{ejercito.EnCola - 1} en cola)" : "");
+                          + (ejercito.EnCola > 1 ? $", +{ejercito.EnCola - 1} en cola" : "");
             }
-            GUI.Label(new Rect(panel.x + 10, panel.y + 160, panel.width - 20, 48), estado, _texto);
+            GUI.Label(new Rect(panel.x + 10, panel.y + 164, panel.width - 20, 44), estado, _textoChico);
 
             float anchoBoton = (panel.width - 30f) / TroopCatalog.Count;
             float x = panel.x + 10f;
@@ -780,8 +783,8 @@ namespace Altepetl
             {
                 var costo = Manager.CostoEntrenamiento(tropa.Id);
                 GUI.enabled = hayEspacio && Manager.Banco.PuedePagar(costo);
-                string texto = $"{tropa.Nombre} ({ejercito.Get(tropa.Id)})\n{TextoCosto(costo)}";
-                if (GUI.Button(new Rect(x, panel.y + 212, anchoBoton - 5f, 88), texto, _boton))
+                string texto = $"{tropa.Nombre}\n({ejercito.Get(tropa.Id)})\n{TextoCosto(costo)}";
+                if (GUI.Button(new Rect(x, panel.y + 212, anchoBoton - 5f, 88), texto, _botonChico))
                 {
                     Manager.TryEntrenar(tropa.Id);
                 }
@@ -792,7 +795,7 @@ namespace Altepetl
             if (!ejercito.Entrenando) return;
             int plumas = Manager.CostoTerminarEntrenamiento;
             GUI.enabled = Manager.Banco.Get(ResourceType.Plumas) >= plumas;
-            if (GUI.Button(new Rect(panel.x + 10, panel.y + 306, panel.width - 20, 40), $"Terminar entrenamiento ({plumas} plumas)", _boton))
+            if (GUI.Button(new Rect(panel.x + 10, panel.y + 306, panel.width - 20, 40), $"Terminar entrenamiento ({Plumas(plumas)})", _boton))
             {
                 Manager.TryTerminarEntrenamiento();
             }
@@ -1277,6 +1280,7 @@ namespace Altepetl
             _titulo = new GUIStyle(_texto) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = false };
 
             _boton = new GUIStyle(GUI.skin.button) { fontSize = 14, wordWrap = true };
+            _botonChico = new GUIStyle(_boton) { fontSize = 12, wordWrap = false, clipping = TextClipping.Clip };
 
         }
 

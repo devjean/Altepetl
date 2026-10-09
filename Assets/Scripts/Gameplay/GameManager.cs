@@ -20,6 +20,7 @@ namespace Altepetl
         public Pueblo Pueblo { get; private set; }
         public ResourceBank Banco { get; private set; }
         public GridMap Mapa { get; private set; }
+        public PaisajeAldea Paisaje { get; private set; }
         public BuildingDefinition Colocando { get; private set; }
         public Building Seleccionado { get; private set; }
         public IReadOnlyList<Building> Edificios => _edificios;
@@ -87,6 +88,7 @@ namespace Altepetl
             tropasEnAldea.Manager = this;
             _tropasEnAldea = tropasEnAldea;
             var paisaje = new GameObject("Paisaje").AddComponent<PaisajeAldea>();
+            Paisaje = paisaje;
             paisaje.Manager = this;
 
             PrepararCamara();

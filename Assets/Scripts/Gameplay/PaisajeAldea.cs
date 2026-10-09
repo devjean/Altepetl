@@ -35,6 +35,10 @@ namespace Altepetl
         private Transform _ciudad;  // lo que crece con el tecpan
         private Pueblo _pueblo;
         private int _nivel = -1;
+        private readonly List<Vector3> _casasAfuera = new List<Vector3>();
+
+        /// <summary>Casas de los alrededores a ras de suelo (o sobre islotes), adonde también va la gente del pueblo.</summary>
+        public IReadOnlyList<Vector3> CasasAfuera => _casasAfuera;
 
         private float Lado => GameManager.TamanoMapa;
         private Vector3 CentroMapa => new Vector3(Lado * 0.5f, 0f, Lado * 0.5f);
@@ -60,6 +64,7 @@ namespace Altepetl
             {
                 _nivel = nivel;
                 if (_ciudad != null) Destroy(_ciudad.gameObject);
+                _casasAfuera.Clear();
                 _ciudad = Grupo("Ciudad");
                 CrearCiudad(nivel);
             }
@@ -266,6 +271,8 @@ namespace Altepetl
         {
             float ancho = Rango(azar, 0.5f, 0.9f);
             float alto = Rango(azar, 0.3f, 0.5f);
+            // Las de la cima de los cerros quedan arriba; a esas no se sube nadie.
+            if (p.y < 0.3f) _casasAfuera.Add(new Vector3(p.x, 0f, p.z) + new Vector3(0f, 0f, -ancho * 0.5f - 0.15f));
             Pieza(_ciudad, PrimitiveType.Cube, p + new Vector3(0f, alto * 0.5f, 0f), new Vector3(ancho, alto, ancho), muro);
             if (techo.HasValue)
             {

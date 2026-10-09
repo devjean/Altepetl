@@ -26,6 +26,8 @@ namespace Altepetl
             public Estado Estado;
             public Building Obra;
             public Building Casa;       // edificio donde entró
+            public bool CasaDeAfuera;   // entró a una casita de los alrededores (en Puerta)
+            public Vector3 Puerta;
             public Vector3 Destino;
             public float Hasta;         // hasta cuándo espera, está adentro o sigue en el mismo lugar de la obra
             public float Fase;
@@ -144,6 +146,7 @@ namespace Altepetl
             persona.Estado = Estado.Paseo;
             persona.Obra = null;
             persona.Casa = null;
+            persona.CasaDeAfuera = false;
             persona.Destino = PuntoDePaseo();
             persona.Hasta = 0f;
         }
@@ -155,7 +158,7 @@ namespace Altepetl
             if (persona.Estado == Estado.Adentro)
             {
                 // Sale cuando se le acaba el rato o si su casa ya no está.
-                if (persona.Casa != null && Time.time < persona.Hasta) return;
+                if ((persona.Casa != null || persona.CasaDeAfuera) && Time.time < persona.Hasta) return;
                 Salir(persona);
                 Pasear(persona);
             }
@@ -206,8 +209,8 @@ namespace Altepetl
                 case Estado.Paseo:
                     if (persona.Hasta < 0f)
                     {
-                        // Iba a entrar a un edificio: entra si sigue ahí.
-                        if (persona.Casa != null) Entrar(persona, persona.Casa);
+                        // Iba a entrar a un edificio (o a una casita de afuera): entra si sigue ahí.
+                        if (persona.Casa != null || persona.CasaDeAfuera) Entrar(persona);
                         else Pasear(persona);
                     }
                     else if (persona.Hasta == 0f)
@@ -216,9 +219,17 @@ namespace Altepetl
                     }
                     else if (Time.time >= persona.Hasta)
                     {
-                        // A veces van a meterse a un edificio; si no, siguen paseando.
-                        var casa = Random.value < 0.25f ? EdificioAlAzar() : null;
-                        if (casa != null)
+                        // A veces van a meterse a un edificio o a su casa en los alrededores; si no, siguen paseando.
+                        var afuera = Manager.Paisaje != null ? Manager.Paisaje.CasasAfuera : null;
+                        float suerte = Random.value;
+                        if (suerte < 0.15f && afuera != null && afuera.Count > 0)
+                        {
+                            persona.CasaDeAfuera = true;
+                            persona.Puerta = afuera[Random.Range(0, afuera.Count)];
+                            persona.Destino = persona.Puerta;
+                            persona.Hasta = -1f;
+                        }
+                        else if (suerte < 0.3f && EdificioAlAzar() is Building casa)
                         {
                             persona.Casa = casa;
                             persona.Destino = PuntoAlrededor(casa);
@@ -233,24 +244,25 @@ namespace Altepetl
             }
         }
 
-        private void Entrar(Persona persona, Building casa)
+        private void Entrar(Persona persona)
         {
             persona.Estado = Estado.Adentro;
-            persona.Casa = casa;
-            persona.Hasta = Time.time + Random.Range(4f, 12f);
+            // En su casa de afuera se quedan más rato que en los edificios.
+            persona.Hasta = Time.time + (persona.CasaDeAfuera ? Random.Range(10f, 30f) : Random.Range(4f, 12f));
             persona.Cuerpo.gameObject.SetActive(false);
             if (persona.Acalli != null) persona.Acalli.gameObject.SetActive(false);
         }
 
         private void Salir(Persona persona)
         {
-            if (persona.Estado == Estado.Adentro && persona.Casa != null)
+            if (persona.Estado == Estado.Adentro && (persona.Casa != null || persona.CasaDeAfuera))
             {
-                var punto = PuntoAlrededor(persona.Casa);
+                var punto = persona.CasaDeAfuera ? persona.Puerta : PuntoAlrededor(persona.Casa);
                 persona.Cuerpo.localPosition = new Vector3(punto.x, Tamano, punto.z);
                 if (persona.Acalli != null) persona.Acalli.localPosition = new Vector3(punto.x, 0.03f, punto.z);
             }
             persona.Casa = null;
+            persona.CasaDeAfuera = false;
             persona.Cuerpo.gameObject.SetActive(true);
             if (persona.Acalli != null) persona.Acalli.gameObject.SetActive(true);
         }

@@ -27,6 +27,7 @@ namespace Altepetl
         private GUIStyle _boton;
         private GUIStyle _caja;
         private Texture2D _blanco;
+        private Texture2D _engrane;
         private bool _campanaAbierta;
         private bool _menuAbierto;
         private bool _ofrendasAbierto;
@@ -122,7 +123,7 @@ namespace Altepetl
 
             var banco = Manager.Banco;
             float x = 10f;
-            float anchoCelda = (ancho - 20f) / (ResourceInfo.Count + 1);
+            float anchoCelda = (ancho - 20f - 44f) / (ResourceInfo.Count + 1);  // a la derecha queda el engrane
             for (int i = 0; i < ResourceInfo.Count; i++)
             {
                 var tipo = (ResourceType)i;
@@ -510,9 +511,12 @@ namespace Altepetl
         private void DibujarAjustes(float ancho, float alto)
         {
             if (Manager.Colocando != null) return;
-            var boton = new Rect(170, alto - 60, 110, 50);
+            // Engrane en la esquina superior derecha, dentro de la barra de recursos.
+            var boton = new Rect(ancho - 42, 4, 36, 36);
             Zona(boton);
-            if (GUI.Button(boton, "Ajustes", _boton))
+            bool pulsado = GUI.Button(boton, "", _boton);
+            GUI.DrawTexture(new Rect(boton.x + 4, boton.y + 4, 28, 28), _engrane);
+            if (pulsado)
             {
                 _ajustesAbierto = !_ajustesAbierto;
                 if (_ajustesAbierto)
@@ -1200,6 +1204,7 @@ namespace Altepetl
             if (_titulo != null) return;
 
             _blanco = Textura(Color.white);
+            _engrane = TexturaEngrane(new Color(0.96f, 0.92f, 0.82f));
             _caja = new GUIStyle(GUI.skin.box);
             _caja.normal.background = Textura(new Color(0.12f, 0.09f, 0.07f, 0.85f));
 
@@ -1227,6 +1232,30 @@ namespace Altepetl
             _titulo.fontSize = 22;
             while (_titulo.fontSize > 13 && _titulo.CalcSize(contenido).x > rect.width) _titulo.fontSize--;
             GUI.Label(rect, texto, _titulo);
+        }
+
+        /// <summary>Engrane dibujado por código (8 dientes y un hueco al centro) hasta tener íconos.</summary>
+        private static Texture2D TexturaEngrane(Color color)
+        {
+            const int lado = 64;
+            var textura = new Texture2D(lado, lado);
+            float centro = (lado - 1) / 2f;
+            for (int x = 0; x < lado; x++)
+            {
+                for (int y = 0; y < lado; y++)
+                {
+                    float dx = x - centro, dy = y - centro;
+                    float r = Mathf.Sqrt(dx * dx + dy * dy);
+                    float angulo = Mathf.Atan2(dy, dx) * Mathf.Rad2Deg + 360f;
+                    bool diente = (angulo % 45f) < 22f;
+                    float borde = diente ? 29f : 23f;
+                    // Bordes suaves de medio píxel por fuera y alrededor del hueco.
+                    float alfa = Mathf.Clamp01(borde - r + 0.5f) * Mathf.Clamp01(r - 9f + 0.5f);
+                    textura.SetPixel(x, y, new Color(color.r, color.g, color.b, alfa));
+                }
+            }
+            textura.Apply();
+            return textura;
         }
 
         private static Texture2D Textura(Color color)

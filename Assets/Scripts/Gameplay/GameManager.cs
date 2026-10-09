@@ -809,6 +809,7 @@ namespace Altepetl
             public Vector2 Actual;
             public float Desde;
             public bool Despliega;      // en batalla empezó donde se puede soltar tropas: solo despliega
+            public bool SinTropas;      // empezó donde se podría soltar, pero ya no quedan de ese tipo
             public bool Arrastra;       // se movió: mueve el mapa o hace zoom
             public bool Soltando;       // se quedó quieto en batalla: suelta tropas seguidas
             public float SiguienteTropa;
@@ -854,8 +855,11 @@ namespace Altepetl
                     // (o fuera del campo) mueve el mapa o hace zoom, y se marca la zona prohibida.
                     if (batalla && !dedo.EnHud && PunteroEnSuelo(dedo.Inicio, out Vector3 punto))
                     {
-                        dedo.Despliega = Batalla.PuedeDesplegarEn(punto);
-                        if (!dedo.Despliega) Batalla.MostrarZonaProhibida();
+                        bool sePuede = Batalla.PuedeDesplegarEn(punto);
+                        // Sin tropas del tipo elegido el dedo solo mueve el mapa; un toque suelto avisa.
+                        dedo.SinTropas = sePuede && Batalla.Disponibles(Batalla.Seleccionada) == 0;
+                        dedo.Despliega = sePuede && !dedo.SinTropas;
+                        if (!sePuede) Batalla.MostrarZonaProhibida();
                     }
                     continue;
                 }
@@ -888,7 +892,13 @@ namespace Altepetl
                 var dedo = _dedos[id];
                 _dedos.Remove(id);
                 // En batalla solo cuenta el toque de un dedo que podía desplegar.
-                if (!dedo.Arrastra && !dedo.Soltando && !dedo.EnHud && (!batalla || dedo.Despliega))
+                bool quieto = !dedo.Arrastra && !dedo.Soltando && !dedo.EnHud;
+                if (quieto && batalla && dedo.SinTropas && Time.time - dedo.Desde < SegundosParaSoltarSeguido)
+                {
+                    MostrarMensaje("No te quedan tropas de ese tipo");
+                    continue;
+                }
+                if (quieto && (!batalla || dedo.Despliega))
                 {
                     huboToque = true;
                     toque = dedo.Actual;

@@ -35,6 +35,55 @@ namespace Altepetl
         private Transform _ciudad;  // lo que crece con el tecpan
         private Pueblo _pueblo;
         private int _nivel = -1;
+        private readonly List<Vector3> _casasAfuera = new List<Vector3>();
+
+        /// <summary>Casas de los alrededores a ras de suelo (o sobre islotes), adonde también va la gente del pueblo.</summary>
+        public IReadOnlyList<Vector3> CasasAfuera => _casasAfuera;
+
+        private readonly List<Vector3> _chinampas = new List<Vector3>();
+
+        /// <summary>Chinampas de los alrededores, donde la gente va a trabajar un rato.</summary>
+        public IReadOnlyList<Vector3> Chinampas => _chinampas;
+
+        private struct CerroEscalonado
+        {
+            public Vector3 Centro;
+            public float Radio;
+            public int Terrazas;
+        }
+
+        private readonly List<CerroEscalonado> _cerros = new List<CerroEscalonado>();
+        private const float AltoTerraza = 0.5f;
+
+        /// <summary>Altura del suelo en ese punto: sube por las terrazas de los cerros escalonados.</summary>
+        public float AlturaSuelo(Vector3 p)
+        {
+            float altura = 0f;
+            foreach (var cerro in _cerros)
+            {
+                float d = new Vector2(p.x - cerro.Centro.x, p.z - cerro.Centro.z).magnitude;
+                int escalones = 0;
+                for (int i = 0; i < cerro.Terrazas; i++)
+                {
+                    if (d < cerro.Radio * (1f - i / (float)(cerro.Terrazas + 1))) escalones = i + 1;
+                }
+                altura = Mathf.Max(altura, escalones * AltoTerraza);
+            }
+            return altura;
+        }
+
+        /// <summary>¿Ese punto está sobre el lago? Ahí la gente va en acalli.</summary>
+        public bool EnAgua(Vector3 p)
+        {
+            if (_pueblo == null) return false;
+            switch (_pueblo.Id)
+            {
+                case PuebloId.Mexicas: return true;
+                // El lago de Texcoco queda al oeste de la aldea (ver FijoAcolhua).
+                case PuebloId.Acolhuas: return p.x < -1f && Mathf.Abs(p.z - Lado * 0.5f) < 45f;
+                default: return false;
+            }
+        }
 
         private float Lado => GameManager.TamanoMapa;
         private Vector3 CentroMapa => new Vector3(Lado * 0.5f, 0f, Lado * 0.5f);
@@ -60,6 +109,9 @@ namespace Altepetl
             {
                 _nivel = nivel;
                 if (_ciudad != null) Destroy(_ciudad.gameObject);
+                _casasAfuera.Clear();
+                _chinampas.Clear();
+                _cerros.Clear();
                 _ciudad = Grupo("Ciudad");
                 CrearCiudad(nivel);
             }
@@ -246,6 +298,7 @@ namespace Altepetl
         private void Chinampa(Vector3 p, bool larga)
         {
             var tam = larga ? new Vector3(1.2f, 0.08f, 2.4f) : new Vector3(2.4f, 0.08f, 1.2f);
+            _chinampas.Add(new Vector3(p.x, 0f, p.z));
             Pieza(_ciudad, PrimitiveType.Cube, p + new Vector3(0f, 0.04f, 0f), tam, Lodo);
             Pieza(_ciudad, PrimitiveType.Cube, p + new Vector3(0f, 0.1f, 0f), new Vector3(tam.x * 0.8f, 0.04f, tam.z * 0.8f), Siembra);
             var esquina = new Vector3(tam.x * 0.45f, 0f, tam.z * 0.45f);
@@ -266,6 +319,8 @@ namespace Altepetl
         {
             float ancho = Rango(azar, 0.5f, 0.9f);
             float alto = Rango(azar, 0.3f, 0.5f);
+            // La puerta, a ras de suelo; en los cerros la gente sube por las terrazas (ver AlturaSuelo).
+            _casasAfuera.Add(new Vector3(p.x, 0f, p.z) + new Vector3(0f, 0f, -ancho * 0.5f - 0.15f));
             Pieza(_ciudad, PrimitiveType.Cube, p + new Vector3(0f, alto * 0.5f, 0f), new Vector3(ancho, alto, ancho), muro);
             if (techo.HasValue)
             {
@@ -286,7 +341,8 @@ namespace Altepetl
         /// <summary>Cerro escalonado en terrazas, con casas en la cima.</summary>
         private void CerroConTerrazas(Vector3 centro, float radio, int terrazas, System.Random azar, int casas, Color muro, Color? techo)
         {
-            const float altoTerraza = 0.5f;
+            const float altoTerraza = AltoTerraza;
+            _cerros.Add(new CerroEscalonado { Centro = centro, Radio = radio, Terrazas = terrazas });
             for (int i = 0; i < terrazas; i++)
             {
                 float r = radio * (1f - i / (float)(terrazas + 1));

@@ -20,6 +20,7 @@ namespace Altepetl
         public Pueblo Pueblo { get; private set; }
         public ResourceBank Banco { get; private set; }
         public GridMap Mapa { get; private set; }
+        public PaisajeAldea Paisaje { get; private set; }
         public BuildingDefinition Colocando { get; private set; }
         public Building Seleccionado { get; private set; }
         public IReadOnlyList<Building> Edificios => _edificios;
@@ -82,10 +83,12 @@ namespace Altepetl
             _ladoCamara = TamanoMapa;
             _hud = gameObject.AddComponent<GameHud>();
             _hud.Manager = this;
+            new GameObject("Macehualtin").AddComponent<Macehualtin>().Manager = this;
             var tropasEnAldea = new GameObject("Tropas en la aldea").AddComponent<TropasEnAldea>();
             tropasEnAldea.Manager = this;
             _tropasEnAldea = tropasEnAldea;
             var paisaje = new GameObject("Paisaje").AddComponent<PaisajeAldea>();
+            Paisaje = paisaje;
             paisaje.Manager = this;
 
             PrepararCamara();
@@ -140,6 +143,11 @@ namespace Altepetl
             if (EnLimite(definicion))
             {
                 MostrarMensaje("Mejora el tecpan para construir más");
+                return;
+            }
+            if (NecesitaGente(definicion) && !HayGenteParaObra)
+            {
+                MostrarMensaje(TextoSinGente);
                 return;
             }
             bool alcanza = Banco.PuedePagar(definicion.Costo);
@@ -476,6 +484,12 @@ namespace Altepetl
                 MostrarMensaje("Ese lugar está ocupado");
                 return;
             }
+            if (NecesitaGente(definicion) && !HayGenteParaObra)
+            {
+                MostrarMensaje(TextoSinGente);
+                Colocando = null;
+                return;
+            }
             bool pagado = ColocandoConPlumas && !Banco.PuedePagar(definicion.Costo)
                 ? PagarConPlumas(definicion.Costo)
                 : Banco.TryGastar(definicion.Costo);
@@ -533,8 +547,38 @@ namespace Altepetl
             NivelMaximo,
             RequiereTecpan,
             FaltanEdificios,   // el tecpan pide antes ciertos edificios
+            SinGente,          // todos los macehualtin están en otras obras
             SinRecursos,
         }
+
+        // ---------- Macehualtin (población) ----------
+
+        /// <summary>Cada obra (construcción o mejora) ocupa a esta gente hasta que termina.</summary>
+        public const int MacehualtinPorObra = 10;
+
+        /// <summary>20 con el tecpan 1 y 10 más por cada nivel: 2 obras a la vez al empezar, 6 con el tecpan 5.</summary>
+        public int Poblacion => 10 + 10 * Mathf.Max(1, NivelTecpan);
+
+        /// <summary>Obras en marcha. Las murallas son rápidas y no ocupan a nadie.</summary>
+        public int ObrasEnCurso
+        {
+            get
+            {
+                int obras = 0;
+                foreach (var edificio in _edificios)
+                {
+                    if (edificio.EnConstruccion && edificio.Definicion.Id != BuildingId.Muralla) obras++;
+                }
+                return obras;
+            }
+        }
+
+        public int MacehualtinLibres => Mathf.Max(0, Poblacion - ObrasEnCurso * MacehualtinPorObra);
+        public bool HayGenteParaObra => MacehualtinLibres >= MacehualtinPorObra;
+
+        private bool NecesitaGente(BuildingDefinition definicion) => definicion.Id != BuildingId.Muralla;
+
+        public string TextoSinGente => $"Todos los {Terminos.Gente} están ocupados";
 
         public EstadoMejora PuedeMejorar(Building edificio)
         {
@@ -544,6 +588,7 @@ namespace Altepetl
                 return EstadoMejora.RequiereTecpan;
             if (edificio.Definicion.Id == BuildingId.Tecpan && RequisitosFaltantesTecpan(edificio.Nivel + 1).Count > 0)
                 return EstadoMejora.FaltanEdificios;
+            if (NecesitaGente(edificio.Definicion) && !HayGenteParaObra) return EstadoMejora.SinGente;
             if (!Banco.PuedePagar(edificio.Definicion.CostoMejora(edificio.Nivel))) return EstadoMejora.SinRecursos;
             return EstadoMejora.Disponible;
         }

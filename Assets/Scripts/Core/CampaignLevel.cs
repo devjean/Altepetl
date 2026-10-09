@@ -126,12 +126,26 @@ namespace Altepetl
     {
         public static string Titulo(Pueblo pueblo)
         {
-            return pueblo != null && pueblo.Id == PuebloId.Mexicas ? "La peregrinación mexica" : "Campaña";
+            if (pueblo == null) return "Campaña";
+            switch (pueblo.Id)
+            {
+                case PuebloId.Mexicas: return "La peregrinación mexica";
+                case PuebloId.Acolhuas: return "Los chichimecas de Xólotl";
+                case PuebloId.Tlaxcaltecas: return "La fundación de Tlaxcallan";
+                default: return "Campaña";
+            }
         }
 
         public static CampaignLevel[] Para(Pueblo pueblo)
         {
-            return pueblo != null && pueblo.Id == PuebloId.Mexicas ? Mexica : CampaignLevel.General;
+            if (pueblo == null) return CampaignLevel.General;
+            switch (pueblo.Id)
+            {
+                case PuebloId.Mexicas: return Mexica;
+                case PuebloId.Acolhuas: return Acolhua;
+                case PuebloId.Tlaxcaltecas: return Tlaxcalteca;
+                default: return CampaignLevel.General;
+            }
         }
 
         public static readonly CampaignLevel[] Mexica =
@@ -314,6 +328,352 @@ namespace Altepetl
                     "México-Tenochtitlan crece sobre el lago. Pasarán casi cien años como tributarios de Azcapotzalco, "
                     + "hasta que en 1428 los mexicas, junto con Nezahualcóyotl de Texcoco, derroten a los tepanecas.\n\n"
                     + "De esa victoria nacerá la Triple Alianza. Esa historia continuará.",
+            },
+        };
+
+        public static readonly CampaignLevel[] Acolhua =
+        {
+            new CampaignLevel
+            {
+                Nombre = "La llegada de Xólotl",
+                Descripcion = "Un pueblo del valle, con una sola torre.",
+                Historia =
+                    "Después de la caída de Tula y del mundo tolteca, muchos grupos del norte entraron en la Cuenca de México. "
+                    + "Uno de los más importantes era el de Xólotl, un gran jefe chichimeca.\n\n"
+                    + "Los chichimecas de Xólotl no eran agricultores: cazaban con arco y flecha, recolectaban, vivían en cuevas "
+                    + "y recorrían territorios muy amplios. Alrededor de los lagos, en cambio, vivían pueblos sedentarios que sembraban maíz.\n\n"
+                    + "No todos los pueblos del valle recibieron en paz a los recién llegados.",
+                Edificios = new[]
+                {
+                    new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
+                    new EdificioEnemigo(BuildingId.Granja, 2, 2),
+                    new EdificioEnemigo(BuildingId.Granja, 9, 9),
+                    new EdificioEnemigo(BuildingId.Lenadores, 9, 2),
+                    new EdificioEnemigo(BuildingId.Torre, 3, 8),
+                },
+                Botin = ResourceInfo.Costo(maiz: 300, madera: 300, obsidiana: 50),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 2),
+                },
+                PlumasPrimeraVez = 10,
+            },
+            new CampaignLevel
+            {
+                Nombre = "Tenayuca",
+                Descripcion = "Culhuacan no reconoce a Xólotl.",
+                Historia =
+                    "Xólotl hizo de Tenayuca su primera capital. Desde ahí organizó el territorio: "
+                    + "repartió tierras y señoríos entre sus jefes y entre los grupos que fueron llegando después.\n\n"
+                    + "Según la tradición que recogió Fernando de Alva Ixtlilxóchitl, el señor de Culhuacan, "
+                    + "heredero de los toltecas, no quiso reconocer a Xólotl, y Nopaltzin, hijo de Xólotl, marchó contra él.",
+                Edificios = new[]
+                {
+                    new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
+                    new EdificioEnemigo(BuildingId.Petlacalco, 2, 7),
+                    new EdificioEnemigo(BuildingId.Granja, 9, 9),
+                    new EdificioEnemigo(BuildingId.Granja, 1, 1),
+                    new EdificioEnemigo(BuildingId.Lenadores, 4, 1),
+                    new EdificioEnemigo(BuildingId.Obsidiana, 9, 2),
+                    new EdificioEnemigo(BuildingId.Torre, 4, 3),
+                    new EdificioEnemigo(BuildingId.Torre, 8, 7),
+                },
+                Botin = ResourceInfo.Costo(maiz: 500, madera: 500, obsidiana: 120),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 3),
+                    new GrupoDefensor(TroopId.Arquero, 1),
+                },
+                PlumasPrimeraVez = 15,
+            },
+            new CampaignLevel
+            {
+                Nombre = "Los que no quisieron sembrar",
+                Descripcion = "Cazadores rebeldes: muchos arqueros.",
+                Historia =
+                    "Poco a poco, los chichimecas adoptaron la agricultura, la vida sedentaria y costumbres de los pueblos que ya estaban ahí. "
+                    + "Las tradiciones cuentan matrimonios entre los nuevos señores chichimecas y mujeres de linaje tolteca.\n\n"
+                    + "No todos aceptaron el cambio. Según Ixtlilxóchitl, algunos grupos chichimecas no quisieron dejar la caza "
+                    + "y se rebelaron contra los señores que ahora sembraban la tierra.\n\n"
+                    + "Sus defensores son casi todos arqueros: entra con guerreros que aguanten.",
+                Edificios = new[]
+                {
+                    new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 2),
+                    new EdificioEnemigo(BuildingId.Lenadores, 1, 1, 2),
+                    new EdificioEnemigo(BuildingId.Lenadores, 10, 10, 2),
+                    new EdificioEnemigo(BuildingId.Lenadores, 10, 1),
+                    new EdificioEnemigo(BuildingId.Obsidiana, 1, 10, 2),
+                    new EdificioEnemigo(BuildingId.Petlacalco, 8, 9),
+                    new EdificioEnemigo(BuildingId.Torre, 3, 3, 2),
+                    new EdificioEnemigo(BuildingId.Torre, 8, 3, 2),
+                    new EdificioEnemigo(BuildingId.Torre, 3, 8, 2),
+                },
+                Botin = ResourceInfo.Costo(maiz: 700, madera: 1000, obsidiana: 220),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Arquero, 5),
+                    new GrupoDefensor(TroopId.Macuahuitl, 2),
+                },
+                PlumasPrimeraVez = 25,
+            },
+            new CampaignLevel
+            {
+                Nombre = "La guerra tepaneca",
+                Descripcion = "Los tepanecas cercan Texcoco. Aquí se perdió.",
+                Historia =
+                    "Con el tiempo, el centro del poder acolhua pasó de Tenayuca a Texcoco, junto al lago. "
+                    + "Pero los tepanecas de Azcapotzalco, gobernados por Tezozómoc, se volvieron el poder más grande del valle.\n\n"
+                    + "En 1418 los tepanecas atacaron Texcoco. El señor Ixtlilxóchitl salió a pelear por su ciudad.\n\n"
+                    + "Esta batalla es muy difícil: pelea lo mejor que puedas, que la historia sigue aunque pierdas. "
+                    + "Destruirla por completo es un reto para un ejército grande.",
+                Edificios = new[]
+                {
+                    // El campamento tepaneca: tecpan amurallado y torres reforzadas.
+                    new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 6),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 4, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 5, 4, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 6, 4, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 4, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 7, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 5, 7, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 6, 7, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 7, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 5, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 6, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 5, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 6, 5),
+                    new EdificioEnemigo(BuildingId.Teocalli, 9, 5, 5),
+                    new EdificioEnemigo(BuildingId.Torre, 2, 2, 7),
+                    new EdificioEnemigo(BuildingId.Torre, 9, 2, 7),
+                    new EdificioEnemigo(BuildingId.Torre, 2, 9, 7),
+                    new EdificioEnemigo(BuildingId.Torre, 9, 9, 7),
+                    new EdificioEnemigo(BuildingId.Torre, 5, 1, 7),
+                    new EdificioEnemigo(BuildingId.Torre, 6, 10, 7),
+                    new EdificioEnemigo(BuildingId.Torre, 1, 6, 7),
+                    new EdificioEnemigo(BuildingId.Granja, 0, 0, 5),
+                    new EdificioEnemigo(BuildingId.Granja, 11, 11, 5),
+                    new EdificioEnemigo(BuildingId.Obsidiana, 11, 0, 5),
+                    new EdificioEnemigo(BuildingId.Lenadores, 0, 11, 5),
+                    new EdificioEnemigo(BuildingId.Petlacalco, 2, 4, 5),
+                },
+                Botin = ResourceInfo.Costo(maiz: 900, madera: 900, obsidiana: 250),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 5, 1),
+                    new GrupoDefensor(TroopId.Hondero, 3, 1),
+                    new GrupoDefensor(TroopId.Arquero, 2, 1),
+                },
+                PlumasPrimeraVez = 40,
+                AvanzaAunqueSePierda = true,
+                TextoDerrota = "Como cuenta la historia, Texcoco cayó e Ixtlilxóchitl murió peleando. "
+                               + "Su hijo Nezahualcóyotl, de unos dieciséis años, lo vio todo escondido entre las ramas de un árbol. "
+                               + "Comienza su exilio.",
+            },
+            new CampaignLevel
+            {
+                Nombre = "Nezahualcóyotl",
+                Descripcion = "Contra Azcapotzalco, junto a los mexicas.",
+                Historia =
+                    "Nezahualcóyotl pasó años huyendo y escondiéndose de los tepanecas. Cuando murió Tezozómoc, "
+                    + "su hijo Maxtla tomó el poder en Azcapotzalco y siguió persiguiéndolo.\n\n"
+                    + "Con la ayuda de Huexotzinco y de Tlaxcallan, Nezahualcóyotl recuperó Texcoco. "
+                    + "Después se unió a los mexicas de Itzcóatl, y juntos marcharon contra Azcapotzalco en 1428.",
+                Edificios = new[]
+                {
+                    new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 3),
+                    new EdificioEnemigo(BuildingId.Teocalli, 1, 5),
+                    new EdificioEnemigo(BuildingId.Petlacalco, 9, 1),
+                    new EdificioEnemigo(BuildingId.Petlacalco, 9, 9),
+                    new EdificioEnemigo(BuildingId.Granja, 1, 1),
+                    new EdificioEnemigo(BuildingId.Granja, 1, 10),
+                    new EdificioEnemigo(BuildingId.Lenadores, 5, 1),
+                    new EdificioEnemigo(BuildingId.Obsidiana, 5, 10),
+                    new EdificioEnemigo(BuildingId.Torre, 4, 3, 3),
+                    new EdificioEnemigo(BuildingId.Torre, 8, 5, 3),
+                    new EdificioEnemigo(BuildingId.Torre, 4, 8, 3),
+                    new EdificioEnemigo(BuildingId.Torre, 7, 8, 2),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 6),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 6),
+                },
+                Botin = ResourceInfo.Costo(maiz: 1300, madera: 1300, obsidiana: 320),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 6, 1),
+                    new GrupoDefensor(TroopId.Arquero, 3),
+                    new GrupoDefensor(TroopId.Hondero, 3),
+                },
+                PlumasPrimeraVez = 40,
+                Epilogo =
+                    "Azcapotzalco cayó y Maxtla huyó. De esa victoria nació la Triple Alianza: Tenochtitlan, Texcoco y Tlacopan.\n\n"
+                    + "Nezahualcóyotl gobernó Texcoco y la convirtió en un gran centro de leyes, obras y poesía. "
+                    + "Esa historia continuará.",
+            },
+        };
+
+        public static readonly CampaignLevel[] Tlaxcalteca =
+        {
+            new CampaignLevel
+            {
+                Nombre = "Poyauhtlan",
+                Descripcion = "Pueblos del lago, con una sola torre.",
+                Historia =
+                    "Hace unos 800 o 900 años, varios grupos chichimecas llegaron del norte. Entre ellos venían los primeros tlaxcaltecas, "
+                    + "guiados por Camaxtli, su dios tutelar.\n\n"
+                    + "Según la crónica de Diego Muñoz Camargo, primero se asentaron en Poyauhtlan, junto al lago de Texcoco, "
+                    + "y los pueblos del lago los vieron como intrusos.",
+                Edificios = new[]
+                {
+                    new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
+                    new EdificioEnemigo(BuildingId.Granja, 2, 2),
+                    new EdificioEnemigo(BuildingId.Lenadores, 9, 3),
+                    new EdificioEnemigo(BuildingId.Lenadores, 2, 9),
+                    new EdificioEnemigo(BuildingId.Torre, 8, 8),
+                },
+                Botin = ResourceInfo.Costo(maiz: 300, madera: 300, obsidiana: 50),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 2),
+                },
+                PlumasPrimeraVez = 10,
+            },
+            new CampaignLevel
+            {
+                Nombre = "Tepeticpac",
+                Descripcion = "Los olmeca-xicalancas defienden la región.",
+                Historia =
+                    "Después partieron hacia el oriente, al valle de Puebla-Tlaxcala. Se establecieron en Tepeticpac, "
+                    + "en lo alto de un cerro fácil de defender, y ahí fundaron su primer altepetl.\n\n"
+                    + "Las crónicas cuentan que en la región dominaban los olmeca-xicalancas, "
+                    + "y que los recién llegados los fueron desplazando.",
+                Edificios = new[]
+                {
+                    new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
+                    new EdificioEnemigo(BuildingId.Teocalli, 1, 1),
+                    new EdificioEnemigo(BuildingId.Petlacalco, 9, 8),
+                    new EdificioEnemigo(BuildingId.Granja, 2, 9),
+                    new EdificioEnemigo(BuildingId.Granja, 10, 1),
+                    new EdificioEnemigo(BuildingId.Obsidiana, 5, 10),
+                    new EdificioEnemigo(BuildingId.Torre, 4, 3),
+                    new EdificioEnemigo(BuildingId.Torre, 8, 5),
+                },
+                Botin = ResourceInfo.Costo(maiz: 500, madera: 500, obsidiana: 120),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 2),
+                    new GrupoDefensor(TroopId.Hondero, 2),
+                },
+                PlumasPrimeraVez = 15,
+            },
+            new CampaignLevel
+            {
+                Nombre = "Las cuatro cabeceras",
+                Descripcion = "Un señorío vecino disputa las tierras.",
+                Historia =
+                    "Desde Tepeticpac crecieron otras cabeceras: Ocotelulco, Tizatlán y Quiahuiztlán. "
+                    + "Cada una tenía su propio señor, y entre las cuatro formaron el núcleo de Tlaxcallan.\n\n"
+                    + "A diferencia de Tenochtitlan, aquí no mandaba un solo gobernante: Tlaxcallan fue una confederación de más de veinte altepemeh "
+                    + "y el poder se repartía entre los principales señores.\n\n"
+                    + "Mientras crecían, tuvieron que defender sus tierras de los señoríos vecinos.",
+                Edificios = new[]
+                {
+                    new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 2),
+                    new EdificioEnemigo(BuildingId.Petlacalco, 1, 1),
+                    new EdificioEnemigo(BuildingId.Petlacalco, 9, 9),
+                    new EdificioEnemigo(BuildingId.Granja, 1, 9),
+                    new EdificioEnemigo(BuildingId.Granja, 3, 10),
+                    new EdificioEnemigo(BuildingId.Lenadores, 10, 1),
+                    new EdificioEnemigo(BuildingId.Obsidiana, 6, 9),
+                    new EdificioEnemigo(BuildingId.Torre, 4, 4, 2),
+                    new EdificioEnemigo(BuildingId.Torre, 8, 4, 2),
+                    new EdificioEnemigo(BuildingId.Torre, 5, 8, 2),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 6),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 5),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 6),
+                },
+                Botin = ResourceInfo.Costo(maiz: 900, madera: 900, obsidiana: 220),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 5),
+                    new GrupoDefensor(TroopId.Arquero, 3),
+                },
+                PlumasPrimeraVez = 25,
+            },
+            new CampaignLevel
+            {
+                Nombre = "El cerco",
+                Descripcion = "Una guarnición de la Triple Alianza.",
+                Historia =
+                    "La Triple Alianza fue conquistando los pueblos de alrededor y Tlaxcallan quedó rodeada. "
+                    + "Sin comercio con el exterior, por muchos años les faltaron la sal y el algodón.\n\n"
+                    + "Mexicas y tlaxcaltecas peleaban además guerras floridas, la xochiyaoyotl, para tomar cautivos y probar a sus guerreros. "
+                    + "Tlaxcallan nunca se rindió.",
+                Edificios = new[]
+                {
+                    new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 3),
+                    new EdificioEnemigo(BuildingId.Telpochcalli, 1, 4, 2),
+                    new EdificioEnemigo(BuildingId.Petlacalco, 9, 1),
+                    new EdificioEnemigo(BuildingId.Granja, 1, 1),
+                    new EdificioEnemigo(BuildingId.Granja, 10, 10),
+                    new EdificioEnemigo(BuildingId.Obsidiana, 1, 10),
+                    new EdificioEnemigo(BuildingId.Lenadores, 5, 10),
+                    new EdificioEnemigo(BuildingId.Torre, 4, 3, 3),
+                    new EdificioEnemigo(BuildingId.Torre, 8, 4, 3),
+                    new EdificioEnemigo(BuildingId.Torre, 4, 8, 3),
+                    new EdificioEnemigo(BuildingId.Torre, 8, 8, 2),
+                },
+                Botin = ResourceInfo.Costo(maiz: 1100, madera: 1100, obsidiana: 260),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 6, 1),
+                    new GrupoDefensor(TroopId.Arquero, 3),
+                    new GrupoDefensor(TroopId.Hondero, 2),
+                },
+                PlumasPrimeraVez = 30,
+            },
+            new CampaignLevel
+            {
+                Nombre = "Tlaxcallan no se rinde",
+                Descripcion = "Un gran ejército mexica. Muchos defensores.",
+                Historia =
+                    "A principios del siglo XVI, los mexicas de Motecuhzoma Xocoyotzin enviaron grandes ejércitos contra Tlaxcallan.\n\n"
+                    + "Los tlaxcaltecas resistieron desde sus cerros. Esta vez el campamento enemigo está lleno de guerreros: "
+                    + "lleva a tu ejército completo.",
+                Edificios = new[]
+                {
+                    new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 4),
+                    new EdificioEnemigo(BuildingId.Teocalli, 1, 5, 3),
+                    new EdificioEnemigo(BuildingId.Telpochcalli, 9, 5, 3),
+                    new EdificioEnemigo(BuildingId.Petlacalco, 1, 1),
+                    new EdificioEnemigo(BuildingId.Petlacalco, 9, 9),
+                    new EdificioEnemigo(BuildingId.Granja, 1, 10),
+                    new EdificioEnemigo(BuildingId.Obsidiana, 10, 1),
+                    new EdificioEnemigo(BuildingId.Torre, 4, 2, 4),
+                    new EdificioEnemigo(BuildingId.Torre, 7, 2, 4),
+                    new EdificioEnemigo(BuildingId.Torre, 4, 9, 4),
+                    new EdificioEnemigo(BuildingId.Torre, 7, 9, 4),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 4, 2),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 5, 2),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 6, 2),
+                    new EdificioEnemigo(BuildingId.Muralla, 4, 7, 2),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 4, 2),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 5, 2),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 6, 2),
+                    new EdificioEnemigo(BuildingId.Muralla, 7, 7, 2),
+                },
+                Botin = ResourceInfo.Costo(maiz: 1400, madera: 1300, obsidiana: 340),
+                Defensores = new[]
+                {
+                    new GrupoDefensor(TroopId.Macuahuitl, 8, 1),
+                    new GrupoDefensor(TroopId.Arquero, 4, 1),
+                    new GrupoDefensor(TroopId.Hondero, 4),
+                },
+                PlumasPrimeraVez = 40,
+                Epilogo =
+                    "La Triple Alianza nunca pudo conquistar Tlaxcallan. Las cuatro cabeceras siguieron libres "
+                    + "hasta 1519, cuando llegaron los españoles. Primero los enfrentaron y después se aliaron con ellos contra Tenochtitlan.\n\n"
+                    + "Esa historia continuará.",
             },
         };
     }

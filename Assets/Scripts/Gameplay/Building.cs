@@ -246,6 +246,13 @@ namespace Altepetl
             ActualizarVisual();
         }
 
+        /// <summary>Quita el edificio del mundo (al moverlo se vuelve a crear en otro lugar).</summary>
+        public void Retirar()
+        {
+            _banco.AgregarCapacidad(-Definicion.CapacidadExtra * Nivel);
+            Destroy(gameObject);
+        }
+
         private Transform Union(Transform actual, Building vecino, string nombre)
         {
             bool unir = vecino != null && vecino.EsMuralla;

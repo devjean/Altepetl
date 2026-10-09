@@ -155,6 +155,58 @@ namespace Altepetl
         public void CancelarColocacion()
         {
             Colocando = null;
+            Moviendo = null;
+        }
+
+        // ---------- Mover edificios ----------
+
+        /// <summary>Edificio que se está cambiando de lugar (gratis, aunque esté en obra).</summary>
+        public Building Moviendo { get; private set; }
+        public bool EnModoColocar => Colocando != null || Moviendo != null;
+
+        public void EmpezarMover(Building edificio)
+        {
+            if (edificio == null) return;
+            Colocando = null;
+            Moviendo = edificio;
+            Seleccionar(null);
+        }
+
+        private void TryMover(Vector2Int origen)
+        {
+            var edificio = Moviendo;
+            var definicion = edificio.Definicion;
+            var anterior = edificio.Origen;
+            if (origen == anterior)
+            {
+                Moviendo = null;
+                Seleccionar(edificio);
+                return;
+            }
+            if (!Mapa.EnArea(origen, definicion.Tamano))
+            {
+                MostrarMensaje("Mejora el tecpan para abrir más terreno");
+                return;
+            }
+            if (!Mapa.EstaLibreSalvo(origen, definicion.Tamano, edificio))
+            {
+                MostrarMensaje("Ese lugar está ocupado");
+                return;
+            }
+            // Se vuelve a crear en el nuevo lugar con el mismo nivel y obra, como al cargar la partida.
+            Mapa.Ocupar(anterior, definicion.Tamano, null);
+            _edificios.Remove(edificio);
+            var movido = Construir(definicion, origen, edificio.Nivel, edificio.SegundosRestantes, edificio.Acumulado);
+            edificio.Retirar();
+            if (definicion.Id == BuildingId.Muralla)
+            {
+                // Las vecinas del lugar viejo pierden su tramo hacia ella.
+                Mapa.En(anterior + new Vector2Int(-1, 0))?.UnirMuralla(Mapa);
+                Mapa.En(anterior + new Vector2Int(0, -1))?.UnirMuralla(Mapa);
+            }
+            Moviendo = null;
+            Seleccionar(movido);
+            Guardar();
         }
 
         public void Seleccionar(Building edificio)
@@ -200,7 +252,11 @@ namespace Altepetl
             }
 
             var casilla = Mapa.MundoACasilla(punto);
-            if (Colocando != null)
+            if (Moviendo != null)
+            {
+                TryMover(Mapa.AjustarOrigen(casilla, Moviendo.Definicion.Tamano));
+            }
+            else if (Colocando != null)
             {
                 TryColocar(Colocando, Mapa.AjustarOrigen(casilla, Colocando.Tamano));
             }
@@ -834,6 +890,11 @@ namespace Altepetl
             public bool Soltando;       // se quedó quieto en batalla: suelta tropas seguidas
             public float SiguienteTropa;
             public bool EnHud;
+            // Murallas: el dedo que empieza en el mapa las va poniendo en línea recta.
+            public bool Pinta;
+            public Vector2Int PintaInicio;
+            public int PintaEje;        // 0 aún sin dirección, 1 a lo largo de x, 2 a lo largo de y
+            public int PintaMin, PintaMax;
         }
 
         private readonly Dictionary<int, Dedo> _dedos = new Dictionary<int, Dedo>();
@@ -881,11 +942,23 @@ namespace Altepetl
                         dedo.Despliega = sePuede && !dedo.SinTropas;
                         if (!sePuede) Batalla.MostrarZonaProhibida();
                     }
+                    else if (!batalla && !dedo.EnHud && Colocando != null && Colocando.Id == BuildingId.Muralla
+                             && PunteroEnSuelo(dedo.Inicio, out Vector3 inicio))
+                    {
+                        dedo.Pinta = true;
+                        dedo.PintaInicio = Mapa.MundoACasilla(inicio);
+                        ColocarMurallaEn(dedo.PintaInicio);
+                    }
                     continue;
                 }
                 dedo.Ultima = dedo.Actual;
                 dedo.Actual = lectura.Value;
                 if (dedo.EnHud || dedo.Soltando) continue;
+                if (dedo.Pinta)
+                {
+                    PintarMurallas(dedo);
+                    continue;
+                }
                 if (dedo.Despliega)
                 {
                     // Quieto un momento o deslizándose: suelta tropas seguidas.
@@ -912,7 +985,7 @@ namespace Altepetl
                 var dedo = _dedos[id];
                 _dedos.Remove(id);
                 // En batalla solo cuenta el toque de un dedo que podía desplegar.
-                bool quieto = !dedo.Arrastra && !dedo.Soltando && !dedo.EnHud;
+                bool quieto = !dedo.Arrastra && !dedo.Soltando && !dedo.EnHud && !dedo.Pinta;
                 if (quieto && batalla && dedo.SinTropas && Time.time - dedo.Desde < SegundosParaSoltarSeguido)
                 {
                     MostrarMensaje($"No te quedan {Terminos.Tropas} de ese tipo");
@@ -953,6 +1026,39 @@ namespace Altepetl
                 Desplazar(desde - hasta);
             }
             return huboToque;
+        }
+
+        /// <summary>Pone murallas desde donde empezó el dedo hasta donde va, en la dirección en que arrancó.</summary>
+        private void PintarMurallas(Dedo dedo)
+        {
+            if (Colocando == null || Colocando.Id != BuildingId.Muralla) return;
+            if (!PunteroEnSuelo(dedo.Actual, out Vector3 punto)) return;
+            var delta = Mapa.MundoACasilla(punto) - dedo.PintaInicio;
+            if (dedo.PintaEje == 0)
+            {
+                if (delta.x == 0 && delta.y == 0) return;
+                dedo.PintaEje = Mathf.Abs(delta.x) >= Mathf.Abs(delta.y) ? 1 : 2;
+            }
+            var paso = dedo.PintaEje == 1 ? new Vector2Int(1, 0) : new Vector2Int(0, 1);
+            int hasta = dedo.PintaEje == 1 ? delta.x : delta.y;
+            // Si el dedo va rápido se rellenan las casillas que se saltó.
+            for (int k = dedo.PintaMax + 1; k <= hasta && Colocando != null; k++)
+            {
+                ColocarMurallaEn(dedo.PintaInicio + new Vector2Int(paso.x * k, paso.y * k));
+                dedo.PintaMax = k;
+            }
+            for (int k = dedo.PintaMin - 1; k >= hasta && Colocando != null; k--)
+            {
+                ColocarMurallaEn(dedo.PintaInicio + new Vector2Int(paso.x * k, paso.y * k));
+                dedo.PintaMin = k;
+            }
+        }
+
+        private void ColocarMurallaEn(Vector2Int casilla)
+        {
+            // Las casillas ocupadas o fuera del terreno se saltan sin aviso, para no llenar la pantalla de mensajes.
+            if (Colocando == null || !Mapa.PuedeConstruir(casilla, 1)) return;
+            TryColocar(Colocando, casilla);
         }
 
         private void Zoom(float factor)
@@ -1110,13 +1216,17 @@ namespace Altepetl
         {
             // Vista previa de dónde se colocará el edificio.
             bool mostrarFantasma = false;
-            if (ModoActual == Modo.Aldea && Colocando != null && LeerPuntero(out Vector2 posicion, out _, out _)
+            var enMano = Moviendo != null ? Moviendo.Definicion : Colocando;
+            if (ModoActual == Modo.Aldea && enMano != null && LeerPuntero(out Vector2 posicion, out _, out _)
                 && !_hud.PunteroSobreHud(posicion) && PunteroEnSuelo(posicion, out Vector3 punto))
             {
-                var origen = Mapa.AjustarOrigen(Mapa.MundoACasilla(punto), Colocando.Tamano);
-                bool libre = Mapa.PuedeConstruir(origen, Colocando.Tamano);
-                _fantasma.position = Mapa.CentroDeArea(origen, Colocando.Tamano) + Vector3.up * 0.05f;
-                _fantasma.localScale = new Vector3(Colocando.Tamano, 0.1f, Colocando.Tamano);
+                int tamano = enMano.Tamano;
+                var origen = Mapa.AjustarOrigen(Mapa.MundoACasilla(punto), tamano);
+                bool libre = Moviendo != null
+                    ? Mapa.EnArea(origen, tamano) && Mapa.EstaLibreSalvo(origen, tamano, Moviendo)
+                    : Mapa.PuedeConstruir(origen, tamano);
+                _fantasma.position = Mapa.CentroDeArea(origen, tamano) + Vector3.up * 0.05f;
+                _fantasma.localScale = new Vector3(tamano, 0.1f, tamano);
                 _fantasmaRender.material.color = libre ? new Color(0.3f, 0.9f, 0.3f) : new Color(0.9f, 0.25f, 0.2f);
                 mostrarFantasma = true;
             }

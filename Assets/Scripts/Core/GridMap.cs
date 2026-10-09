@@ -67,6 +67,21 @@ namespace Altepetl
         /// <summary>Libre y dentro de la zona abierta: donde se puede construir algo nuevo.</summary>
         public bool PuedeConstruir(Vector2Int origen, int tamano) => EnArea(origen, tamano) && EstaLibre(origen, tamano);
 
+        /// <summary>Libre o solo ocupado por ese mismo edificio (para moverlo).</summary>
+        public bool EstaLibreSalvo(Vector2Int origen, int tamano, Building propio)
+        {
+            for (int x = origen.x; x < origen.x + tamano; x++)
+            {
+                for (int y = origen.y; y < origen.y + tamano; y++)
+                {
+                    if (!DentroDelMapa(new Vector2Int(x, y))) return false;
+                    var ocupante = _casillas[x, y];
+                    if (ocupante != null && ocupante != propio) return false;
+                }
+            }
+            return true;
+        }
+
         public bool EstaLibre(Vector2Int origen, int tamano)
         {
             for (int x = origen.x; x < origen.x + tamano; x++)

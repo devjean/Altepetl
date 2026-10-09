@@ -172,6 +172,20 @@ namespace Altepetl
 
         private void DibujarMenuConstruccion(float ancho, float alto)
         {
+            if (Manager.Moviendo != null)
+            {
+                var barra = new Rect(0, alto - 64, ancho, 64);
+                Zona(barra);
+                GUI.Box(barra, GUIContent.none, _caja);
+                GUI.Label(new Rect(20, barra.y + 18, ancho - 200, 30),
+                    $"Toca dónde quieres poner: {Manager.Moviendo.Nombre}", _texto);
+                if (GUI.Button(new Rect(ancho - 170, barra.y + 8, 150, 48), "Cancelar", _boton))
+                {
+                    Manager.CancelarColocacion();
+                }
+                _menuAbierto = false;
+                return;
+            }
             if (Manager.Colocando != null)
             {
                 var barra = new Rect(0, alto - 64, ancho, 64);
@@ -431,10 +445,15 @@ namespace Altepetl
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
 
-            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), edificio.Nombre);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 120, 28), edificio.Nombre);
             if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
             {
                 Manager.Seleccionar(null);
+                return;
+            }
+            if (GUI.Button(new Rect(panel.xMax - 106, panel.y + 6, 64, 28), "Mover", _boton))
+            {
+                Manager.EmpezarMover(edificio);
                 return;
             }
 
@@ -563,7 +582,7 @@ namespace Altepetl
 
         private void DibujarAjustes(float ancho, float alto)
         {
-            if (Manager.Colocando != null) return;
+            if (Manager.EnModoColocar) return;
             // Engrane en la esquina superior derecha, dentro de la barra de recursos.
             var boton = new Rect(ancho - 42, 4, 36, 36);
             Zona(boton);
@@ -627,7 +646,7 @@ namespace Altepetl
         private void DibujarOfrendas(float ancho)
         {
             if (!_ofrendasAbierto) return;
-            if (Manager.Seleccionado != null || Manager.Colocando != null || _menuAbierto || _campanaAbierta
+            if (Manager.Seleccionado != null || Manager.EnModoColocar || _menuAbierto || _campanaAbierta
                 || _nivelArmando >= 0 || _nivelHistoria >= 0 || Manager.HistoriaPendiente != null)
             {
                 _ofrendasAbierto = false;
@@ -804,7 +823,7 @@ namespace Altepetl
 
         private void DibujarBotonAtacar(float alto)
         {
-            if (Manager.Colocando != null) return;
+            if (Manager.EnModoColocar) return;
             var rect = new Rect(10, alto - 60, 150, 50);
             Zona(rect);
             if (GUI.Button(rect, $"{Terminos.Atacar}\n({Manager.Ejercito.Total} {Terminos.Tropas})", _boton))
@@ -824,7 +843,7 @@ namespace Altepetl
         private void DibujarCampana(float ancho)
         {
             if (!_campanaAbierta) return;
-            if (Manager.Seleccionado != null || Manager.Colocando != null)
+            if (Manager.Seleccionado != null || Manager.EnModoColocar)
             {
                 _campanaAbierta = false;
                 return;
@@ -907,7 +926,7 @@ namespace Altepetl
             }
             else if (_nivelHistoria >= 0)
             {
-                if (Manager.Seleccionado != null || Manager.Colocando != null || _menuAbierto || _campanaAbierta)
+                if (Manager.Seleccionado != null || Manager.EnModoColocar || _menuAbierto || _campanaAbierta)
                 {
                     _nivelHistoria = -1;
                     return;
@@ -953,7 +972,7 @@ namespace Altepetl
         private void DibujarArmarEjercito(float ancho)
         {
             if (_nivelArmando < 0 || _seleccion == null) return;
-            if (Manager.Seleccionado != null || Manager.Colocando != null || _menuAbierto || _campanaAbierta)
+            if (Manager.Seleccionado != null || Manager.EnModoColocar || _menuAbierto || _campanaAbierta)
             {
                 _nivelArmando = -1;
                 return;

@@ -65,6 +65,15 @@ namespace Altepetl
                 datos.estrellas = new System.Collections.Generic.List<int>();
                 for (int i = 0; i < datos.nivelesCompletados; i++) datos.estrellas.Add(1);
             }
+            // La versión 7 agrandó la aldea de 20x20 a 24x24: lo construido se recorre al centro.
+            if (datos.version < 7)
+            {
+                foreach (var edificio in datos.edificios)
+                {
+                    edificio.x += 2;
+                    edificio.y += 2;
+                }
+            }
             if (datos.version < 4)
             {
                 datos.deidadActiva = 0;

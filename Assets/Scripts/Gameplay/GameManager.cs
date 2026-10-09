@@ -12,7 +12,9 @@ namespace Altepetl
     /// </summary>
     public sealed class GameManager : MonoBehaviour
     {
-        public const int TamanoMapa = 20;
+        public const int TamanoMapa = 24;
+        /// <summary>Lado de la zona donde se puede construir, por nivel del tecpan; crece hacia afuera.</summary>
+        public static readonly int[] LadoConstruible = { 12, 14, 16, 20, 24 };
         private const float SegundosEntreAutoguardados = 30f;
 
         public Pueblo Pueblo { get; private set; }
@@ -54,6 +56,7 @@ namespace Altepetl
 
         private readonly List<Building> _edificios = new List<Building>();
         private Renderer _suelo;
+        private Renderer _zona; // parte del suelo donde ya se puede construir
         private Camera _camara;
         private Light _sol;
         private GameHud _hud;
@@ -165,6 +168,7 @@ namespace Altepetl
         private void Update()
         {
             if (Mensaje != null && Time.time > _mensajeHasta) Mensaje = null;
+            ActualizarZonaConstruible();
             AjustarCamara();
             ActualizarMarcadores();
             ActualizarAmbiente();
@@ -174,14 +178,14 @@ namespace Altepetl
             // Los heridos empiezan a sanar ya de vuelta en la aldea, cuando llegan al temazcalli.
             bool curando = ModoActual == Modo.Aldea && !_tropasEnAldea.HeridosLlegando;
             int curados = curando ? Ejercito.Curar(Time.deltaTime, CamasCuracion) : 0;
-            if (curados > 0) MostrarMensaje(curados == 1 ? "Una tropa sanó en el temazcalli" : $"{curados} tropas sanaron en el temazcalli");
+            if (curados > 0) MostrarMensaje(curados == 1 ? $"{Terminos.Un} {Terminos.Tropa} sanó en el temazcalli" : $"{curados} {Terminos.Tropas} sanaron en el temazcalli");
             Culto.Avanzar(Time.deltaTime);
             Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
             if (Time.time >= _proximoAutoguardado) Guardar();
-            if (!LeerPuntero(out Vector2 posicion, out bool presionado, out bool cancelar)) return;
-
+            LeerPuntero(out _, out _, out bool cancelar);
             if (cancelar) CancelarColocacion();
-            if (!presionado || _hud.PunteroSobreHud(posicion)) return;
+            // Arrastrar mueve el mapa; un toque sin arrastrar es lo que selecciona, coloca o despliega.
+            if (!ManejarToques(out Vector2 posicion) || _hud.PunteroSobreHud(posicion)) return;
             if (!PunteroEnSuelo(posicion, out Vector3 punto)) return;
 
             if (ModoActual == Modo.Batalla)
@@ -203,6 +207,11 @@ namespace Altepetl
 
         private void TryColocar(BuildingDefinition definicion, Vector2Int origen)
         {
+            if (!Mapa.EnArea(origen, definicion.Tamano))
+            {
+                MostrarMensaje("Mejora el tecpan para abrir más terreno");
+                return;
+            }
             if (!Mapa.EstaLibre(origen, definicion.Tamano))
             {
                 MostrarMensaje("Ese lugar está ocupado");
@@ -260,6 +269,7 @@ namespace Altepetl
             EnObra,
             NivelMaximo,
             RequiereTecpan,
+            FaltanEdificios,   // el tecpan pide antes ciertos edificios
             SinRecursos,
         }
 
@@ -269,8 +279,62 @@ namespace Altepetl
             if (edificio.Nivel >= edificio.Definicion.NivelMaximo) return EstadoMejora.NivelMaximo;
             if (edificio.Definicion.Id != BuildingId.Tecpan && edificio.Nivel >= NivelTecpan)
                 return EstadoMejora.RequiereTecpan;
+            if (edificio.Definicion.Id == BuildingId.Tecpan && RequisitosFaltantesTecpan(edificio.Nivel + 1).Count > 0)
+                return EstadoMejora.FaltanEdificios;
             if (!Banco.PuedePagar(edificio.Definicion.CostoMejora(edificio.Nivel))) return EstadoMejora.SinRecursos;
             return EstadoMejora.Disponible;
+        }
+
+        /// <summary>
+        /// Lo que pide el tecpan para subir a cada nivel, para que la aldea no se quede atrás
+        /// (y vulnerable) por correr a subirlo. Índice = nivel al que se sube.
+        /// </summary>
+        public static readonly RequisitoTecpan[][] RequisitosTecpan =
+        {
+            new RequisitoTecpan[0],
+            new RequisitoTecpan[0],
+            new[]
+            {
+                new RequisitoTecpan(BuildingId.Granja, 1), new RequisitoTecpan(BuildingId.Lenadores, 1),
+                new RequisitoTecpan(BuildingId.Telpochcalli, 1), new RequisitoTecpan(BuildingId.Calpulli, 1),
+            },
+            new[]
+            {
+                new RequisitoTecpan(BuildingId.Granja, 2), new RequisitoTecpan(BuildingId.Lenadores, 2),
+                new RequisitoTecpan(BuildingId.Obsidiana, 1), new RequisitoTecpan(BuildingId.Petlacalco, 1),
+                new RequisitoTecpan(BuildingId.Teocalli, 1), new RequisitoTecpan(BuildingId.Muralla, 1, 10),
+            },
+            new[]
+            {
+                new RequisitoTecpan(BuildingId.Granja, 3), new RequisitoTecpan(BuildingId.Lenadores, 3),
+                new RequisitoTecpan(BuildingId.Obsidiana, 2), new RequisitoTecpan(BuildingId.Petlacalco, 2),
+                new RequisitoTecpan(BuildingId.Telpochcalli, 2), new RequisitoTecpan(BuildingId.Calpulli, 2),
+                new RequisitoTecpan(BuildingId.Temazcalli, 1), new RequisitoTecpan(BuildingId.Muralla, 1, 20),
+            },
+            new[]
+            {
+                new RequisitoTecpan(BuildingId.Granja, 4), new RequisitoTecpan(BuildingId.Lenadores, 4),
+                new RequisitoTecpan(BuildingId.Obsidiana, 3), new RequisitoTecpan(BuildingId.Petlacalco, 3),
+                new RequisitoTecpan(BuildingId.Telpochcalli, 3), new RequisitoTecpan(BuildingId.Calpulli, 3),
+                new RequisitoTecpan(BuildingId.Temazcalli, 2), new RequisitoTecpan(BuildingId.Muralla, 2, 40),
+            },
+        };
+
+        /// <summary>Requisitos que aún no se cumplen para subir el tecpan a ese nivel.</summary>
+        public List<RequisitoTecpan> RequisitosFaltantesTecpan(int nivel)
+        {
+            var faltan = new List<RequisitoTecpan>();
+            if (nivel < 0 || nivel >= RequisitosTecpan.Length) return faltan;
+            foreach (var requisito in RequisitosTecpan[nivel])
+            {
+                int tiene = 0;
+                foreach (var edificio in _edificios)
+                {
+                    if (edificio.Definicion.Id == requisito.Id && edificio.Nivel >= requisito.Nivel) tiene++;
+                }
+                if (tiene < requisito.Cantidad) faltan.Add(requisito);
+            }
+            return faltan;
         }
 
         public void TryMejorar(Building edificio)
@@ -279,6 +343,51 @@ namespace Altepetl
             if (!Banco.TryGastar(edificio.Definicion.CostoMejora(edificio.Nivel))) return;
             edificio.EmpezarMejora();
             Guardar();
+        }
+
+        /// <summary>
+        /// Plumas de quetzal para comprar lo que falta de un costo: 1 por cada 25 de maíz o madera
+        /// y 1 por cada 8 de obsidiana. Devuelve -1 si falta algo que no se compra (mamaltin).
+        /// </summary>
+        public int PlumasParaCompletar(int[] costo)
+        {
+            int plumas = 0;
+            for (int i = 0; i < costo.Length; i++)
+            {
+                int falta = costo[i] - Banco.Get((ResourceType)i);
+                if (falta <= 0) continue;
+                switch ((ResourceType)i)
+                {
+                    case ResourceType.Maiz:
+                    case ResourceType.Madera: plumas += Mathf.CeilToInt(falta / 25f); break;
+                    case ResourceType.Obsidiana: plumas += Mathf.CeilToInt(falta / 8f); break;
+                    case ResourceType.Plumas: plumas += falta; break;
+                    default: return -1;
+                }
+            }
+            return plumas;
+        }
+
+        /// <summary>Paga con plumas lo que falta, gasta lo que sí hay y empieza la mejora.</summary>
+        public bool TryMejorarConPlumas(Building edificio)
+        {
+            if (PuedeMejorar(edificio) != EstadoMejora.SinRecursos) return false;
+            var costo = edificio.Definicion.CostoMejora(edificio.Nivel);
+            int plumas = PlumasParaCompletar(costo);
+            if (plumas < 0 || Banco.Get(ResourceType.Plumas) < plumas + costo[(int)ResourceType.Plumas])
+            {
+                MostrarMensaje("No tienes suficientes plumas de quetzal");
+                return false;
+            }
+            Banco.TryGastar(ResourceInfo.Costo(plumas: plumas));
+            for (int i = 0; i < costo.Length; i++)
+            {
+                var tipo = (ResourceType)i;
+                Banco.Establecer(tipo, Mathf.Max(0, Banco.Get(tipo) - costo[i]));
+            }
+            edificio.EmpezarMejora();
+            Guardar();
+            return true;
         }
 
         // ---------- Ejército ----------
@@ -348,7 +457,7 @@ namespace Altepetl
                 return false;
             }
             int terminadas = Ejercito.TerminarCola();
-            MostrarMensaje(terminadas == 1 ? "Una tropa terminó su entrenamiento" : $"{terminadas} tropas terminaron su entrenamiento");
+            MostrarMensaje(terminadas == 1 ? $"{Terminos.Un} {Terminos.Tropa} terminó su entrenamiento" : $"{terminadas} {Terminos.Tropas} terminaron su entrenamiento");
             Guardar();
             return true;
         }
@@ -438,12 +547,12 @@ namespace Altepetl
             if (indice < 0 || indice >= Campana.Length || indice > NivelesCompletados) return;
             if (Ejercito.Total <= 0)
             {
-                MostrarMensaje("Entrena tropas en el telpochcalli antes de atacar");
+                MostrarMensaje($"Entrena {Terminos.Tropas} en el telpochcalli antes de atacar");
                 return;
             }
             if (seleccion == null || seleccion.Total <= 0)
             {
-                MostrarMensaje("Elige al menos una tropa");
+                MostrarMensaje($"Elige al menos {Terminos.Un.ToLowerInvariant()} {Terminos.Tropa}");
                 return;
             }
 
@@ -498,7 +607,7 @@ namespace Altepetl
             if (Batalla != null) Destroy(Batalla.gameObject);
             Batalla = null;
             ModoActual = Modo.Aldea;
-            EnfocarCamara(Mapa.Centro, TamanoMapa);
+            EnfocarCamara(Mapa.Centro, LadoCamaraAldea);
         }
 
         // ---------- Guardado ----------
@@ -603,8 +712,8 @@ namespace Altepetl
             Culto.Avanzar(segundos);
             Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
             int tropasNuevas = Ejercito.Total - tropasAntes;
-            if (tropasNuevas > 0) ganancias.Add($"+{tropasNuevas} tropas");
-            if (curados > 0) ganancias.Add($"{curados} tropas curadas");
+            if (tropasNuevas > 0) ganancias.Add($"+{tropasNuevas} {Terminos.Tropas}");
+            if (curados > 0) ganancias.Add($"{curados} {Terminos.Tropas} curad{Terminos.O}s");
             if (ganancias.Count > 0)
             {
                 MostrarMensaje("Mientras no estabas: " + string.Join(", ", ganancias), 5f);
@@ -624,12 +733,13 @@ namespace Altepetl
 
         // ---------- Entrada (ratón en el editor, toque en el móvil) ----------
 
-        private static bool LeerPuntero(out Vector2 posicion, out bool presionado, out bool cancelar)
+        /// <summary>abajo: el dedo o el botón izquierdo está presionado en este momento.</summary>
+        private static bool LeerPuntero(out Vector2 posicion, out bool abajo, out bool cancelar)
         {
 #if ENABLE_INPUT_SYSTEM
             var puntero = Pointer.current;
             posicion = puntero != null ? puntero.position.ReadValue() : Vector2.zero;
-            presionado = puntero != null && puntero.press.wasPressedThisFrame;
+            abajo = puntero != null && puntero.press.isPressed;
             var raton = Mouse.current;
             var teclado = Keyboard.current;
             cancelar = (raton != null && raton.rightButton.wasPressedThisFrame)
@@ -637,10 +747,208 @@ namespace Altepetl
             return puntero != null;
 #else
             posicion = Input.mousePosition;
-            presionado = Input.GetMouseButtonDown(0);
+            abajo = Input.GetMouseButton(0);
             cancelar = Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape);
             return true;
 #endif
+        }
+
+        /// <summary>Rueda del ratón: positivo para acercar.</summary>
+        private static float LeerRueda()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var raton = Mouse.current;
+            return raton != null ? raton.scroll.ReadValue().y : 0f;
+#else
+            return Input.mouseScrollDelta.y;
+#endif
+        }
+
+        /// <summary>Dedos en la pantalla (o el botón izquierdo del ratón, con id -1) en este cuadro.</summary>
+        private static void LeerDedos(List<KeyValuePair<int, Vector2>> dedos)
+        {
+            dedos.Clear();
+#if ENABLE_INPUT_SYSTEM
+            var pantalla = Touchscreen.current;
+            if (pantalla != null)
+            {
+                foreach (var toque in pantalla.touches)
+                {
+                    if (toque.press.isPressed) dedos.Add(new KeyValuePair<int, Vector2>(toque.touchId.ReadValue(), toque.position.ReadValue()));
+                }
+            }
+            var raton = Mouse.current;
+            if (dedos.Count == 0 && raton != null && raton.leftButton.isPressed)
+            {
+                dedos.Add(new KeyValuePair<int, Vector2>(-1, raton.position.ReadValue()));
+            }
+#else
+            for (int i = 0; i < Input.touchCount; i++)
+            {
+                var toque = Input.GetTouch(i);
+                dedos.Add(new KeyValuePair<int, Vector2>(toque.fingerId, toque.position));
+            }
+            if (dedos.Count == 0 && Input.GetMouseButton(0)) dedos.Add(new KeyValuePair<int, Vector2>(-1, Input.mousePosition));
+#endif
+        }
+
+        // ---------- Toques: zoom, desplazamiento y despliegue ----------
+
+        private const float ZoomMinimo = 0.35f;   // lo más cerca
+        private const float ZoomMaximo = 1.25f;   // lo más lejos
+        private const float SegundosParaSoltarSeguido = 0.3f; // dedo quieto este tiempo: suelta tropas seguidas
+        private const float SegundosEntreTropas = 0.12f;
+        private float _zoom = 1f;
+        private Vector3 _desplazamiento;          // cuánto se movió la cámara desde el centro
+
+        private sealed class Dedo
+        {
+            public int Id;
+            public Vector2 Inicio;
+            public Vector2 Ultima;
+            public Vector2 Actual;
+            public float Desde;
+            public bool Despliega;      // en batalla empezó donde se puede soltar tropas: solo despliega
+            public bool SinTropas;      // empezó donde se podría soltar, pero ya no quedan de ese tipo
+            public bool Arrastra;       // se movió: mueve el mapa o hace zoom
+            public bool Soltando;       // se quedó quieto en batalla: suelta tropas seguidas
+            public float SiguienteTropa;
+            public bool EnHud;
+        }
+
+        private readonly Dictionary<int, Dedo> _dedos = new Dictionary<int, Dedo>();
+        private readonly List<KeyValuePair<int, Vector2>> _lecturaDedos = new List<KeyValuePair<int, Vector2>>();
+        private readonly List<int> _dedosSoltados = new List<int>();
+
+        /// <summary>
+        /// Cada dedo por separado (también el ratón):
+        /// tocar y soltar sin moverse es un toque (seleccionar, colocar o desplegar una tropa);
+        /// en batalla, dejarlo quieto suelta tropas seguidas, y con varios dedos quietos se suelta en todos;
+        /// arrastrar un dedo mueve el mapa; abrir o cerrar dos dedos hace zoom. La rueda del ratón también hace zoom.
+        /// Devuelve true si este cuadro hubo un toque, y dónde.
+        /// </summary>
+        private bool ManejarToques(out Vector2 toque)
+        {
+            toque = Vector2.zero;
+            bool huboToque = false;
+
+            LeerPuntero(out Vector2 raton, out _, out _);
+            float rueda = LeerRueda();
+            if (rueda != 0f && !_hud.PunteroSobreHud(raton)) Zoom(rueda > 0f ? 0.9f : 1f / 0.9f);
+
+            LeerDedos(_lecturaDedos);
+            float umbral = Screen.height * 0.02f;
+            bool batalla = ModoActual == Modo.Batalla && Batalla != null && !Batalla.Terminada;
+
+            // Dedos nuevos y dedos que siguen.
+            foreach (var lectura in _lecturaDedos)
+            {
+                if (!_dedos.TryGetValue(lectura.Key, out var dedo))
+                {
+                    dedo = new Dedo
+                    {
+                        Id = lectura.Key, Inicio = lectura.Value, Ultima = lectura.Value, Actual = lectura.Value,
+                        Desde = Time.time, EnHud = _hud.PunteroSobreHud(lectura.Value),
+                    };
+                    _dedos[lectura.Key] = dedo;
+                    // En batalla: donde se puede desplegar, el dedo suelta tropas; sobre los edificios
+                    // (o fuera del campo) mueve el mapa o hace zoom, y se marca la zona prohibida.
+                    if (batalla && !dedo.EnHud && PunteroEnSuelo(dedo.Inicio, out Vector3 punto))
+                    {
+                        bool sePuede = Batalla.PuedeDesplegarEn(punto);
+                        // Sin tropas del tipo elegido el dedo solo mueve el mapa; un toque suelto avisa.
+                        dedo.SinTropas = sePuede && Batalla.Disponibles(Batalla.Seleccionada) == 0;
+                        dedo.Despliega = sePuede && !dedo.SinTropas;
+                        if (!sePuede) Batalla.MostrarZonaProhibida();
+                    }
+                    continue;
+                }
+                dedo.Ultima = dedo.Actual;
+                dedo.Actual = lectura.Value;
+                if (dedo.EnHud || dedo.Soltando) continue;
+                if (dedo.Despliega)
+                {
+                    // Quieto un momento o deslizándose: suelta tropas seguidas.
+                    if (Time.time - dedo.Desde >= SegundosParaSoltarSeguido || Vector2.Distance(dedo.Actual, dedo.Inicio) > umbral)
+                    {
+                        dedo.Soltando = true;
+                        dedo.SiguienteTropa = Time.time;
+                    }
+                    continue;
+                }
+                if (!dedo.Arrastra && Vector2.Distance(dedo.Actual, dedo.Inicio) > umbral) dedo.Arrastra = true;
+            }
+
+            // Dedos que se levantaron: si no se movieron, cuentan como toque.
+            _dedosSoltados.Clear();
+            foreach (var par in _dedos)
+            {
+                bool sigue = false;
+                foreach (var lectura in _lecturaDedos) sigue |= lectura.Key == par.Key;
+                if (!sigue) _dedosSoltados.Add(par.Key);
+            }
+            foreach (int id in _dedosSoltados)
+            {
+                var dedo = _dedos[id];
+                _dedos.Remove(id);
+                // En batalla solo cuenta el toque de un dedo que podía desplegar.
+                bool quieto = !dedo.Arrastra && !dedo.Soltando && !dedo.EnHud;
+                if (quieto && batalla && dedo.SinTropas && Time.time - dedo.Desde < SegundosParaSoltarSeguido)
+                {
+                    MostrarMensaje($"No te quedan {Terminos.Tropas} de ese tipo");
+                    continue;
+                }
+                if (quieto && (!batalla || dedo.Despliega))
+                {
+                    huboToque = true;
+                    toque = dedo.Actual;
+                }
+            }
+
+            // Soltar tropas seguidas con cada dedo quieto (se puede ir deslizando mientras suelta).
+            foreach (var dedo in _dedos.Values)
+            {
+                if (!dedo.Soltando || !batalla || Time.time < dedo.SiguienteTropa) continue;
+                dedo.SiguienteTropa = Time.time + SegundosEntreTropas;
+                // Al deslizarse sobre un edificio simplemente no suelta ahí.
+                if (PunteroEnSuelo(dedo.Actual, out Vector3 punto) && Batalla.PuedeDesplegarEn(punto)) Batalla.Desplegar(punto);
+            }
+
+            // Mover el mapa o hacer zoom con los dedos que arrastran.
+            Dedo primero = null, segundo = null;
+            foreach (var dedo in _dedos.Values)
+            {
+                if (!dedo.Arrastra || dedo.EnHud) continue;
+                if (primero == null) primero = dedo;
+                else if (segundo == null) segundo = dedo;
+            }
+            if (primero != null && segundo != null)
+            {
+                float antes = Vector2.Distance(primero.Ultima, segundo.Ultima);
+                float ahora = Vector2.Distance(primero.Actual, segundo.Actual);
+                if (antes > 1f && ahora > 1f) Zoom(antes / ahora);
+            }
+            else if (primero != null && PunteroEnSuelo(primero.Ultima, out Vector3 desde) && PunteroEnSuelo(primero.Actual, out Vector3 hasta))
+            {
+                Desplazar(desde - hasta);
+            }
+            return huboToque;
+        }
+
+        private void Zoom(float factor)
+        {
+            _zoom = Mathf.Clamp(_zoom * factor, ZoomMinimo, ZoomMaximo);
+            AjustarCamara();
+        }
+
+        private void Desplazar(Vector3 delta)
+        {
+            delta.y = 0f;
+            float limite = _ladoCamara * 0.6f;
+            _desplazamiento += delta;
+            _desplazamiento.x = Mathf.Clamp(_desplazamiento.x, -limite, limite);
+            _desplazamiento.z = Mathf.Clamp(_desplazamiento.z, -limite, limite);
+            AjustarCamara();
         }
 
         private bool PunteroEnSuelo(Vector2 posicion, out Vector3 punto)
@@ -678,6 +986,8 @@ namespace Altepetl
         {
             _centroCamara = centro;
             _ladoCamara = lado;
+            _zoom = 1f;
+            _desplazamiento = Vector3.zero;
             if (_camara == null) return;
             _camara.transform.position = centro - _camara.transform.forward * 40f;
             AjustarCamara();
@@ -687,12 +997,13 @@ namespace Altepetl
         private void AjustarCamara()
         {
             if (_camara == null) return;
+            _camara.transform.position = _centroCamara + _desplazamiento - _camara.transform.forward * 40f;
             float diagonal = _ladoCamara * Mathf.Sqrt(2f);
             float alturaNecesaria = diagonal * Mathf.Sin(30f * Mathf.Deg2Rad) + 3f;
             float aspecto = Mathf.Max(_camara.aspect, 0.01f);
             float tamano = Mathf.Max(alturaNecesaria * 0.5f, diagonal / (2f * aspecto));
             // Margen extra para que las barras del HUD no tapen la aldea.
-            _camara.orthographicSize = tamano * 1.3f;
+            _camara.orthographicSize = tamano * 1.3f * _zoom;
         }
 
         private void PrepararLuz()
@@ -719,9 +1030,33 @@ namespace Altepetl
         private void ActualizarSuelo()
         {
             if (_suelo == null) return;
-            _suelo.material.color = Pueblo != null && Pueblo.EnLago
-                ? new Color(0.28f, 0.50f, 0.58f)
-                : new Color(0.62f, 0.55f, 0.38f);
+            bool lago = Pueblo != null && Pueblo.EnLago;
+            // Fuera de la zona abierta el suelo es más oscuro (monte o agua honda).
+            _suelo.material.color = lago ? new Color(0.24f, 0.45f, 0.54f) : new Color(0.50f, 0.45f, 0.31f);
+            if (_zona != null) _zona.material.color = lago ? new Color(0.33f, 0.56f, 0.62f) : new Color(0.62f, 0.55f, 0.38f);
+        }
+
+        private int _ladoZona = -1;
+
+        /// <summary>De entrada la cámara encuadra la zona abierta y un poco de lo que la rodea.</summary>
+        private float LadoCamaraAldea => Mathf.Max(_ladoZona, LadoConstruible[0]) + 4f;
+
+        /// <summary>La zona donde se puede construir crece con el tecpan.</summary>
+        private void ActualizarZonaConstruible()
+        {
+            int nivel = Mathf.Clamp(NivelTecpan, 1, LadoConstruible.Length);
+            int lado = LadoConstruible[nivel - 1];
+            if (lado == _ladoZona) return;
+            bool crecio = _ladoZona > 0 && lado > _ladoZona;
+            _ladoZona = lado;
+            Mapa.FijarArea(lado);
+            if (_zona != null)
+            {
+                _zona.transform.localScale = new Vector3(lado, 0.01f, lado);
+                _zona.transform.position = Mapa.Centro + Vector3.up * 0.005f;
+            }
+            if (ModoActual == Modo.Aldea) _ladoCamara = LadoCamaraAldea;
+            if (crecio) MostrarMensaje("¡Se abrió más terreno para construir!");
         }
 
         private void CrearSuelo()
@@ -733,6 +1068,11 @@ namespace Altepetl
             suelo.transform.localScale = new Vector3(TamanoMapa / 10f, 1f, TamanoMapa / 10f);
             suelo.transform.position = Mapa.Centro;
             _suelo = suelo.GetComponent<Renderer>();
+
+            var zona = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            zona.name = "Zona construible";
+            Destroy(zona.GetComponent<Collider>());
+            _zona = zona.GetComponent<Renderer>();
             ActualizarSuelo();
         }
 
@@ -754,7 +1094,7 @@ namespace Altepetl
                 && !_hud.PunteroSobreHud(posicion) && PunteroEnSuelo(posicion, out Vector3 punto))
             {
                 var origen = Mapa.AjustarOrigen(Mapa.MundoACasilla(punto), Colocando.Tamano);
-                bool libre = Mapa.EstaLibre(origen, Colocando.Tamano);
+                bool libre = Mapa.PuedeConstruir(origen, Colocando.Tamano);
                 _fantasma.position = Mapa.CentroDeArea(origen, Colocando.Tamano) + Vector3.up * 0.05f;
                 _fantasma.localScale = new Vector3(Colocando.Tamano, 0.1f, Colocando.Tamano);
                 _fantasmaRender.material.color = libre ? new Color(0.3f, 0.9f, 0.3f) : new Color(0.9f, 0.25f, 0.2f);
@@ -773,6 +1113,21 @@ namespace Altepetl
                 _marcaSeleccion.localScale = new Vector3(tamano + 0.1f, alto, tamano + 0.1f);
             }
             _marcaSeleccion.gameObject.SetActive(haySeleccion);
+        }
+    }
+
+    /// <summary>Un edificio (o varios) a cierto nivel que el tecpan pide antes de subir.</summary>
+    public struct RequisitoTecpan
+    {
+        public BuildingId Id;
+        public int Nivel;
+        public int Cantidad;
+
+        public RequisitoTecpan(BuildingId id, int nivel, int cantidad = 1)
+        {
+            Id = id;
+            Nivel = nivel;
+            Cantidad = cantidad;
         }
     }
 }

@@ -28,7 +28,7 @@ namespace Altepetl
         public static readonly Vector3 Origen = new Vector3(100f, 0f, 0f);
         public const float SegundosLimite = 120f;
         public const float VictoriaMinima = 0.5f;
-        private const int MargenDespliegue = 3; // casillas alrededor del mapa donde también se puede desplegar
+        private const int MargenDespliegue = 8; // casillas alrededor del mapa donde también se puede desplegar (como en Clash, casi todo el campo)
 
         public int IndiceNivel { get; private set; }
         public CampaignLevel Nivel { get; private set; }
@@ -180,6 +180,7 @@ namespace Altepetl
                 }
             }
             CrearDefensores();
+            CrearZonaProhibida();
         }
 
         public TroopId PrimeraTropaDisponible()
@@ -192,20 +193,52 @@ namespace Altepetl
         }
 
         /// <summary>Despliega la tropa seleccionada en ese punto del mundo, si se puede.</summary>
-        public void Desplegar(Vector3 punto)
+        /// <summary>¿Se puede soltar una tropa en ese punto? En el campo, fuera de las casillas con edificios.</summary>
+        public bool PuedeDesplegarEn(Vector3 punto)
         {
-            if (Terminada) return;
-
             int x = Mathf.FloorToInt(punto.x - Origen.x);
             int y = Mathf.FloorToInt(punto.z - Origen.z);
             int tamano = CampaignLevel.TamanoMapa;
             if (x < -MargenDespliegue || y < -MargenDespliegue
-                || x >= tamano + MargenDespliegue || y >= tamano + MargenDespliegue) return;
-            if (x >= 0 && y >= 0 && x < tamano && y < tamano && _ocupado[x, y])
+                || x >= tamano + MargenDespliegue || y >= tamano + MargenDespliegue) return false;
+            return !(x >= 0 && y >= 0 && x < tamano && y < tamano && _ocupado[x, y]);
+        }
+
+        /// <summary>Por un momento se marcan las casillas donde no se puede desplegar, como en Clash.</summary>
+        public void MostrarZonaProhibida()
+        {
+            if (_zonaProhibida == null) return;
+            _zonaProhibida.SetActive(true);
+            _ocultarZonaEn = Time.time + 1.5f;
+        }
+
+        private GameObject _zonaProhibida;
+        private float _ocultarZonaEn;
+
+        private void CrearZonaProhibida()
+        {
+            _zonaProhibida = new GameObject("Zona prohibida");
+            _zonaProhibida.transform.SetParent(transform, false);
+            int tamano = CampaignLevel.TamanoMapa;
+            for (int x = 0; x < tamano; x++)
             {
-                _manager.MostrarMensaje("No puedes desplegar encima de un edificio");
-                return;
+                for (int y = 0; y < tamano; y++)
+                {
+                    if (!_ocupado[x, y]) continue;
+                    var casilla = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    Destroy(casilla.GetComponent<Collider>());
+                    casilla.transform.SetParent(_zonaProhibida.transform, false);
+                    casilla.transform.localScale = new Vector3(0.98f, 0.02f, 0.98f);
+                    casilla.transform.position = Origen + new Vector3(x + 0.5f, 0.01f, y + 0.5f);
+                    casilla.GetComponent<Renderer>().material.color = new Color(0.60f, 0.16f, 0.12f);
+                }
             }
+            _zonaProhibida.SetActive(false);
+        }
+
+        public void Desplegar(Vector3 punto)
+        {
+            if (Terminada || !PuedeDesplegarEn(punto)) return;
             // Salen primero los de mayor rango; dentro del mismo rango, los sanos y luego los heridos con más vida.
             int rango = -1;
             for (int r = Rangos.Count - 1; r >= 0; r--)
@@ -218,7 +251,7 @@ namespace Altepetl
             }
             if (rango < 0)
             {
-                _manager.MostrarMensaje("No te quedan tropas de ese tipo");
+                _manager.MostrarMensaje($"No te quedan {Terminos.Tropas} de ese tipo");
                 return;
             }
 
@@ -250,6 +283,7 @@ namespace Altepetl
 
         private void Update()
         {
+            if (_zonaProhibida != null && _zonaProhibida.activeSelf && Time.time > _ocultarZonaEn) _zonaProhibida.SetActive(false);
             if (Terminada) return;
 
             TiempoRestante -= Time.deltaTime;

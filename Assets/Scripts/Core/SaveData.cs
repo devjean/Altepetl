@@ -7,7 +7,7 @@ namespace Altepetl
     [Serializable]
     public sealed class SaveData
     {
-        public const int VersionActual = 6; // 2: nivel de los edificios. 3: ejército y campaña. 4: rangos y ofrendas. 5: heridos. 6: estrellas
+        public const int VersionActual = 7; // 2: nivel de los edificios. 3: ejército y campaña. 4: rangos y ofrendas. 5: heridos. 6: estrellas. 7: mapa de 24
 
         public int version = VersionActual;
         public PuebloId pueblo;

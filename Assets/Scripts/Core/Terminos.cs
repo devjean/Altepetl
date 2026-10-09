@@ -27,6 +27,16 @@ namespace Altepetl
             }
         }
 
+        /// <summary>¿El jugador ya eligió? Se pregunta la primera vez, antes de elegir pueblo.</summary>
+        public static bool Elegido => PlayerPrefs.HasKey(Clave);
+
+        /// <summary>Olvida la elección para que se vuelva a preguntar (menú del editor).</summary>
+        public static void Olvidar()
+        {
+            PlayerPrefs.DeleteKey(Clave);
+            _nahuatl = -1;
+        }
+
         public static string Tropa => Nahuatl ? "yaoquizqui" : "tropa";
         public static string Tropas => Nahuatl ? "yaoquizqueh" : "tropas";
         public static string TropasMayuscula => Nahuatl ? "Yaoquizqueh" : "Tropas";

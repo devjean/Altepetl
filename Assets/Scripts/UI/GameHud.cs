@@ -63,7 +63,8 @@ namespace Altepetl
 
             if (Manager.Pueblo == null)
             {
-                DibujarEleccionDePueblo(ancho, alto);
+                if (!Terminos.Elegido) DibujarEleccionTerminos(ancho, alto);
+                else DibujarEleccionDePueblo(ancho, alto);
                 return;
             }
 
@@ -91,6 +92,36 @@ namespace Altepetl
         private void Zona(Rect rect)
         {
             if (Event.current.type == EventType.Layout) _zonasHud.Add(rect);
+        }
+
+        private void DibujarEleccionTerminos(float ancho, float alto)
+        {
+            GUI.Box(new Rect(0, 0, ancho, alto), GUIContent.none, _caja);
+            Titulo(new Rect(0, 30, ancho, 40), "Altepetl — ¿cómo quieres los términos?");
+
+            float anchoTarjeta = Mathf.Min(360f, (ancho - 60f) / 2f);
+            float x = (ancho - anchoTarjeta * 2f - 20f) / 2f;
+            float izquierda = x;
+            for (int i = 0; i < 2; i++)
+            {
+                bool nahuatl = i == 0;
+                var tarjeta = new Rect(x, 100, anchoTarjeta, 300);
+                GUI.Box(tarjeta, GUIContent.none, _caja);
+                Titulo(new Rect(tarjeta.x + 10, tarjeta.y + 10, tarjeta.width - 20, 30), nahuatl ? "Náhuatl" : "Español");
+                GUI.Label(new Rect(tarjeta.x + 14, tarjeta.y + 50, tarjeta.width - 28, 170), nahuatl
+                    ? "Las tropas son yaoquizqueh, el maíz es tlaolli, la madera cuahuitl, la obsidiana itztli "
+                      + "y las plumas quetzalli. Atacar es yaoyotl y construir, calquetza."
+                    : "Tropas, recursos y botones en español sencillo: maíz, madera, obsidiana, plumas, "
+                      + "atacar y construir.", _texto);
+                GUI.Label(new Rect(tarjeta.x + 14, tarjeta.y + 190, tarjeta.width - 28, 40),
+                    "Edificios, dioses y rangos llevan su nombre náhuatl en los dos.", _textoChico);
+                if (GUI.Button(new Rect(tarjeta.x + 20, tarjeta.yMax - 60, tarjeta.width - 40, 44), "Elegir", _boton))
+                {
+                    Terminos.Nahuatl = nahuatl;
+                }
+                x += anchoTarjeta + 20f;
+            }
+            GUI.Label(new Rect(izquierda, 420, anchoTarjeta * 2f + 20f, 30), "Puedes cambiarlo cuando quieras en Ajustes (el engrane).", _textoChico);
         }
 
         private void DibujarEleccionDePueblo(float ancho, float alto)

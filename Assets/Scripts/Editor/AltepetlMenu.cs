@@ -18,6 +18,13 @@ namespace Altepetl.Herramientas
             Debug.Log($"Partida borrada: {SaveSystem.Ruta}");
         }
 
+        [MenuItem("Altepetl/Volver a preguntar los términos")]
+        private static void OlvidarTerminos()
+        {
+            Terminos.Olvidar();
+            Debug.Log("Al empezar partida nueva se volverá a preguntar náhuatl o español.");
+        }
+
         [MenuItem("Altepetl/Abrir carpeta de guardado")]
         private static void AbrirCarpeta()
         {

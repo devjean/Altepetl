@@ -33,6 +33,7 @@ namespace Altepetl
             public float Hasta;         // hasta cuándo espera, está adentro o sigue en el mismo lugar de la obra
             public float Fase;
             public float Rumbo;
+            public float Suelo;         // altura del suelo bajo sus pies (sube por las terrazas de los cerros)
         }
 
         public GameManager Manager;
@@ -196,7 +197,10 @@ namespace Altepetl
                 persona.Cuerpo.localPosition = new Vector3(plano.x, 0.07f + vaiven + Tamano + (trabajando ? altura : 0f), plano.z);
                 return;
             }
-            persona.Cuerpo.localPosition = new Vector3(plano.x, Tamano + altura, plano.z);
+            // Suben y bajan las terrazas de los cerros escalón por escalón.
+            float suelo = Manager.Paisaje != null ? Manager.Paisaje.AlturaSuelo(plano) : 0f;
+            persona.Suelo = Mathf.MoveTowards(persona.Suelo, suelo, 2.5f * Time.deltaTime);
+            persona.Cuerpo.localPosition = new Vector3(plano.x, persona.Suelo + Tamano + altura, plano.z);
         }
 
         private void Llego(Persona persona)
@@ -278,6 +282,7 @@ namespace Altepetl
             if (persona.Estado == Estado.Adentro && (persona.Casa != null || persona.CasaDeAfuera))
             {
                 var punto = persona.CasaDeAfuera ? persona.Puerta : PuntoAlrededor(persona.Casa);
+                persona.Suelo = Manager.Paisaje != null ? Manager.Paisaje.AlturaSuelo(punto) : 0f;
                 persona.Cuerpo.localPosition = new Vector3(punto.x, Tamano, punto.z);
                 if (persona.Acalli != null) persona.Acalli.localPosition = new Vector3(punto.x, 0.03f, punto.z);
             }

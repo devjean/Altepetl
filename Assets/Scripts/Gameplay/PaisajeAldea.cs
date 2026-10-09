@@ -45,6 +45,33 @@ namespace Altepetl
         /// <summary>Chinampas de los alrededores, donde la gente va a trabajar un rato.</summary>
         public IReadOnlyList<Vector3> Chinampas => _chinampas;
 
+        private struct CerroEscalonado
+        {
+            public Vector3 Centro;
+            public float Radio;
+            public int Terrazas;
+        }
+
+        private readonly List<CerroEscalonado> _cerros = new List<CerroEscalonado>();
+        private const float AltoTerraza = 0.5f;
+
+        /// <summary>Altura del suelo en ese punto: sube por las terrazas de los cerros escalonados.</summary>
+        public float AlturaSuelo(Vector3 p)
+        {
+            float altura = 0f;
+            foreach (var cerro in _cerros)
+            {
+                float d = new Vector2(p.x - cerro.Centro.x, p.z - cerro.Centro.z).magnitude;
+                int escalones = 0;
+                for (int i = 0; i < cerro.Terrazas; i++)
+                {
+                    if (d < cerro.Radio * (1f - i / (float)(cerro.Terrazas + 1))) escalones = i + 1;
+                }
+                altura = Mathf.Max(altura, escalones * AltoTerraza);
+            }
+            return altura;
+        }
+
         /// <summary>¿Ese punto está sobre el lago? Ahí la gente va en acalli.</summary>
         public bool EnAgua(Vector3 p)
         {
@@ -84,6 +111,7 @@ namespace Altepetl
                 if (_ciudad != null) Destroy(_ciudad.gameObject);
                 _casasAfuera.Clear();
                 _chinampas.Clear();
+                _cerros.Clear();
                 _ciudad = Grupo("Ciudad");
                 CrearCiudad(nivel);
             }
@@ -291,8 +319,8 @@ namespace Altepetl
         {
             float ancho = Rango(azar, 0.5f, 0.9f);
             float alto = Rango(azar, 0.3f, 0.5f);
-            // Las de la cima de los cerros quedan arriba; a esas no se sube nadie.
-            if (p.y < 0.3f) _casasAfuera.Add(new Vector3(p.x, 0f, p.z) + new Vector3(0f, 0f, -ancho * 0.5f - 0.15f));
+            // La puerta, a ras de suelo; en los cerros la gente sube por las terrazas (ver AlturaSuelo).
+            _casasAfuera.Add(new Vector3(p.x, 0f, p.z) + new Vector3(0f, 0f, -ancho * 0.5f - 0.15f));
             Pieza(_ciudad, PrimitiveType.Cube, p + new Vector3(0f, alto * 0.5f, 0f), new Vector3(ancho, alto, ancho), muro);
             if (techo.HasValue)
             {
@@ -313,7 +341,8 @@ namespace Altepetl
         /// <summary>Cerro escalonado en terrazas, con casas en la cima.</summary>
         private void CerroConTerrazas(Vector3 centro, float radio, int terrazas, System.Random azar, int casas, Color muro, Color? techo)
         {
-            const float altoTerraza = 0.5f;
+            const float altoTerraza = AltoTerraza;
+            _cerros.Add(new CerroEscalonado { Centro = centro, Radio = radio, Terrazas = terrazas });
             for (int i = 0; i < terrazas; i++)
             {
                 float r = radio * (1f - i / (float)(terrazas + 1));

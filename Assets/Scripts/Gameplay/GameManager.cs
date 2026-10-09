@@ -299,6 +299,36 @@ namespace Altepetl
             return true;
         }
 
+        /// <summary>
+        /// Deja elegidas solo la primera, la tocada y las que siguen unidas a la primera sin pasar por la
+        /// tocada: es decir, quita las que estaban "después" de ella. Devuelve cuántas quitó.
+        /// </summary>
+        private int RecortarDesde(Building muro)
+        {
+            var primera = _murosElegidos[0];
+            var quedan = new HashSet<Building> { primera, muro };
+            if (muro != primera)
+            {
+                var pendientes = new Queue<Building>();
+                pendientes.Enqueue(primera);
+                var vecinos = new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1) };
+                while (pendientes.Count > 0)
+                {
+                    var actual = pendientes.Dequeue();
+                    foreach (var paso in vecinos)
+                    {
+                        var vecino = Mapa.En(actual.Origen + paso);
+                        if (vecino == null || vecino == muro || quedan.Contains(vecino) || !_murosElegidos.Contains(vecino)) continue;
+                        quedan.Add(vecino);
+                        pendientes.Enqueue(vecino);
+                    }
+                }
+            }
+            int antes = _murosElegidos.Count;
+            _murosElegidos.RemoveAll(m => !quedan.Contains(m));
+            return antes - _murosElegidos.Count;
+        }
+
         /// <summary>Gira el grupo de murallas 90° alrededor de la primera.</summary>
         public void GirarGrupo()
         {
@@ -1064,6 +1094,9 @@ namespace Altepetl
             public int PintaEje;        // 0 aún sin dirección, 1 a lo largo de x, 2 a lo largo de y
             public int PintaMin, PintaMax;
             public bool EligeMuros;     // empezó sobre una muralla elegida: al arrastrar elige las que va tocando
+            public Building MuroTocado;
+            public bool Recorto;        // al tocarla se quitaron las que seguían después
+            public bool Agrego;
         }
 
         private readonly Dictionary<int, Dedo> _dedos = new Dictionary<int, Dedo>();
@@ -1122,6 +1155,12 @@ namespace Altepetl
                     {
                         var muro = Mapa.En(Mapa.MundoACasilla(sobre));
                         dedo.EligeMuros = muro != null && _murosElegidos.Contains(muro);
+                        if (dedo.EligeMuros)
+                        {
+                            // Al agarrar una de en medio se sueltan las que siguen después de ella.
+                            dedo.MuroTocado = muro;
+                            dedo.Recorto = RecortarDesde(muro) > 0;
+                        }
                     }
                     continue;
                 }
@@ -1135,7 +1174,7 @@ namespace Altepetl
                 }
                 if (dedo.EligeMuros)
                 {
-                    if (PunteroEnSuelo(dedo.Actual, out Vector3 tocando)) TryAgregarMuro(Mapa.MundoACasilla(tocando));
+                    if (PunteroEnSuelo(dedo.Actual, out Vector3 tocando)) dedo.Agrego |= TryAgregarMuro(Mapa.MundoACasilla(tocando));
                     continue;
                 }
                 if (dedo.Despliega)
@@ -1163,6 +1202,12 @@ namespace Altepetl
             {
                 var dedo = _dedos[id];
                 _dedos.Remove(id);
+                // Un toque en la muralla de la punta (sin nada después) la quita de las elegidas.
+                if (dedo.EligeMuros && !dedo.Recorto && !dedo.Agrego && EligiendoMuros
+                    && _murosElegidos.Count > 1 && dedo.MuroTocado != _murosElegidos[0])
+                {
+                    _murosElegidos.Remove(dedo.MuroTocado);
+                }
                 // En batalla solo cuenta el toque de un dedo que podía desplegar.
                 bool quieto = !dedo.Arrastra && !dedo.Soltando && !dedo.EnHud && !dedo.Pinta && !dedo.EligeMuros;
                 if (quieto && batalla && dedo.SinTropas && Time.time - dedo.Desde < SegundosParaSoltarSeguido)

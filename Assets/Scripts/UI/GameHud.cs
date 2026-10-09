@@ -179,7 +179,7 @@ namespace Altepetl
                 GUI.Box(barra, GUIContent.none, _caja);
                 int elegidos = Manager.CuantosMurosElegidos;
                 GUI.Label(new Rect(16, barra.y + 8, ancho - 560, 50),
-                    $"Murallas elegidas: {elegidos}. Arrastra desde una elegida sobre las que están pegadas, o toca una pegada.", _textoChico);
+                    $"Murallas elegidas: {elegidos}. Arrastra desde una elegida para sumar las pegadas; toca una elegida para soltar las que siguen.", _textoChico);
                 float x = ancho - 540;
                 if (GUI.Button(new Rect(x, barra.y + 8, 120, 48), "Línea", _boton)) Manager.ElegirLineaCompleta();
                 if (GUI.Button(new Rect(x + 130, barra.y + 8, 120, 48), "Conectados", _boton)) Manager.ElegirConectados();

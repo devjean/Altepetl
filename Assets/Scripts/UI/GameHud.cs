@@ -535,7 +535,7 @@ namespace Altepetl
                 return;
             }
 
-            var panel = new Rect((ancho - 460) / 2, AltoBarraSuperior + 10, 460, 300);
+            var panel = new Rect((ancho - 460) / 2, AltoBarraSuperior + 10, 460, 356);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
             Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Ajustes");
@@ -553,11 +553,14 @@ namespace Altepetl
             GUI.enabled = nahuatl;
             if (GUI.Button(new Rect(panel.x + 300, y - 4, 130, 36), "Español", _boton)) Terminos.Nahuatl = false;
             GUI.enabled = true;
-            GUI.Label(new Rect(panel.x + 20, y + 38, panel.width - 40, 40),
-                Terminos.Nahuatl ? "Tropas: yaoquizqueh, «los que salen a la guerra». Construir: calquetza, «levantar casa»."
-                                 : "Tropas y Construir en español.", _textoChico);
+            GUI.Label(new Rect(panel.x + 20, y + 38, panel.width - 40, 100),
+                Terminos.Nahuatl
+                    ? "Yaoquizqueh: tropas. Calquetza: construir. Yaoyotl: guerra. Altepetl: aldea. Tlaolli: maíz. "
+                      + "Cuahuitl: madera. Itztli: obsidiana. Quetzalli: plumas. Tropas por su arma: macuahuitl, "
+                      + "tlahuitolli (arco), tematlatl (honda)."
+                    : "Tropas, recursos y botones en español. Edificios, dioses y rangos siguen en náhuatl.", _textoChico);
 
-            y += 92;
+            y += 146;
             GUI.Label(new Rect(panel.x + 20, y, 140, 30), "Idioma", _texto);
             GUI.Label(new Rect(panel.x + 160, y, 270, 30), "Español (más idiomas próximamente)", _textoChico);
             y += 40;
@@ -749,7 +752,7 @@ namespace Altepetl
             if (Manager.Colocando != null) return;
             var rect = new Rect(10, alto - 60, 150, 50);
             Zona(rect);
-            if (GUI.Button(rect, $"Atacar\n({Manager.Ejercito.Total} {Terminos.Tropas})", _boton))
+            if (GUI.Button(rect, $"{Terminos.Atacar}\n({Manager.Ejercito.Total} {Terminos.Tropas})", _boton))
             {
                 _campanaAbierta = !_campanaAbierta && _nivelArmando < 0 && _nivelHistoria < 0;
                 _nivelArmando = -1;
@@ -814,7 +817,7 @@ namespace Altepetl
                     $"{nivel.Descripcion}\n{premio}", _textoChico);
 
                 GUI.enabled = disponible && ejercito.Total > 0;
-                if (GUI.Button(new Rect(fila.xMax - 120, fila.y + 11, 110, 44), disponible ? "Atacar" : "Bloqueado", _boton))
+                if (GUI.Button(new Rect(fila.xMax - 120, fila.y + 11, 110, 44), disponible ? Terminos.AtacarCorto : "Bloqueado", _boton))
                 {
                     _campanaAbierta = false;
                     if (string.IsNullOrEmpty(nivel.Historia))
@@ -1103,7 +1106,7 @@ namespace Altepetl
                            + $"\nBotín: {(botin.Length > 0 ? botin : "nada")}";
             if (resultado.Plumas > 0) texto += $"\nPlumas de quetzal: +{resultado.Plumas}";
             if (resultado.DefensoresDerrotados > 0) texto += $"\nDefensores vencidos: {resultado.DefensoresDerrotados}";
-            if (resultado.Regresan > 0) texto += $"\nRegresan a la aldea: {resultado.Regresan} {Terminos.Tropas}";
+            if (resultado.Regresan > 0) texto += $"\nRegresan {Terminos.AlAldea}: {resultado.Regresan} {Terminos.Tropas}";
             if (resultado.Heridos > 0)
             {
                 texto += Manager.CamasCuracion > 0
@@ -1120,7 +1123,7 @@ namespace Altepetl
             else if (!resultado.Victoria) texto += $"\nPara ganar necesitas un macuahuitl: destruye el {Mathf.RoundToInt(BattleManager.VictoriaMinima * 100)}% o derriba el tecpan.";
             GUI.Label(new Rect(panel.x + 20, panel.y + 92, panel.width - 40, 268), texto, _texto);
 
-            if (GUI.Button(new Rect(panel.x + 100, panel.yMax - 64, panel.width - 200, 48), "Volver a la aldea", _boton))
+            if (GUI.Button(new Rect(panel.x + 100, panel.yMax - 64, panel.width - 200, 48), $"Volver {Terminos.AlAldea}", _boton))
             {
                 Manager.VolverAAldea();
             }

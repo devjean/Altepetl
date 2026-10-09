@@ -29,6 +29,8 @@ namespace Altepetl
         private GUIStyle _caja;
         private Texture2D _blanco;
         private Texture2D _engrane;
+        private Texture2D _iconoMaiz, _iconoMadera, _iconoObsidiana, _iconoPluma, _iconoCautivo, _iconoGente;
+        private GUIStyle _textoBarra;
         private bool _campanaAbierta;
         private bool _menuAbierto;
         private bool _ofrendasAbierto;
@@ -151,27 +153,97 @@ namespace Altepetl
             }
         }
 
+        private const float AnchoColumnaRecursos = 210f;
+        private const float AltoFilaRecurso = 30f;
+
+        /// <summary>
+        /// Como en Clash: arriba a la derecha, en columna, cada recurso con su ícono y una barra
+        /// que se llena según el almacén (el número va adentro). Quetzalli y mamaltin no tienen
+        /// tope y comparten la última fila. Arriba al centro, los macehualtin libres; a la izquierda, el pueblo.
+        /// </summary>
         private void DibujarRecursos(float ancho)
         {
-            var barra = new Rect(0, 0, ancho, AltoBarraSuperior);
-            Zona(barra);
-            GUI.Box(barra, GUIContent.none, _caja);
-
             var banco = Manager.Banco;
-            float x = 10f;
-            float anchoCelda = (ancho - 20f - 44f) / (ResourceInfo.Count + 1);  // a la derecha queda el engrane
-            for (int i = 0; i < ResourceInfo.Count; i++)
+            float x = ancho - 50f - AnchoColumnaRecursos;
+            float y = 6f;
+            foreach (var tipo in new[] { ResourceType.Maiz, ResourceType.Madera, ResourceType.Obsidiana })
             {
-                var tipo = (ResourceType)i;
                 int maximo = banco.Capacidad(tipo);
-                string capacidad = maximo == int.MaxValue ? "" : $" / {maximo}";
-                GUI.Label(new Rect(x, 10, anchoCelda, 24), $"{ResourceInfo.Nombre(tipo)}: {banco.Get(tipo)}{capacidad}", _texto);
-                x += anchoCelda;
+                int cantidad = banco.Get(tipo);
+                var fila = new Rect(x, y, AnchoColumnaRecursos, AltoFilaRecurso - 4f);
+                Zona(fila);
+                GUI.DrawTexture(new Rect(fila.x, fila.y, fila.height, fila.height), IconoDe(tipo));
+                BarraHud(new Rect(fila.x + fila.height + 4f, fila.y + 2f, fila.width - fila.height - 4f, fila.height - 4f),
+                    maximo > 0 ? (float)cantidad / maximo : 0f, ColorRecurso(tipo), $"{cantidad} / {maximo}");
+                y += AltoFilaRecurso;
             }
+            // Quetzalli y mamaltin, sin tope: solo el número.
+            float mitad = (AnchoColumnaRecursos - 6f) / 2f;
+            foreach (var tipo in new[] { ResourceType.Plumas, ResourceType.Cautivos })
+            {
+                var fila = new Rect(x, y, mitad, AltoFilaRecurso - 4f);
+                Zona(fila);
+                GUI.DrawTexture(new Rect(fila.x, fila.y, fila.height, fila.height), IconoDe(tipo));
+                BarraHud(new Rect(fila.x + fila.height + 4f, fila.y + 2f, fila.width - fila.height - 4f, fila.height - 4f),
+                    0f, ColorRecurso(tipo), banco.Get(tipo).ToString());
+                x += mitad + 6f;
+            }
+
+            // Arriba al centro: cuánta gente queda libre para obras.
+            var gente = new Rect((ancho - 200f) / 2f, 6f, 200f, AltoFilaRecurso - 4f);
+            Zona(gente);
+            GUI.DrawTexture(new Rect(gente.x, gente.y, gente.height, gente.height), _iconoGente);
+            int libres = Manager.MacehualtinLibres;
+            int poblacion = Manager.Poblacion;
+            BarraHud(new Rect(gente.x + gente.height + 4f, gente.y + 2f, gente.width - gente.height - 4f, gente.height - 4f),
+                poblacion > 0 ? (float)libres / poblacion : 0f, new Color(0.85f, 0.78f, 0.55f), $"{libres} / {poblacion}");
+
+            // Arriba a la izquierda: el pueblo (y el favor de Huitzilopochtli).
             string pueblo = Manager.Culto.UsaFavor
                 ? $"{Manager.Pueblo.Nombre} · Favor {Mathf.FloorToInt(Manager.Culto.Favor)}"
                 : Manager.Pueblo.Nombre;
-            GUI.Label(new Rect(x, 10, anchoCelda, 24), pueblo, _texto);
+            var caja = new Rect(10f, 6f, 230f, AltoFilaRecurso);
+            Zona(caja);
+            GUI.Box(caja, GUIContent.none, _caja);
+            GUI.Label(new Rect(caja.x + 8f, caja.y + 4f, caja.width - 16f, 24f), pueblo, _textoUnaLinea);
+        }
+
+        /// <summary>Barra oscura que se llena con el color dado; el texto va centrado adentro, con sombra.</summary>
+        private void BarraHud(Rect rect, float fraccion, Color color, string texto)
+        {
+            GUI.color = new Color(0f, 0f, 0f, 0.65f);
+            GUI.DrawTexture(rect, _blanco);
+            GUI.color = color;
+            GUI.DrawTexture(new Rect(rect.x + 1f, rect.y + 1f, (rect.width - 2f) * Mathf.Clamp01(fraccion), rect.height - 2f), _blanco);
+            GUI.color = Color.white;
+            _textoBarra.normal.textColor = new Color(0f, 0f, 0f, 0.8f);
+            GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), texto, _textoBarra);
+            _textoBarra.normal.textColor = Color.white;
+            GUI.Label(rect, texto, _textoBarra);
+        }
+
+        private static Color ColorRecurso(ResourceType tipo)
+        {
+            switch (tipo)
+            {
+                case ResourceType.Maiz: return new Color(0.90f, 0.72f, 0.20f);
+                case ResourceType.Madera: return new Color(0.55f, 0.36f, 0.20f);
+                case ResourceType.Obsidiana: return new Color(0.42f, 0.38f, 0.52f);
+                case ResourceType.Plumas: return new Color(0.10f, 0.55f, 0.40f);
+                default: return new Color(0.60f, 0.45f, 0.35f);
+            }
+        }
+
+        private Texture2D IconoDe(ResourceType tipo)
+        {
+            switch (tipo)
+            {
+                case ResourceType.Maiz: return _iconoMaiz;
+                case ResourceType.Madera: return _iconoMadera;
+                case ResourceType.Obsidiana: return _iconoObsidiana;
+                case ResourceType.Plumas: return _iconoPluma;
+                default: return _iconoCautivo;
+            }
         }
 
         private void DibujarMenuConstruccion(float ancho, float alto)
@@ -473,7 +545,8 @@ namespace Altepetl
                 : new List<RequisitoTecpan>();
             float altoPanel = entrena ? 410 : def.CamasCuracion > 0 ? 310 : 250;
             if (faltan.Count > 0) altoPanel += 22 + 19 * faltan.Count;
-            var panel = new Rect(ancho - 290, AltoBarraSuperior + 10, 280, altoPanel);
+            // A la izquierda de la columna de recursos, para no taparla.
+            var panel = new Rect(ancho - 60 - AnchoColumnaRecursos - 280, AltoBarraSuperior + 10, 280, altoPanel);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
 
@@ -861,14 +934,8 @@ namespace Altepetl
             if (Manager.EnModoColocar) return;
             var rect = new Rect(10, alto - 60, 150, 50);
             Zona(rect);
-            // Junto a Atacar: cuánta gente queda libre para obras.
-            var gente = new Rect(rect.xMax + 10, rect.y, 150, rect.height);
-            Zona(gente);
-            GUI.Box(gente, GUIContent.none, _caja);
-            GUI.Label(new Rect(gente.x + 8, gente.y + 4, gente.width - 16, gente.height - 8),
-                $"{Terminos.GenteMayuscula}\n{Manager.MacehualtinLibres} de {Manager.Poblacion} libres", _textoChico);
-            // Arriba de la gente: quiénes defienden si atacan la aldea.
-            var defensa = new Rect(gente.x, rect.y - 56, gente.width, rect.height);
+            // Junto a Atacar: quiénes defienden si atacan la aldea.
+            var defensa = new Rect(rect.xMax + 10, rect.y, 150, rect.height);
             Zona(defensa);
             if (GUI.Button(defensa, $"Defensa\n({Manager.TotalDefensoresListos} {Terminos.Tropas})", _boton))
             {
@@ -1521,6 +1588,7 @@ namespace Altepetl
 
             _blanco = Textura(Color.white);
             _engrane = TexturaEngrane(new Color(0.96f, 0.92f, 0.82f));
+            CrearIconos();
             _caja = new GUIStyle(GUI.skin.box);
             _caja.normal.background = Textura(new Color(0.12f, 0.09f, 0.07f, 0.85f));
 
@@ -1539,6 +1607,7 @@ namespace Altepetl
 
             _boton = new GUIStyle(GUI.skin.button) { fontSize = 14, wordWrap = true };
             _botonChico = new GUIStyle(_boton) { fontSize = 12, wordWrap = false, clipping = TextClipping.Clip };
+            _textoBarra = new GUIStyle(_texto) { fontSize = 13, fontStyle = FontStyle.Bold, wordWrap = false, alignment = TextAnchor.MiddleCenter };
 
         }
 
@@ -1569,6 +1638,84 @@ namespace Altepetl
                     // Bordes suaves de medio píxel por fuera y alrededor del hueco.
                     float alfa = Mathf.Clamp01(borde - r + 0.5f) * Mathf.Clamp01(r - 9f + 0.5f);
                     textura.SetPixel(x, y, new Color(color.r, color.g, color.b, alfa));
+                }
+            }
+            textura.Apply();
+            return textura;
+        }
+
+        // ---------- Íconos dibujados por código, hasta tener arte ----------
+
+        private void CrearIconos()
+        {
+            var amarillo = new Color(0.95f, 0.80f, 0.25f);
+            var hoja = new Color(0.35f, 0.62f, 0.25f);
+            // Mazorca con sus hojas abiertas abajo.
+            _iconoMaiz = Icono((x, y) =>
+            {
+                if (Elipse(x, y, 0f, 0.1f, 0.32f, 0.78f))
+                {
+                    // Granos: una cuadrícula apenas marcada.
+                    bool grano = (Mathf.FloorToInt((x + 1f) * 9f) + Mathf.FloorToInt((y + 1f) * 9f)) % 2 == 0;
+                    return grano ? amarillo : Color.Lerp(amarillo, new Color(0.75f, 0.55f, 0.1f), 0.35f);
+                }
+                if (Elipse(x, y, -0.32f, -0.4f, 0.2f, 0.55f) || Elipse(x, y, 0.32f, -0.4f, 0.2f, 0.55f)) return hoja;
+                return Color.clear;
+            });
+            // Tronco acostado, con la punta clara y sus anillos.
+            _iconoMadera = Icono((x, y) =>
+            {
+                if (Elipse(x, y, 0.55f, 0f, 0.28f, 0.42f))
+                {
+                    float r = Mathf.Sqrt((x - 0.55f) * (x - 0.55f) / 0.078f + y * y / 0.176f);
+                    return Mathf.FloorToInt(r * 4f) % 2 == 0 ? new Color(0.85f, 0.66f, 0.42f) : new Color(0.70f, 0.50f, 0.30f);
+                }
+                if (x > -0.85f && x < 0.55f && Mathf.Abs(y) < 0.42f) return new Color(0.50f, 0.32f, 0.18f);
+                return Color.clear;
+            });
+            // Navaja de obsidiana: un rombo negro con una cara brillante.
+            _iconoObsidiana = Icono((x, y) =>
+            {
+                if (Mathf.Abs(x) / 0.6f + Mathf.Abs(y) / 0.92f > 1f) return Color.clear;
+                return x < 0f && y > 0f ? new Color(0.38f, 0.38f, 0.48f) : x > 0f && y < 0f ? new Color(0.05f, 0.05f, 0.08f) : new Color(0.15f, 0.15f, 0.20f);
+            });
+            // Pluma de quetzal: larga, verde, inclinada, con su cañón.
+            _iconoPluma = Icono((x, y) =>
+            {
+                float u = x * 0.82f - y * 0.57f, v = x * 0.57f + y * 0.82f;
+                if (Mathf.Abs(u) < 0.04f && v > -0.95f && v < 0.6f) return new Color(0.85f, 0.85f, 0.7f);
+                if (Elipse(u, v, 0f, 0.15f, 0.3f, 0.8f)) return v > 0.6f ? new Color(0.15f, 0.45f, 0.75f) : new Color(0.10f, 0.62f, 0.38f);
+                return Color.clear;
+            });
+            _iconoCautivo = Icono((x, y) => Persona(x, y, new Color(0.62f, 0.46f, 0.36f)));
+            _iconoGente = Icono((x, y) => Persona(x, y, new Color(0.92f, 0.88f, 0.75f)));
+        }
+
+        private static Color Persona(float x, float y, Color color)
+        {
+            if (Elipse(x, y, 0f, 0.5f, 0.27f, 0.27f)) return color;
+            if (Elipse(x, y, 0f, -0.45f, 0.48f, 0.55f) && y < 0.15f) return color;
+            return Color.clear;
+        }
+
+        private static bool Elipse(float x, float y, float cx, float cy, float rx, float ry)
+        {
+            float dx = (x - cx) / rx, dy = (y - cy) / ry;
+            return dx * dx + dy * dy <= 1f;
+        }
+
+        /// <summary>Un ícono de 48×48: pixel(x, y) recibe coordenadas de -1 a 1 (y hacia arriba).</summary>
+        private static Texture2D Icono(System.Func<float, float, Color> pixel)
+        {
+            const int lado = 48;
+            var textura = new Texture2D(lado, lado);
+            for (int i = 0; i < lado; i++)
+            {
+                for (int j = 0; j < lado; j++)
+                {
+                    float x = (i + 0.5f) / lado * 2f - 1f;
+                    float y = (j + 0.5f) / lado * 2f - 1f;
+                    textura.SetPixel(i, j, pixel(x, y));
                 }
             }
             textura.Apply();

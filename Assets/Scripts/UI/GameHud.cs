@@ -33,6 +33,7 @@ namespace Altepetl
         private bool _menuAbierto;
         private bool _ofrendasAbierto;
         private bool _ajustesAbierto;
+        private bool _defensaAbierta;
         private int _nivelHistoria = -1;        // capítulo cuya historia se está leyendo
         private int _nivelArmando = -1;         // nivel de campaña para el que se arma el ejército
         private SeleccionEjercito _seleccion;
@@ -81,12 +82,15 @@ namespace Altepetl
             DibujarInsigniaOfrenda();
             DibujarMenuConstruccion(ancho, alto);
             DibujarBotonAtacar(alto);
+            DibujarAsalto(ancho, alto);
             DibujarPanelSeleccion(ancho);
             DibujarCampana(ancho);
             DibujarHistoria(ancho);
             DibujarArmarEjercito(ancho);
             DibujarOfrendas(ancho);
             DibujarAjustes(ancho, alto);
+            DibujarDefensa(ancho);
+            DibujarResultadoAsalto(ancho, alto);
             DibujarMensaje(ancho, alto);
         }
 
@@ -233,6 +237,7 @@ namespace Altepetl
                 {
                     _campanaAbierta = false;
                     _ofrendasAbierto = false;
+                    _defensaAbierta = false;
                     Manager.Seleccionar(null);
                 }
             }
@@ -862,8 +867,21 @@ namespace Altepetl
             GUI.Box(gente, GUIContent.none, _caja);
             GUI.Label(new Rect(gente.x + 8, gente.y + 4, gente.width - 16, gente.height - 8),
                 $"{Terminos.GenteMayuscula}\n{Manager.MacehualtinLibres} de {Manager.Poblacion} libres", _textoChico);
+            // Arriba de la gente: quiénes defienden si atacan la aldea.
+            var defensa = new Rect(gente.x, rect.y - 56, gente.width, rect.height);
+            Zona(defensa);
+            if (GUI.Button(defensa, $"Defensa\n({Manager.TotalDefensoresListos} {Terminos.Tropas})", _boton))
+            {
+                _defensaAbierta = !_defensaAbierta;
+                if (_defensaAbierta) CerrarPaneles();
+            }
             if (GUI.Button(rect, $"{Terminos.Atacar}\n({Manager.Ejercito.Total} {Terminos.Tropas})", _boton))
             {
+                if (Manager.Asalto.Activo)
+                {
+                    Manager.MostrarMensaje($"Primero defiende {Terminos.TuAldea}");
+                    return;
+                }
                 _campanaAbierta = !_campanaAbierta && _nivelArmando < 0 && _nivelHistoria < 0;
                 _nivelArmando = -1;
                 _nivelHistoria = -1;
@@ -871,6 +889,7 @@ namespace Altepetl
                 {
                     _menuAbierto = false;
                     _ofrendasAbierto = false;
+                    _defensaAbierta = false;
                     Manager.Seleccionar(null);
                 }
             }
@@ -1105,6 +1124,184 @@ namespace Altepetl
         }
 
         // ---------- Batalla ----------
+
+        // ---------- Ataques a la aldea ----------
+
+        private void CerrarPaneles()
+        {
+            _menuAbierto = false;
+            _campanaAbierta = false;
+            _ofrendasAbierto = false;
+            _ajustesAbierto = false;
+            _nivelArmando = -1;
+            _nivelHistoria = -1;
+            Manager.Seleccionar(null);
+        }
+
+        /// <summary>El aviso arriba, el tiempo del ataque y las barras de vida.</summary>
+        private void DibujarAsalto(float ancho, float alto)
+        {
+            var asalto = Manager.Asalto;
+            if (asalto.EstadoActual == Asalto.Estado.Aviso)
+            {
+                var aviso = new Rect((ancho - 420) / 2, AltoBarraSuperior + 8, 420, 62);
+                Zona(aviso);
+                GUI.Box(aviso, GUIContent.none, _caja);
+                int defienden = Manager.TotalDefensoresListos;
+                GUI.Label(new Rect(aviso.x + 10, aviso.y + 4, aviso.width - 130, 56),
+                    $"¡Se acercan enemigos! Llegan en {Mathf.CeilToInt(asalto.SegundosAviso)} s."
+                    + $"\nVienen {Terminos.TropasCuenta(asalto.CuantosVienen)}. Defienden: {defienden}.", _textoChico);
+                if (GUI.Button(new Rect(aviso.xMax - 116, aviso.y + 8, 106, 46), "Defensa", _boton))
+                {
+                    _defensaAbierta = true;
+                    CerrarPaneles();
+                }
+                return;
+            }
+            if (asalto.EstadoActual != Asalto.Estado.EnCurso) return;
+
+            var barra = new Rect((ancho - 420) / 2, AltoBarraSuperior + 8, 420, 40);
+            Zona(barra);
+            GUI.Box(barra, GUIContent.none, _caja);
+            int segundos = Mathf.CeilToInt(asalto.TiempoRestante);
+            GUI.Label(new Rect(barra.x + 10, barra.y + 8, barra.width - 20, 26),
+                $"Atacan {Terminos.TuAldea}: quedan {asalto.InvasoresVivos} de {asalto.Invasores.Count}    {segundos / 60}:{segundos % 60:00}", _texto);
+
+            var camara = Camera.main;
+            if (camara == null || Event.current.type != EventType.Repaint) return;
+            foreach (var edificio in Manager.Edificios)
+            {
+                if (edificio.DanoAsalto <= 0f || edificio.Derribado) continue;
+                var arriba = edificio.transform.position + Vector3.up * (edificio.AlturaModelo + 0.4f);
+                BarraDeVida(camara, arriba, edificio.FraccionVidaAsalto, edificio.Definicion.Tamano > 1 ? 44f : 24f, new Color(0.3f, 0.85f, 0.3f));
+            }
+            foreach (var combatiente in asalto.Invasores) BarraCombatiente(camara, combatiente, new Color(0.85f, 0.2f, 0.15f));
+            foreach (var combatiente in asalto.Defensores) BarraCombatiente(camara, combatiente, new Color(0.3f, 0.85f, 0.3f));
+        }
+
+        private void BarraCombatiente(Camera camara, Combatiente combatiente, Color color)
+        {
+            if (combatiente == null || combatiente.Muerto || combatiente.Vida >= combatiente.VidaMaxima) return;
+            BarraDeVida(camara, combatiente.transform.position + Vector3.up * 0.9f, combatiente.FraccionVida, 22f, color);
+        }
+
+        /// <summary>Quiénes salen a defender la aldea, por tipo y rango (solo los sanos pelean).</summary>
+        private void DibujarDefensa(float ancho)
+        {
+            if (!_defensaAbierta) return;
+            if (Manager.Seleccionado != null || Manager.EnModoColocar || _menuAbierto || _campanaAbierta
+                || _ofrendasAbierto || _ajustesAbierto || _nivelArmando >= 0 || _nivelHistoria >= 0)
+            {
+                _defensaAbierta = false;
+                return;
+            }
+
+            var ejercito = Manager.Ejercito;
+            var panel = new Rect((ancho - 560) / 2, AltoBarraSuperior + 10, 560, 440);
+            Zona(panel);
+            GUI.Box(panel, GUIContent.none, _caja);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), $"Defensa de {Terminos.TuAldea}");
+            if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
+            {
+                _defensaAbierta = false;
+                return;
+            }
+            GUI.Label(new Rect(panel.x + 20, panel.y + 40, panel.width - 40, 56),
+                $"Si atacan {Terminos.TuAldea}, salen a pelear {Terminos.Los} que elijas (solo {Terminos.Los} san{Terminos.O}s). "
+                + $"{(Terminos.Nahuatl ? "Los" : "Las")} que caen se pierden y {Terminos.Los} herid{Terminos.O}s van al temazcalli. "
+                + $"{(Terminos.Nahuatl ? "Los" : "Las")} demás se resguardan.", _textoChico);
+
+            bool enCurso = Manager.Asalto.EnCurso;
+            float y = panel.y + 104;
+            bool hayFilas = false;
+            foreach (var tropa in TroopCatalog.Todos)
+            {
+                for (int r = Rangos.Count - 1; r >= 0; r--)
+                {
+                    int sanos = ejercito.Get(tropa.Id, r);
+                    if (sanos == 0) continue;
+                    hayFilas = true;
+                    int elegidos = Mathf.Min(Manager.DefensaElegida(tropa.Id, r), sanos);
+                    GUI.Label(new Rect(panel.x + 20, y + 8, 300, 26),
+                        $"{tropa.Nombre} · {Rangos.Nombre(Manager.Pueblo, r).ToLowerInvariant()}", _textoUnaLinea);
+                    GUI.enabled = !enCurso;
+                    int nuevo = Contador(new Rect(panel.x + 340, y, 190, 34), elegidos, sanos, "");
+                    GUI.enabled = true;
+                    if (nuevo != elegidos) Manager.ElegirDefensa(tropa.Id, r, nuevo);
+                    y += 38;
+                }
+            }
+            if (!hayFilas)
+            {
+                GUI.Label(new Rect(panel.x + 20, y, panel.width - 40, 30), $"No tienes {Terminos.Tropas} san{Terminos.O}s en {Terminos.TuAldea}.", _texto);
+            }
+            if (enCurso)
+            {
+                GUI.Label(new Rect(panel.x + 20, panel.yMax - 96, panel.width - 40, 30), "Durante el ataque ya no se puede cambiar.", _textoChico);
+            }
+
+            GUI.enabled = !enCurso;
+            if (GUI.Button(new Rect(panel.x + 20, panel.yMax - 60, 140, 44), "Todas", _boton))
+            {
+                foreach (var tropa in TroopCatalog.Todos)
+                {
+                    for (int r = 0; r < Rangos.Count; r++) Manager.ElegirDefensa(tropa.Id, r, ejercito.Get(tropa.Id, r));
+                }
+            }
+            if (GUI.Button(new Rect(panel.x + 170, panel.yMax - 60, 140, 44), "Ninguna", _boton))
+            {
+                foreach (var tropa in TroopCatalog.Todos)
+                {
+                    for (int r = 0; r < Rangos.Count; r++) Manager.ElegirDefensa(tropa.Id, r, 0);
+                }
+            }
+            GUI.enabled = true;
+            if (GUI.Button(new Rect(panel.xMax - 160, panel.yMax - 60, 140, 44), "Listo", _boton))
+            {
+                _defensaAbierta = false;
+                Manager.Guardar();
+            }
+        }
+
+        private void DibujarResultadoAsalto(float ancho, float alto)
+        {
+            var resultado = Manager.Asalto.Resultado;
+            if (Manager.Asalto.EstadoActual != Asalto.Estado.Resultado || resultado == null) return;
+
+            var panel = new Rect((ancho - 480) / 2, (alto - 380) / 2, 480, 380);
+            Zona(panel);
+            GUI.Box(panel, GUIContent.none, _caja);
+            Titulo(new Rect(panel.x + 10, panel.y + 12, panel.width - 20, 34),
+                resultado.Defendida ? $"¡Defendiste {Terminos.TuAldea}!" : (resultado.Derribados > 0 ? "Saquearon " + Terminos.TuAldea : "Se retiraron"));
+
+            string perdidas = TextoCosto(resultado.Perdidas);
+            string texto = $"Enemigos vencidos: {resultado.Vencidos} de {resultado.Invasores}"
+                           + $"\nEdificios derribados: {resultado.Derribados}"
+                           + $"\nSe llevaron: {(perdidas.Length > 0 ? perdidas : "nada")}";
+            if (resultado.Defensores > 0)
+            {
+                texto += $"\nDefendieron: {Terminos.TropasCuenta(resultado.Defensores)}";
+                if (resultado.Caidos > 0) texto += $"\nCayeron: {resultado.Caidos}";
+                if (resultado.Heridos > 0)
+                {
+                    texto += Manager.CamasCuracion > 0
+                        ? $"\nHerid{Terminos.O}s: {resultado.Heridos}, se curarán en el temazcalli"
+                        : $"\nHerid{Terminos.O}s: {resultado.Heridos}. Construye un temazcalli para curarl{Terminos.O}s";
+                }
+            }
+            else
+            {
+                texto += $"\nNadie salió a defender. Elige defensores en Defensa.";
+            }
+            if (resultado.Cautivos > 0) texto += $"\nMamaltin capturados: +{resultado.Cautivos}";
+            texto += "\nTus edificios se reparan solos.";
+            GUI.Label(new Rect(panel.x + 20, panel.y + 56, panel.width - 40, 250), texto, _texto);
+
+            if (GUI.Button(new Rect(panel.x + 120, panel.yMax - 64, panel.width - 240, 48), "Aceptar", _boton))
+            {
+                Manager.Asalto.Cerrar();
+            }
+        }
 
         private void DibujarBatalla(float ancho, float alto)
         {

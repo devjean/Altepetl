@@ -19,6 +19,14 @@ namespace Altepetl
         public string Nombre => Definicion.NombrePara(_pueblo);
         public float Acumulado => _acumulado;
 
+        /// <summary>Daño recibido en el ataque en curso a la aldea. Al terminar el ataque se repara solo.</summary>
+        public float DanoAsalto { get; private set; }
+        public bool Derribado => DanoAsalto > 0f && DanoAsalto >= Vida;
+        public float FraccionVidaAsalto => Mathf.Clamp01(1f - DanoAsalto / Mathf.Max(1, Vida));
+        /// <summary>Radio aproximado, para saber cuándo una tropa ya lo alcanza.</summary>
+        public float Radio => Definicion.Id == BuildingId.Muralla ? 0.35f : Definicion.Tamano * 0.45f;
+        public float AlturaModelo => _base + _modelo.localScale.y;
+
         private Pueblo _pueblo;
         private ResourceBank _banco;
 
@@ -115,9 +123,27 @@ namespace Altepetl
             ActualizarVisual();
         }
 
+        /// <summary>Recibe daño de un invasor. Devuelve true si con este golpe quedó derribado.</summary>
+        public bool RecibirDanoAsalto(float cantidad)
+        {
+            if (Derribado) return false;
+            DanoAsalto += cantidad;
+            ActualizarVisual();
+            return Derribado;
+        }
+
+        /// <summary>Terminado el ataque, el edificio vuelve a quedar como estaba.</summary>
+        public void Reparar()
+        {
+            if (DanoAsalto <= 0f) return;
+            DanoAsalto = 0f;
+            ActualizarVisual();
+        }
+
         private void Update()
         {
             AvanzarConstruccion(Time.deltaTime);
+            if (Derribado) return; // un edificio derribado no produce hasta que termine el ataque
             if (EnConstruccion)
             {
                 ActualizarVisual();
@@ -283,12 +309,15 @@ namespace Altepetl
                 altura = alturaNivel * Mathf.Lerp(0.2f, 1f, progreso);
             }
             altura = Mathf.Max(0.05f, altura);
+            if (Derribado) altura = 0.08f; // quedan ruinas hasta que termine el ataque
 
             _modelo.localScale = new Vector3(lado, altura, lado);
             _modelo.localPosition = new Vector3(0f, _base + altura * 0.5f, 0f);
             _render.material.color = EnConstruccion
                 ? Color.Lerp(Color.gray, Definicion.Color, 0.4f)
                 : Definicion.Color;
+            if (Derribado) _render.material.color = new Color(0.25f, 0.22f, 0.2f);
+            else if (DanoAsalto > 0f) _render.material.color = Color.Lerp(new Color(0.3f, 0.1f, 0.1f), _render.material.color, FraccionVidaAsalto);
 
             // Tramos: del borde de este poste al del vecino, un poco más bajos y delgados.
             float alturaTramo = altura * 0.85f;

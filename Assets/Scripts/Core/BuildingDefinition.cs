@@ -235,13 +235,14 @@ namespace Altepetl
             {
                 Id = BuildingId.Torre,
                 Nombre = "Torre de vigía",
-                Descripcion = "Vigila los alrededores y dispara a [los] [tropas] enemig[o]s que se acercan.",
+                Descripcion = "Vigila los alrededores y dispara a [los] [tropas] enemig[o]s que se acercan. "
+                              + "Si van a atacar, avisa antes y marca por dónde vienen.",
                 Altura = 1.8f,
                 Color = new Color(0.55f, 0.50f, 0.45f),
                 Costo = ResourceInfo.Costo(madera: 120, obsidiana: 60),
                 SegundosConstruccion = 25f,
-                Construible = false, // de momento solo en aldeas enemigas
                 Categoria = CategoriaEdificio.Defensas,
+                MaximoPorTecpan = new[] { 1, 2, 3, 4, 5 },
                 VidaBase = 400,
                 EsDefensa = true,
                 AlcanceDefensa = 3.5f,

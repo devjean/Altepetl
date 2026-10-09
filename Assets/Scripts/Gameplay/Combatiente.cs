@@ -19,6 +19,10 @@ namespace Altepetl
         public float VidaMaxima { get; private set; }
         public float FraccionVida => VidaMaxima > 0f ? Vida / VidaMaxima : 0f;
         public bool Muerto => Vida <= 0f;
+        /// <summary>Peleó contra algún invasor (para subir de rango al terminar).</summary>
+        public bool Peleo { get; private set; }
+        /// <summary>Invasores que capturó en este ataque.</summary>
+        public int Capturas { get; set; }
 
         private Asalto _asalto;
         private float _danoPorSegundo;
@@ -139,6 +143,7 @@ namespace Altepetl
                 Caminar(rival.transform.position, Definicion.Alcance + 0.2f);
                 return;
             }
+            Peleo = true;
             rival.RecibirDano(_danoPorSegundo * Time.deltaTime, this);
         }
 

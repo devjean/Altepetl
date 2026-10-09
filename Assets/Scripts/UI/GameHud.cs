@@ -1293,6 +1293,12 @@ namespace Altepetl
             {
                 texto += $"\nNadie salió a defender. Elige defensores en Defensa.";
             }
+            var ascensos = new List<string>();
+            for (int r = Rangos.Count - 1; r > 0; r--)
+            {
+                if (resultado.Ascensos[r] > 0) ascensos.Add($"{resultado.Ascensos[r]} a {Rangos.Nombre(Manager.Pueblo, r).ToLowerInvariant()}");
+            }
+            if (ascensos.Count > 0) texto += "\nAscensos: " + string.Join(", ", ascensos);
             if (resultado.Cautivos > 0) texto += $"\nMamaltin capturados: +{resultado.Cautivos}";
             texto += "\nTus edificios se reparan solos.";
             GUI.Label(new Rect(panel.x + 20, panel.y + 56, panel.width - 40, 250), texto, _texto);

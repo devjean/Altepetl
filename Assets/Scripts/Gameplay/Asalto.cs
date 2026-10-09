@@ -15,6 +15,7 @@ namespace Altepetl
         public int Caidos;
         public int Heridos;
         public int Cautivos;
+        public int[] Ascensos = new int[Rangos.Count]; // cuántos subieron a cada rango
     }
 
     /// <summary>
@@ -213,22 +214,25 @@ namespace Altepetl
             }
             if (_cautivos > 0) Manager.Banco.Add(ResourceType.Cautivos, _cautivos);
 
-            // Los defensores que cayeron se pierden; los heridos van al temazcalli.
+            // Los defensores que cayeron se pierden; los heridos van al temazcalli. Los que pelearon
+            // y sobrevivieron suben de rango como al volver de batalla (tlamani si capturaron).
             foreach (var defensor in _defensores)
             {
+                var id = defensor.Definicion.Id;
                 if (defensor.Muerto)
                 {
                     resultado.Caidos++;
-                    Manager.Ejercito.Quitar(defensor.Definicion.Id, defensor.Rango);
+                    Manager.Ejercito.Quitar(id, defensor.Rango);
                     Manager.AlCaerTropa(defensor.Definicion);
+                    continue;
                 }
-                else if (defensor.FraccionVida < 0.999f)
+                int nuevo = defensor.Peleo ? Rangos.AlRegresar(defensor.Rango, defensor.Capturas) : defensor.Rango;
+                bool herido = defensor.FraccionVida < 0.999f;
+                if (herido) resultado.Heridos++;
+                if (nuevo > defensor.Rango) resultado.Ascensos[nuevo]++;
+                if ((herido || nuevo != defensor.Rango) && Manager.Ejercito.Quitar(id, defensor.Rango))
                 {
-                    resultado.Heridos++;
-                    if (Manager.Ejercito.Quitar(defensor.Definicion.Id, defensor.Rango))
-                    {
-                        Manager.Ejercito.Regresar(defensor.Definicion.Id, defensor.Rango, defensor.FraccionVida);
-                    }
+                    Manager.Ejercito.Regresar(id, nuevo, defensor.FraccionVida);
                 }
             }
             Resultado = resultado;
@@ -274,6 +278,7 @@ namespace Altepetl
             if (atacante != null && !atacante.Invasor && !atacante.Muerto
                 && Random.value < Rangos.ProbabilidadCaptura(Manager.Pueblo))
             {
+                atacante.Capturas++;
                 _cautivos++;
             }
         }

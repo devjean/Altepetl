@@ -808,6 +808,7 @@ namespace Altepetl
             public Vector2 Ultima;
             public Vector2 Actual;
             public float Desde;
+            public bool Despliega;      // en batalla empezó donde se puede soltar tropas: solo despliega
             public bool Arrastra;       // se movió: mueve el mapa o hace zoom
             public bool Soltando;       // se quedó quieto en batalla: suelta tropas seguidas
             public float SiguienteTropa;
@@ -849,17 +850,29 @@ namespace Altepetl
                         Desde = Time.time, EnHud = _hud.PunteroSobreHud(lectura.Value),
                     };
                     _dedos[lectura.Key] = dedo;
+                    // En batalla: donde se puede desplegar, el dedo suelta tropas; sobre los edificios
+                    // (o fuera del campo) mueve el mapa o hace zoom, y se marca la zona prohibida.
+                    if (batalla && !dedo.EnHud && PunteroEnSuelo(dedo.Inicio, out Vector3 punto))
+                    {
+                        dedo.Despliega = Batalla.PuedeDesplegarEn(punto);
+                        if (!dedo.Despliega) Batalla.MostrarZonaProhibida();
+                    }
                     continue;
                 }
                 dedo.Ultima = dedo.Actual;
                 dedo.Actual = lectura.Value;
                 if (dedo.EnHud || dedo.Soltando) continue;
-                if (!dedo.Arrastra && Vector2.Distance(dedo.Actual, dedo.Inicio) > umbral) dedo.Arrastra = true;
-                if (batalla && !dedo.Arrastra && Time.time - dedo.Desde >= SegundosParaSoltarSeguido)
+                if (dedo.Despliega)
                 {
-                    dedo.Soltando = true;
-                    dedo.SiguienteTropa = Time.time;
+                    // Quieto un momento o deslizándose: suelta tropas seguidas.
+                    if (Time.time - dedo.Desde >= SegundosParaSoltarSeguido || Vector2.Distance(dedo.Actual, dedo.Inicio) > umbral)
+                    {
+                        dedo.Soltando = true;
+                        dedo.SiguienteTropa = Time.time;
+                    }
+                    continue;
                 }
+                if (!dedo.Arrastra && Vector2.Distance(dedo.Actual, dedo.Inicio) > umbral) dedo.Arrastra = true;
             }
 
             // Dedos que se levantaron: si no se movieron, cuentan como toque.
@@ -874,7 +887,8 @@ namespace Altepetl
             {
                 var dedo = _dedos[id];
                 _dedos.Remove(id);
-                if (!dedo.Arrastra && !dedo.Soltando && !dedo.EnHud)
+                // En batalla solo cuenta el toque de un dedo que podía desplegar.
+                if (!dedo.Arrastra && !dedo.Soltando && !dedo.EnHud && (!batalla || dedo.Despliega))
                 {
                     huboToque = true;
                     toque = dedo.Actual;
@@ -886,7 +900,8 @@ namespace Altepetl
             {
                 if (!dedo.Soltando || !batalla || Time.time < dedo.SiguienteTropa) continue;
                 dedo.SiguienteTropa = Time.time + SegundosEntreTropas;
-                if (PunteroEnSuelo(dedo.Actual, out Vector3 punto)) Batalla.Desplegar(punto);
+                // Al deslizarse sobre un edificio simplemente no suelta ahí.
+                if (PunteroEnSuelo(dedo.Actual, out Vector3 punto) && Batalla.PuedeDesplegarEn(punto)) Batalla.Desplegar(punto);
             }
 
             // Mover el mapa o hacer zoom con los dedos que arrastran.

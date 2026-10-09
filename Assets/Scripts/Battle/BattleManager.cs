@@ -29,6 +29,7 @@ namespace Altepetl
         public const float SegundosLimite = 120f;
         public const float VictoriaMinima = 0.5f;
         private const int MargenDespliegue = 8; // casillas alrededor del mapa donde también se puede desplegar (como en Clash, casi todo el campo)
+        private const int MargenAgua = 2;       // y aún se puede soltar tropas en las primeras casillas del agua, fuera del campo
 
         public int IndiceNivel { get; private set; }
         public CampaignLevel Nivel { get; private set; }
@@ -199,8 +200,8 @@ namespace Altepetl
             int x = Mathf.FloorToInt(punto.x - Origen.x);
             int y = Mathf.FloorToInt(punto.z - Origen.z);
             int tamano = CampaignLevel.TamanoMapa;
-            if (x < -MargenDespliegue || y < -MargenDespliegue
-                || x >= tamano + MargenDespliegue || y >= tamano + MargenDespliegue) return false;
+            int margen = MargenDespliegue + MargenAgua;
+            if (x < -margen || y < -margen || x >= tamano + margen || y >= tamano + margen) return false;
             return !(x >= 0 && y >= 0 && x < tamano && y < tamano && _ocupado[x, y]);
         }
 

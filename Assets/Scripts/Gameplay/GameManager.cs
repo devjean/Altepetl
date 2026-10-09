@@ -156,56 +156,220 @@ namespace Altepetl
         {
             Colocando = null;
             Moviendo = null;
+            EligiendoMuros = false;
+            _murosElegidos.Clear();
+            _grupo.Clear();
+            _desfases.Clear();
         }
 
         // ---------- Mover edificios ----------
 
-        /// <summary>Edificio que se está cambiando de lugar (gratis, aunque esté en obra).</summary>
+        /// <summary>Edificio que se está cambiando de lugar (gratis, aunque esté en obra). Con murallas, la primera del grupo.</summary>
         public Building Moviendo { get; private set; }
-        public bool EnModoColocar => Colocando != null || Moviendo != null;
+        public bool EnModoColocar => Colocando != null || Moviendo != null || EligiendoMuros;
+
+        /// <summary>Se están eligiendo murallas conectadas en línea para moverlas juntas.</summary>
+        public bool EligiendoMuros { get; private set; }
+        public int CuantosMurosElegidos => _murosElegidos.Count;
+        public int CuantosEnGrupo => _grupo.Count;
+
+        private readonly List<Building> _murosElegidos = new List<Building>();
+        private readonly List<Building> _grupo = new List<Building>();          // lo que se mueve; el primero es el ancla
+        private readonly List<Vector2Int> _desfases = new List<Vector2Int>();   // de cada uno respecto al ancla
+        private bool _girado;
 
         public void EmpezarMover(Building edificio)
         {
             if (edificio == null) return;
-            Colocando = null;
-            Moviendo = edificio;
+            CancelarColocacion();
             Seleccionar(null);
+            if (edificio.Definicion.Id == BuildingId.Muralla)
+            {
+                // Con murallas primero se eligen las de la línea (arrastrando o "Toda la línea").
+                EligiendoMuros = true;
+                _murosElegidos.Add(edificio);
+                return;
+            }
+            EmpezarGrupo(new List<Building> { edificio });
         }
 
-        private void TryMover(Vector2Int origen)
+        private void EmpezarGrupo(List<Building> edificios)
         {
-            var edificio = Moviendo;
-            var definicion = edificio.Definicion;
-            var anterior = edificio.Origen;
-            if (origen == anterior)
+            _grupo.Clear();
+            _desfases.Clear();
+            foreach (var edificio in edificios)
             {
-                Moviendo = null;
-                Seleccionar(edificio);
+                _grupo.Add(edificio);
+                _desfases.Add(edificio.Origen - edificios[0].Origen);
+            }
+            _girado = false;
+            Moviendo = edificios[0];
+        }
+
+        /// <summary>Pasa de elegir murallas a moverlas.</summary>
+        public void MoverMurosElegidos()
+        {
+            if (!EligiendoMuros || _murosElegidos.Count == 0) return;
+            var muros = new List<Building>(_murosElegidos);
+            EligiendoMuros = false;
+            _murosElegidos.Clear();
+            EmpezarGrupo(muros);
+        }
+
+        /// <summary>Elige el tramo recto de murallas que pasa por la primera elegida.</summary>
+        public void ElegirLineaCompleta()
+        {
+            if (!EligiendoMuros || _murosElegidos.Count == 0) return;
+            var inicio = _murosElegidos[0].Origen;
+            var eje = EjeElegido();
+            if (eje == Vector2Int.zero)
+            {
+                // Una sola: se toma la dirección donde la línea es más larga.
+                var x = new Vector2Int(1, 0);
+                var y = new Vector2Int(0, 1);
+                eje = LargoDeLinea(inicio, x) >= LargoDeLinea(inicio, y) ? x : y;
+            }
+            foreach (int signo in new[] { 1, -1 })
+            {
+                for (var c = inicio + eje * signo; EsMuralla(c); c += eje * signo)
+                {
+                    var muro = Mapa.En(c);
+                    if (!_murosElegidos.Contains(muro)) _murosElegidos.Add(muro);
+                }
+            }
+        }
+
+        /// <summary>Elige todas las murallas unidas a las elegidas, con cruces y esquinas.</summary>
+        public void ElegirConectados()
+        {
+            if (!EligiendoMuros) return;
+            var pendientes = new Queue<Vector2Int>();
+            foreach (var muro in _murosElegidos) pendientes.Enqueue(muro.Origen);
+            var vecinos = new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1) };
+            while (pendientes.Count > 0)
+            {
+                var casilla = pendientes.Dequeue();
+                foreach (var paso in vecinos)
+                {
+                    var siguiente = casilla + paso;
+                    if (!EsMuralla(siguiente)) continue;
+                    var muro = Mapa.En(siguiente);
+                    if (_murosElegidos.Contains(muro)) continue;
+                    _murosElegidos.Add(muro);
+                    pendientes.Enqueue(siguiente);
+                }
+            }
+        }
+
+        private int LargoDeLinea(Vector2Int inicio, Vector2Int eje)
+        {
+            int largo = 0;
+            for (var c = inicio + eje; EsMuralla(c); c += eje) largo++;
+            for (var c = inicio - eje; EsMuralla(c); c -= eje) largo++;
+            return largo;
+        }
+
+        private bool EsMuralla(Vector2Int casilla)
+        {
+            var edificio = Mapa.En(casilla);
+            return edificio != null && edificio.Definicion.Id == BuildingId.Muralla;
+        }
+
+        /// <summary>(1,0) si las dos primeras elegidas van a lo largo de x, (0,1) si van a lo largo de y, cero si hay una sola.</summary>
+        private Vector2Int EjeElegido()
+        {
+            if (_murosElegidos.Count < 2) return Vector2Int.zero;
+            return _murosElegidos[1].Origen.y == _murosElegidos[0].Origen.y ? new Vector2Int(1, 0) : new Vector2Int(0, 1);
+        }
+
+        /// <summary>Agrega una muralla si está pegada a alguna elegida (puede dar vuelta en cruces y esquinas).</summary>
+        private bool TryAgregarMuro(Vector2Int casilla)
+        {
+            if (!EligiendoMuros || !EsMuralla(casilla)) return false;
+            var muro = Mapa.En(casilla);
+            if (_murosElegidos.Contains(muro)) return false;
+            bool pegada = false;
+            foreach (var elegido in _murosElegidos)
+            {
+                var d = casilla - elegido.Origen;
+                pegada |= Mathf.Abs(d.x) + Mathf.Abs(d.y) == 1;
+            }
+            if (!pegada) return false;
+            _murosElegidos.Add(muro);
+            return true;
+        }
+
+        /// <summary>Gira el grupo de murallas 90° alrededor de la primera.</summary>
+        public void GirarGrupo()
+        {
+            for (int i = 0; i < _desfases.Count; i++) _desfases[i] = new Vector2Int(-_desfases[i].y, _desfases[i].x);
+            _girado = !_girado;
+        }
+
+        /// <summary>¿Cabe todo el grupo con el ancla en ese origen? Puede encimarse sobre sí mismo.</summary>
+        private bool GrupoCabeEn(Vector2Int ancla)
+        {
+            for (int i = 0; i < _grupo.Count; i++)
+            {
+                int tamano = _grupo[i].Definicion.Tamano;
+                var origen = ancla + _desfases[i];
+                if (!Mapa.EnArea(origen, tamano)) return false;
+                for (int x = origen.x; x < origen.x + tamano; x++)
+                {
+                    for (int y = origen.y; y < origen.y + tamano; y++)
+                    {
+                        var casilla = new Vector2Int(x, y);
+                        if (!Mapa.DentroDelMapa(casilla)) return false;
+                        var ocupante = Mapa.En(casilla);
+                        if (ocupante != null && !_grupo.Contains(ocupante)) return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        private void TryMover(Vector2Int ancla)
+        {
+            if (ancla == Moviendo.Origen && !_girado)
+            {
+                var mismo = _grupo.Count == 1 ? Moviendo : null;
+                CancelarColocacion();
+                Seleccionar(mismo);
                 return;
             }
-            if (!Mapa.EnArea(origen, definicion.Tamano))
+            if (!GrupoCabeEn(ancla))
             {
-                MostrarMensaje("Mejora el tecpan para abrir más terreno");
+                bool fuera = false;
+                for (int i = 0; i < _grupo.Count; i++) fuera |= !Mapa.EnArea(ancla + _desfases[i], _grupo[i].Definicion.Tamano);
+                MostrarMensaje(fuera ? "Mejora el tecpan para abrir más terreno" : "Ese lugar está ocupado");
                 return;
             }
-            if (!Mapa.EstaLibreSalvo(origen, definicion.Tamano, edificio))
+            // Se quitan todos de sus casillas y se vuelven a crear en el nuevo lugar con el mismo nivel y obra,
+            // como al cargar la partida.
+            var anteriores = new List<Vector2Int>();
+            foreach (var edificio in _grupo)
             {
-                MostrarMensaje("Ese lugar está ocupado");
-                return;
+                anteriores.Add(edificio.Origen);
+                Mapa.Ocupar(edificio.Origen, edificio.Definicion.Tamano, null);
+                _edificios.Remove(edificio);
             }
-            // Se vuelve a crear en el nuevo lugar con el mismo nivel y obra, como al cargar la partida.
-            Mapa.Ocupar(anterior, definicion.Tamano, null);
-            _edificios.Remove(edificio);
-            var movido = Construir(definicion, origen, edificio.Nivel, edificio.SegundosRestantes, edificio.Acumulado);
-            edificio.Retirar();
-            if (definicion.Id == BuildingId.Muralla)
+            Building movido = null;
+            for (int i = 0; i < _grupo.Count; i++)
             {
+                var edificio = _grupo[i];
+                movido = Construir(edificio.Definicion, ancla + _desfases[i], edificio.Nivel, edificio.SegundosRestantes, edificio.Acumulado);
+                edificio.Retirar();
+            }
+            for (int i = 0; i < _grupo.Count; i++)
+            {
+                if (_grupo[i].Definicion.Id != BuildingId.Muralla) continue;
                 // Las vecinas del lugar viejo pierden su tramo hacia ella.
-                Mapa.En(anterior + new Vector2Int(-1, 0))?.UnirMuralla(Mapa);
-                Mapa.En(anterior + new Vector2Int(0, -1))?.UnirMuralla(Mapa);
+                Mapa.En(anteriores[i] + new Vector2Int(-1, 0))?.UnirMuralla(Mapa);
+                Mapa.En(anteriores[i] + new Vector2Int(0, -1))?.UnirMuralla(Mapa);
             }
-            Moviendo = null;
-            Seleccionar(movido);
+            bool uno = _grupo.Count == 1;
+            CancelarColocacion();
+            Seleccionar(uno ? movido : null);
             Guardar();
         }
 
@@ -252,9 +416,13 @@ namespace Altepetl
             }
 
             var casilla = Mapa.MundoACasilla(punto);
-            if (Moviendo != null)
+            if (EligiendoMuros)
             {
-                TryMover(Mapa.AjustarOrigen(casilla, Moviendo.Definicion.Tamano));
+                TryAgregarMuro(casilla);
+            }
+            else if (Moviendo != null)
+            {
+                TryMover(_grupo.Count == 1 ? Mapa.AjustarOrigen(casilla, Moviendo.Definicion.Tamano) : casilla);
             }
             else if (Colocando != null)
             {
@@ -895,6 +1063,7 @@ namespace Altepetl
             public Vector2Int PintaInicio;
             public int PintaEje;        // 0 aún sin dirección, 1 a lo largo de x, 2 a lo largo de y
             public int PintaMin, PintaMax;
+            public bool EligeMuros;     // empezó sobre una muralla elegida: al arrastrar elige las que va tocando
         }
 
         private readonly Dictionary<int, Dedo> _dedos = new Dictionary<int, Dedo>();
@@ -949,6 +1118,11 @@ namespace Altepetl
                         dedo.PintaInicio = Mapa.MundoACasilla(inicio);
                         ColocarMurallaEn(dedo.PintaInicio);
                     }
+                    else if (!batalla && !dedo.EnHud && EligiendoMuros && PunteroEnSuelo(dedo.Inicio, out Vector3 sobre))
+                    {
+                        var muro = Mapa.En(Mapa.MundoACasilla(sobre));
+                        dedo.EligeMuros = muro != null && _murosElegidos.Contains(muro);
+                    }
                     continue;
                 }
                 dedo.Ultima = dedo.Actual;
@@ -957,6 +1131,11 @@ namespace Altepetl
                 if (dedo.Pinta)
                 {
                     PintarMurallas(dedo);
+                    continue;
+                }
+                if (dedo.EligeMuros)
+                {
+                    if (PunteroEnSuelo(dedo.Actual, out Vector3 tocando)) TryAgregarMuro(Mapa.MundoACasilla(tocando));
                     continue;
                 }
                 if (dedo.Despliega)
@@ -985,7 +1164,7 @@ namespace Altepetl
                 var dedo = _dedos[id];
                 _dedos.Remove(id);
                 // En batalla solo cuenta el toque de un dedo que podía desplegar.
-                bool quieto = !dedo.Arrastra && !dedo.Soltando && !dedo.EnHud && !dedo.Pinta;
+                bool quieto = !dedo.Arrastra && !dedo.Soltando && !dedo.EnHud && !dedo.Pinta && !dedo.EligeMuros;
                 if (quieto && batalla && dedo.SinTropas && Time.time - dedo.Desde < SegundosParaSoltarSeguido)
                 {
                     MostrarMensaje($"No te quedan {Terminos.Tropas} de ese tipo");
@@ -1221,16 +1400,36 @@ namespace Altepetl
                 && !_hud.PunteroSobreHud(posicion) && PunteroEnSuelo(posicion, out Vector3 punto))
             {
                 int tamano = enMano.Tamano;
-                var origen = Mapa.AjustarOrigen(Mapa.MundoACasilla(punto), tamano);
-                bool libre = Moviendo != null
-                    ? Mapa.EnArea(origen, tamano) && Mapa.EstaLibreSalvo(origen, tamano, Moviendo)
-                    : Mapa.PuedeConstruir(origen, tamano);
+                var casilla = Mapa.MundoACasilla(punto);
+                var origen = Moviendo != null && _grupo.Count > 1 ? casilla : Mapa.AjustarOrigen(casilla, tamano);
+                bool libre = Moviendo != null ? GrupoCabeEn(origen) : Mapa.PuedeConstruir(origen, tamano);
                 _fantasma.position = Mapa.CentroDeArea(origen, tamano) + Vector3.up * 0.05f;
                 _fantasma.localScale = new Vector3(tamano, 0.1f, tamano);
+                // Con un grupo de murallas, una sombra por cada una con la forma del grupo.
+                var colorSombra = libre ? new Color(0.3f, 0.9f, 0.3f) : new Color(0.9f, 0.25f, 0.2f);
+                int extras = Moviendo != null ? _desfases.Count - 1 : 0;
+                while (_sombrasGrupo.Count < extras)
+                {
+                    _sombrasGrupo.Add(CrearMarcador("Sombra del grupo", out _));
+                }
+                for (int i = 0; i < _sombrasGrupo.Count; i++)
+                {
+                    bool activa = i < extras;
+                    _sombrasGrupo[i].gameObject.SetActive(activa);
+                    if (!activa) continue;
+                    var c = origen + _desfases[i + 1];
+                    _sombrasGrupo[i].position = new Vector3(c.x + 0.5f, 0.05f, c.y + 0.5f);
+                    _sombrasGrupo[i].localScale = new Vector3(1f, 0.1f, 1f);
+                    _sombrasGrupo[i].GetComponent<Renderer>().material.color = colorSombra;
+                }
                 _fantasmaRender.material.color = libre ? new Color(0.3f, 0.9f, 0.3f) : new Color(0.9f, 0.25f, 0.2f);
                 mostrarFantasma = true;
             }
             _fantasma.gameObject.SetActive(mostrarFantasma);
+            if (!mostrarFantasma)
+            {
+                foreach (var sombra in _sombrasGrupo) sombra.gameObject.SetActive(false);
+            }
 
             // Marco bajo el edificio seleccionado.
             bool haySeleccion = ModoActual == Modo.Aldea && Seleccionado != null;
@@ -1243,7 +1442,28 @@ namespace Altepetl
                 _marcaSeleccion.localScale = new Vector3(tamano + 0.1f, alto, tamano + 0.1f);
             }
             _marcaSeleccion.gameObject.SetActive(haySeleccion);
+
+            // Marcas sobre las murallas elegidas para mover.
+            int marcas = EligiendoMuros && ModoActual == Modo.Aldea ? _murosElegidos.Count : 0;
+            while (_marcasMuros.Count < marcas)
+            {
+                var marca = CrearMarcador("Muralla elegida", out var render);
+                render.material.color = new Color(1f, 0.85f, 0.2f);
+                _marcasMuros.Add(marca);
+            }
+            for (int i = 0; i < _marcasMuros.Count; i++)
+            {
+                bool activa = i < marcas;
+                _marcasMuros[i].gameObject.SetActive(activa);
+                if (!activa) continue;
+                var origen = _murosElegidos[i].Origen;
+                _marcasMuros[i].position = new Vector3(origen.x + 0.5f, 0.6f, origen.y + 0.5f);
+                _marcasMuros[i].localScale = new Vector3(0.7f, 0.06f, 0.7f);
+            }
         }
+
+        private readonly List<Transform> _marcasMuros = new List<Transform>();
+        private readonly List<Transform> _sombrasGrupo = new List<Transform>();
     }
 
     /// <summary>Un edificio (o varios) a cierto nivel que el tecpan pide antes de subir.</summary>

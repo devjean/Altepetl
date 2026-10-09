@@ -427,7 +427,7 @@ namespace Altepetl
             }
             else if (def.Produce)
             {
-                info += $"\nProduce {edificio.ProduccionPorMinuto:0.#} de {ResourceInfo.Nombre(def.Recurso)} por minuto";
+                info += $"\nProduce {edificio.ProduccionPorMinuto:0.#} de {ResourceInfo.Nombre(def.Recurso).ToLowerInvariant()} por minuto";
                 if (Manager.Banco.EstaLleno(def.Recurso)) info += "\nAlmacén lleno: construye o mejora un petlacalco";
             }
             info += $"\nVida: {edificio.Vida}";

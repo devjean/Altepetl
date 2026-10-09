@@ -361,12 +361,13 @@ namespace Altepetl
             new CampaignLevel
             {
                 Nombre = "Tenayuca",
-                Descripcion = "Culhuacan no reconoce a Xólotl.",
+                Descripcion = "Culhuacan se niega a pagar tributo.",
                 Historia =
                     "Xólotl hizo de Tenayuca su primera capital. Desde ahí organizó el territorio: "
                     + "repartió tierras y señoríos entre sus jefes y entre los grupos que fueron llegando después.\n\n"
-                    + "Según la tradición que recogió Fernando de Alva Ixtlilxóchitl, el señor de Culhuacan, "
-                    + "heredero de los toltecas, no quiso reconocer a Xólotl, y Nopaltzin, hijo de Xólotl, marchó contra él.",
+                    + "Según la Historia chichimeca de Fernando de Alva Ixtlilxóchitl, Xólotl reclamó tributo a los señores toltecas de Culhuacan. "
+                    + "Nauhyotzin respondió que no reconocían a ningún señor extranjero y que querían conservar su libertad. "
+                    + "Xólotl envió entonces a su hijo Nopaltzin con un ejército, y la batalla se dio en la laguna y los carrizales de Culhuacan.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
@@ -388,13 +389,15 @@ namespace Altepetl
             },
             new CampaignLevel
             {
-                Nombre = "Los que no quisieron sembrar",
-                Descripcion = "Cazadores rebeldes: muchos arqueros.",
+                Nombre = "La rebelión de Yacanex",
+                Descripcion = "Señores rebeldes: muchos arqueros.",
                 Historia =
                     "Poco a poco, los chichimecas adoptaron la agricultura, la vida sedentaria y costumbres de los pueblos que ya estaban ahí. "
-                    + "Las tradiciones cuentan matrimonios entre los nuevos señores chichimecas y mujeres de linaje tolteca.\n\n"
-                    + "No todos aceptaron el cambio. Según Ixtlilxóchitl, algunos grupos chichimecas no quisieron dejar la caza "
-                    + "y se rebelaron contra los señores que ahora sembraban la tierra.\n\n"
+                    + "Según Ixtlilxóchitl, Tlotzin impulsó el cultivo de la tierra después de aprenderlo de Tecpoyo Achcauhtli. "
+                    + "Algunos chichimecas aceptaron sembrar; otros, apegados a las costumbres de sus antepasados, "
+                    + "se marcharon a las sierras de Metztitlan y Totépec.\n\n"
+                    + "Más tarde, durante el gobierno de Quinatzin, Yacanex y otros señores se rebelaron, "
+                    + "y las tropas de Quinatzin salieron a enfrentarlos.\n\n"
                     + "Sus defensores son casi todos arqueros: entra con guerreros que aguanten.",
                 Edificios = new[]
                 {
@@ -517,12 +520,13 @@ namespace Altepetl
             new CampaignLevel
             {
                 Nombre = "Poyauhtlan",
-                Descripcion = "Pueblos del lago, con una sola torre.",
+                Descripcion = "Pueblos vecinos, con una sola torre.",
                 Historia =
                     "Hace unos 800 o 900 años, varios grupos chichimecas llegaron del norte. Entre ellos venían los primeros tlaxcaltecas, "
                     + "guiados por Camaxtli, su dios tutelar.\n\n"
-                    + "Según la crónica de Diego Muñoz Camargo, primero se asentaron en Poyauhtlan, junto al lago de Texcoco, "
-                    + "y los pueblos del lago los vieron como intrusos.",
+                    + "Según la tradición que recogió Diego Muñoz Camargo en su Historia de Tlaxcala, se asentaron en los llanos de Poyauhtlan, "
+                    + "en tierras de Texcoco, y vivían de la caza. Ahí se enfrentaron con los pueblos vecinos, "
+                    + "y después de esa guerra decidieron seguir su camino.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
@@ -545,8 +549,8 @@ namespace Altepetl
                 Historia =
                     "Después partieron hacia el oriente, al valle de Puebla-Tlaxcala. Se establecieron en Tepeticpac, "
                     + "en lo alto de un cerro fácil de defender, y ahí fundaron su primer altepetl.\n\n"
-                    + "Las crónicas cuentan que en la región dominaban los olmeca-xicalancas, "
-                    + "y que los recién llegados los fueron desplazando.",
+                    + "Según Muñoz Camargo, los olmeca-xicalancas tenían asentamientos y fortificaciones en partes de la región, "
+                    + "como Xochitécatl, y los recién llegados se enfrentaron a ellos.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5),

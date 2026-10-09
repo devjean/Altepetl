@@ -50,6 +50,7 @@ namespace Altepetl
         public static string Atacar => Nahuatl ? "Yaoyotl (atacar)" : "Atacar";
         public static string AtacarCorto => Nahuatl ? "Yaoyotl" : "Atacar";
         public static string AlAldea => Nahuatl ? "al altepetl" : "a la aldea";
+        public static string TuAldea => Nahuatl ? "tu altepetl" : "tu aldea";
 
         // Macehualtin: la gente del pueblo (singular macehualli), que levanta las obras.
         public static string Gente => Nahuatl ? "macehualtin" : "pobladores";

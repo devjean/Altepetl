@@ -83,7 +83,11 @@ namespace Altepetl
             _ladoCamara = TamanoMapa;
             _hud = gameObject.AddComponent<GameHud>();
             _hud.Manager = this;
-            new GameObject("Macehualtin").AddComponent<Macehualtin>().Manager = this;
+            var macehualtin = new GameObject("Macehualtin").AddComponent<Macehualtin>();
+            macehualtin.Manager = this;
+            _macehualtin = macehualtin;
+            Asalto = new GameObject("Ataques a la aldea").AddComponent<Asalto>();
+            Asalto.Manager = this;
             var tropasEnAldea = new GameObject("Tropas en la aldea").AddComponent<TropasEnAldea>();
             tropasEnAldea.Manager = this;
             _tropasEnAldea = tropasEnAldea;
@@ -189,6 +193,11 @@ namespace Altepetl
         public void EmpezarMover(Building edificio)
         {
             if (edificio == null) return;
+            if (Asalto.EnCurso)
+            {
+                MostrarMensaje("No se puede mover nada durante un ataque");
+                return;
+            }
             CancelarColocacion();
             Seleccionar(null);
             if (edificio.Definicion.Id == BuildingId.Muralla)
@@ -423,6 +432,61 @@ namespace Altepetl
         }
 
         private TropasEnAldea _tropasEnAldea;
+        private Macehualtin _macehualtin;
+
+        // ---------- Ataques a la aldea ----------
+
+        public Asalto Asalto { get; private set; }
+        /// <summary>Cuántos de cada tipo y rango salen a defender (de los sanos que haya en ese momento).</summary>
+        private readonly int[] _defensa = new int[TroopCatalog.Count * Rangos.Count];
+
+        public int DefensaElegida(TroopId id, int rango) => _defensa[Army.Indice(id, rango)];
+
+        public void ElegirDefensa(TroopId id, int rango, int cantidad)
+        {
+            _defensa[Army.Indice(id, rango)] = Mathf.Max(0, cantidad);
+        }
+
+        /// <summary>Los que de verdad saldrían a defender: los elegidos, si están sanos en la aldea.</summary>
+        public int DefensoresListos(TroopId id, int rango) => Mathf.Min(DefensaElegida(id, rango), Ejercito.Get(id, rango));
+
+        public int TotalDefensoresListos
+        {
+            get
+            {
+                int total = 0;
+                foreach (var tropa in TroopCatalog.Todos)
+                {
+                    for (int r = 0; r < Rangos.Count; r++) total += DefensoresListos(tropa.Id, r);
+                }
+                return total;
+            }
+        }
+
+        public void AlAvisarAsalto()
+        {
+            MostrarMensaje(Asalto.HayVigia ? "¡La torre de vigía avisa: se acercan enemigos!" : "¡Se acercan enemigos!", 4f);
+            // La gente corre a meterse a las casas y el ejército se junta en el tecpan.
+            _macehualtin.Resguardar = true;
+            _tropasEnAldea.Resguardar = true;
+        }
+
+        /// <summary>Durante el ataque, la gente se resguarda y solo se ven los defensores.</summary>
+        public void AlEmpezarAsalto()
+        {
+            if (Moviendo != null || EligiendoMuros) CancelarColocacion();
+            _tropasEnAldea.gameObject.SetActive(false);
+            _macehualtin.gameObject.SetActive(false);
+        }
+
+        public void AlTerminarAsalto()
+        {
+            _tropasEnAldea.gameObject.SetActive(true);
+            _macehualtin.gameObject.SetActive(true);
+            _tropasEnAldea.Resguardar = false;
+            _macehualtin.Resguardar = false;
+            Guardar();
+        }
 
         private void Update()
         {
@@ -864,6 +928,11 @@ namespace Altepetl
         {
             if (ModoActual == Modo.Batalla) return;
             if (indice < 0 || indice >= Campana.Length || indice > NivelesCompletados) return;
+            if (Asalto.Activo)
+            {
+                MostrarMensaje($"Primero defiende {Terminos.TuAldea}");
+                return;
+            }
             if (Ejercito.Total <= 0)
             {
                 MostrarMensaje($"Entrena {Terminos.Tropas} en el telpochcalli antes de atacar");
@@ -962,6 +1031,7 @@ namespace Altepetl
             }
             datos.nivelesCompletados = NivelesCompletados;
             datos.estrellas = new List<int>(_estrellas);
+            datos.defensa = (int[])_defensa.Clone();
             Culto.Exportar(datos);
             SaveSystem.Guardar(datos);
         }
@@ -992,6 +1062,10 @@ namespace Altepetl
             NivelesCompletados = Mathf.Clamp(datos.nivelesCompletados, 0, Campana.Length);
             _estrellas.Clear();
             if (datos.estrellas != null) _estrellas.AddRange(datos.estrellas);
+            if (datos.defensa != null)
+            {
+                for (int i = 0; i < _defensa.Length && i < datos.defensa.Length; i++) _defensa[i] = Mathf.Max(0, datos.defensa[i]);
+            }
 
             AplicarTiempoAusente(SaveSystem.SegundosDesde(datos));
         }

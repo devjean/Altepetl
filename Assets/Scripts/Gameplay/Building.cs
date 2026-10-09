@@ -19,6 +19,21 @@ namespace Altepetl
         public string Nombre => Definicion.NombrePara(_pueblo);
         public float Acumulado => _acumulado;
 
+        /// <summary>Daño recibido en el ataque en curso a la aldea. Al terminar el ataque se repara solo.</summary>
+        public float DanoAsalto { get; private set; }
+        public bool Derribado => DanoAsalto > 0f && DanoAsalto >= Vida;
+        public float FraccionVidaAsalto => Mathf.Clamp01(1f - DanoAsalto / Mathf.Max(1, Vida));
+        /// <summary>Radio aproximado, para saber cuándo una tropa ya lo alcanza.</summary>
+        public float Radio => Definicion.Id == BuildingId.Muralla ? 0.35f : Definicion.Tamano * 0.45f;
+        public float AlturaModelo => _base + _modelo.localScale.y;
+        /// <summary>Se está levantando de nuevo después de un ataque (solo se ve; ya produce).</summary>
+        public bool Reconstruyendo => _reconstruirHasta > Time.time;
+
+        public const float SegundosReconstruccion = 8f;
+        private float _reconstruirDesde;
+        private float _reconstruirHasta;
+        private bool _seLevanta; // estaba derribado: sube desde las ruinas
+
         private Pueblo _pueblo;
         private ResourceBank _banco;
 
@@ -115,9 +130,38 @@ namespace Altepetl
             ActualizarVisual();
         }
 
+        /// <summary>Recibe daño de un invasor. Devuelve true si con este golpe quedó derribado.</summary>
+        public bool RecibirDanoAsalto(float cantidad)
+        {
+            if (Derribado) return false;
+            DanoAsalto += cantidad;
+            ActualizarVisual();
+            return Derribado;
+        }
+
+        /// <summary>
+        /// Terminado el ataque, el edificio vuelve a quedar como estaba: los derribados se levantan
+        /// poco a poco desde las ruinas (empiezan después de unos segundos de espera).
+        /// </summary>
+        public void Reparar(float espera = 0f)
+        {
+            if (DanoAsalto <= 0f) return;
+            _seLevanta = Derribado;
+            DanoAsalto = 0f;
+            _reconstruirDesde = Time.time + espera;
+            _reconstruirHasta = _reconstruirDesde + SegundosReconstruccion;
+            ActualizarVisual();
+        }
+
         private void Update()
         {
             AvanzarConstruccion(Time.deltaTime);
+            if (Derribado) return; // un edificio derribado no produce hasta que termine el ataque
+            if (Reconstruyendo || _reconstruirHasta > 0f)
+            {
+                ActualizarVisual();
+                if (!Reconstruyendo) _reconstruirHasta = 0f;
+            }
             if (EnConstruccion)
             {
                 ActualizarVisual();
@@ -283,12 +327,22 @@ namespace Altepetl
                 altura = alturaNivel * Mathf.Lerp(0.2f, 1f, progreso);
             }
             altura = Mathf.Max(0.05f, altura);
+            if (Derribado) altura = 0.08f; // quedan ruinas hasta que termine el ataque
+            float levantado = 1f;
+            if (_reconstruirHasta > 0f)
+            {
+                levantado = Mathf.Clamp01((Time.time - _reconstruirDesde) / SegundosReconstruccion);
+                if (_seLevanta) altura = Mathf.Lerp(0.08f, altura, levantado);
+            }
 
             _modelo.localScale = new Vector3(lado, altura, lado);
             _modelo.localPosition = new Vector3(0f, _base + altura * 0.5f, 0f);
             _render.material.color = EnConstruccion
                 ? Color.Lerp(Color.gray, Definicion.Color, 0.4f)
                 : Definicion.Color;
+            if (Derribado) _render.material.color = new Color(0.25f, 0.22f, 0.2f);
+            else if (levantado < 1f) _render.material.color = Color.Lerp(new Color(0.25f, 0.22f, 0.2f), _render.material.color, levantado);
+            else if (DanoAsalto > 0f) _render.material.color = Color.Lerp(new Color(0.3f, 0.1f, 0.1f), _render.material.color, FraccionVidaAsalto);
 
             // Tramos: del borde de este poste al del vecino, un poco más bajos y delgados.
             float alturaTramo = altura * 0.85f;

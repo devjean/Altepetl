@@ -25,6 +25,18 @@ namespace Altepetl.Herramientas
             Debug.Log("Al empezar partida nueva se volverá a preguntar náhuatl o español.");
         }
 
+        [MenuItem("Altepetl/Provocar un ataque a la aldea")]
+        private static void ProvocarAtaque()
+        {
+            var manager = Object.FindAnyObjectByType<GameManager>();
+            if (!EditorApplication.isPlaying || manager == null || manager.Asalto == null)
+            {
+                Debug.LogWarning("Dale Play y entra a tu aldea para provocar un ataque.");
+                return;
+            }
+            manager.Asalto.ProvocarAhora();
+        }
+
         [MenuItem("Altepetl/Abrir carpeta de guardado")]
         private static void AbrirCarpeta()
         {

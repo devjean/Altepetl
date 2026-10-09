@@ -22,6 +22,7 @@ namespace Altepetl
         public float entrenamientoRestante;
         public int nivelesCompletados; // niveles de campaña ganados, en orden
         public List<int> estrellas = new List<int>(); // mejor resultado de cada capítulo, 0 a 3 (versión 6)
+        public int[] defensa = new int[0];            // cuántos de cada tipo y rango defienden la aldea
 
         public int deidadActiva;               // ofrenda activa en el teocalli
         public float ofrendaRestante;          // segundos que le quedan

@@ -28,6 +28,7 @@ namespace Altepetl
             public Transform Acalli;   // canoa, solo en la aldea mexica sobre el lago
             public float Rumbo;        // hacia dónde mira la canoa, en grados
             public Vector3 Destino;
+            public readonly Caminos.Andante Andar = new Caminos.Andante();
             public float Fase;
             public float Tamano;
         }
@@ -133,6 +134,7 @@ namespace Altepetl
                 if (monito.Cuerpo.gameObject.activeSelf) continue;
                 monito.Cuerpo.localPosition = new Vector3(refugio.x, monito.Tamano, refugio.z);
                 if (monito.Acalli != null) monito.Acalli.localPosition = new Vector3(refugio.x, 0.03f, refugio.z);
+                monito.Andar.Olvidar();
                 Ocultar(monito, false);
             }
             _saliendoDelTecpan = true;
@@ -144,14 +146,17 @@ namespace Altepetl
             var cuerpo = monito.Cuerpo;
             Vector3 actual = cuerpo.localPosition;
             Vector3 plano = new Vector3(actual.x, 0f, actual.z);
-            Vector3 hacia = monito.Destino - plano;
-            bool caminando = hacia.sqrMagnitude > 0.0004f;
+            bool caminando = (monito.Destino - plano).sqrMagnitude > 0.0004f;
 
             if (caminando)
             {
+                // Rodean edificios y murallas; cruzan la muralla solo por las puertas.
+                Vector3 siguiente = monito.Andar.Siguiente(Manager.Caminos, plano, monito.Destino, Manager.PasaAldeano);
+                Vector3 hacia = siguiente - plano;
                 float paso = Velocidad * Time.deltaTime;
-                plano = hacia.magnitude <= paso ? monito.Destino : plano + hacia.normalized * paso;
+                plano = hacia.magnitude <= paso ? siguiente : plano + hacia.normalized * paso;
                 monito.Rumbo = Mathf.Atan2(hacia.x, hacia.z) * Mathf.Rad2Deg;
+                Manager.CruzarPuerta(plano, hacia.normalized);
             }
 
             if (monito.Acalli != null)

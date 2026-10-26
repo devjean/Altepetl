@@ -545,6 +545,7 @@ namespace Altepetl
                 : new List<RequisitoTecpan>();
             float altoPanel = entrena ? 410 : def.CamasCuracion > 0 ? 310 : 250;
             if (faltan.Count > 0) altoPanel += 22 + 19 * faltan.Count;
+            if (def.Id == BuildingId.Muralla) altoPanel += 50; // lugar para el botón de la puerta
             // A la izquierda de la columna de recursos, para no taparla.
             var panel = new Rect(ancho - 60 - AnchoColumnaRecursos - 280, AltoBarraSuperior + 10, 280, altoPanel);
             Zona(panel);
@@ -560,6 +561,15 @@ namespace Altepetl
             {
                 Manager.EmpezarMover(edificio);
                 return;
+            }
+            if (def.Id == BuildingId.Muralla && !edificio.EnConstruccion)
+            {
+                // Puerta: tu gente cruza el muro por ahí; para los enemigos sigue siendo muralla.
+                if (GUI.Button(new Rect(panel.x + 10, panel.yMax - 104, panel.width - 20, 40),
+                        edificio.EsPuerta ? "Cerrar el hueco (volver a muralla)" : "Hacer puerta", _boton))
+                {
+                    Manager.AlternarPuerta(edificio);
+                }
             }
 
             string info = (edificio.Nivel > 0 ? $"Nivel {edificio.Nivel}. " : "") + Terminos.Aplicar(def.Descripcion) + "\n";
@@ -577,6 +587,7 @@ namespace Altepetl
                 if (Manager.Banco.EstaLleno(def.Recurso)) info += "\nAlmacén lleno: construye o mejora un petlacalco";
             }
             info += $"\nVida: {edificio.Vida}";
+            if (edificio.EsPuerta) info += "\nPuerta: tu gente cruza por aquí y se abre a su paso. Para los enemigos sigue siendo muralla.";
             if (faltan.Count > 0)
             {
                 info += $"\n\nPara subir a nivel {edificio.Nivel + 1} necesitas:";
@@ -614,7 +625,7 @@ namespace Altepetl
                 string veteranos = TextoRangos(Manager.Ejercito);
                 if (veteranos.Length > 0) info += "\nCon rango: " + veteranos;
             }
-            GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, entrena ? 120 : panel.height - 100), info, _texto);
+            GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, entrena ? 120 : panel.height - (def.Id == BuildingId.Muralla ? 150 : 100)), info, _texto);
             if (entrena) DibujarEntrenamiento(panel);
 
             var botonRect = new Rect(panel.x + 10, panel.yMax - 54, panel.width - 20, 44);

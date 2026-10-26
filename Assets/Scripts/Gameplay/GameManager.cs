@@ -21,6 +21,8 @@ namespace Altepetl
         public ResourceBank Banco { get; private set; }
         public GridMap Mapa { get; private set; }
         public PaisajeAldea Paisaje { get; private set; }
+        /// <summary>Buscador de caminos por la aldea, para rodear edificios y murallas.</summary>
+        public Caminos Caminos { get; private set; }
         public BuildingDefinition Colocando { get; private set; }
         public Building Seleccionado { get; private set; }
         public IReadOnlyList<Building> Edificios => _edificios;
@@ -79,6 +81,7 @@ namespace Altepetl
         private void Awake()
         {
             Mapa = new GridMap(TamanoMapa, TamanoMapa);
+            Caminos = new Caminos(Mapa);
             _centroCamara = Mapa.Centro;
             _ladoCamara = TamanoMapa;
             _hud = gameObject.AddComponent<GameHud>();
@@ -404,15 +407,14 @@ namespace Altepetl
             for (int i = 0; i < _grupo.Count; i++)
             {
                 var edificio = _grupo[i];
-                movido = Construir(edificio.Definicion, ancla + _desfases[i], edificio.Nivel, edificio.SegundosRestantes, edificio.Acumulado);
+                movido = Construir(edificio.Definicion, ancla + _desfases[i], edificio.Nivel, edificio.SegundosRestantes, edificio.Acumulado, edificio.EsPuerta);
                 edificio.Retirar();
             }
             for (int i = 0; i < _grupo.Count; i++)
             {
                 if (_grupo[i].Definicion.Id != BuildingId.Muralla) continue;
                 // Las vecinas del lugar viejo pierden su tramo hacia ella.
-                Mapa.En(anteriores[i] + new Vector2Int(-1, 0))?.UnirMuralla(Mapa);
-                Mapa.En(anteriores[i] + new Vector2Int(0, -1))?.UnirMuralla(Mapa);
+                UnirMurallasAlrededor(anteriores[i]);
             }
             bool uno = _grupo.Count == 1;
             CancelarColocacion();
@@ -573,7 +575,7 @@ namespace Altepetl
         }
 
         private Building Construir(BuildingDefinition definicion, Vector2Int origen, int nivel,
-            float segundosRestantes, float acumulado = 0f)
+            float segundosRestantes, float acumulado = 0f, bool puerta = false)
         {
             var edificio = new GameObject().AddComponent<Building>();
             edificio.Culto = Culto;
@@ -582,11 +584,43 @@ namespace Altepetl
             _edificios.Add(edificio);
             if (definicion.Id == BuildingId.Muralla)
             {
-                edificio.UnirMuralla(Mapa);
-                Mapa.En(origen + new Vector2Int(-1, 0))?.UnirMuralla(Mapa);
-                Mapa.En(origen + new Vector2Int(0, -1))?.UnirMuralla(Mapa);
+                if (puerta) edificio.HacerPuerta(true, Mapa);
+                UnirMurallasAlrededor(origen);
             }
             return edificio;
+        }
+
+        /// <summary>La muralla de esa casilla y sus cuatro vecinas vuelven a pegar sus tramos (y las puertas, a orientarse).</summary>
+        private void UnirMurallasAlrededor(Vector2Int casilla)
+        {
+            Mapa.En(casilla)?.UnirMuralla(Mapa);
+            Mapa.En(casilla + new Vector2Int(-1, 0))?.UnirMuralla(Mapa);
+            Mapa.En(casilla + new Vector2Int(0, -1))?.UnirMuralla(Mapa);
+            Mapa.En(casilla + new Vector2Int(1, 0))?.UnirMuralla(Mapa);
+            Mapa.En(casilla + new Vector2Int(0, 1))?.UnirMuralla(Mapa);
+        }
+
+        /// <summary>Convierte una muralla en puerta, o la puerta de vuelta en muralla. Gratis.</summary>
+        public void AlternarPuerta(Building edificio)
+        {
+            if (edificio == null || edificio.Definicion.Id != BuildingId.Muralla) return;
+            if (Asalto.Activo)
+            {
+                MostrarMensaje("No se puede tocar la muralla durante un ataque");
+                return;
+            }
+            edificio.HacerPuerta(!edificio.EsPuerta, Mapa);
+            Guardar();
+        }
+
+        /// <summary>Por dónde puede pasar la gente de la aldea: por las puertas de la muralla, por ningún otro edificio.</summary>
+        public bool PasaAldeano(Building edificio) => edificio.Definicion.Id == BuildingId.Muralla && edificio.EsPuerta;
+
+        /// <summary>Si en esa casilla (o en la de enfrente) hay una puerta, se abre al paso de la gente.</summary>
+        public void CruzarPuerta(Vector3 plano, Vector3 direccion)
+        {
+            Mapa.En(Mapa.MundoACasilla(plano))?.AbrirPuerta();
+            Mapa.En(Mapa.MundoACasilla(plano + direccion * 0.4f))?.AbrirPuerta();
         }
 
         // ---------- Mejoras ----------
@@ -1020,6 +1054,7 @@ namespace Altepetl
                     y = edificio.Origen.y,
                     segundosRestantes = edificio.SegundosRestantes,
                     acumulado = edificio.Acumulado,
+                    puerta = edificio.EsPuerta,
                 });
             }
             Ejercito.Exportar(datos);
@@ -1052,7 +1087,7 @@ namespace Altepetl
                 var definicion = BuildingCatalog.Get(guardado.id);
                 var origen = new Vector2Int(guardado.x, guardado.y);
                 if (definicion == null || !Mapa.EstaLibre(origen, definicion.Tamano)) continue;
-                Construir(definicion, origen, guardado.nivel, guardado.segundosRestantes, guardado.acumulado);
+                Construir(definicion, origen, guardado.nivel, guardado.segundosRestantes, guardado.acumulado, guardado.puerta);
             }
             for (int i = 0; i < ResourceInfo.Count && i < datos.recursos.Length; i++)
             {

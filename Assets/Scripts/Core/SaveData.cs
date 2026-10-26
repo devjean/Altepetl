@@ -38,5 +38,7 @@ namespace Altepetl
         public int nivel;              // nivel terminado; 0 si aún se está construyendo
         public float segundosRestantes;
         public float acumulado;
+        public bool puerta;            // muralla convertida en puerta
     }
 }
+

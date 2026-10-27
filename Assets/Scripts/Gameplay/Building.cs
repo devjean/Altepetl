@@ -29,6 +29,15 @@ namespace Altepetl
         /// <summary>Se está levantando de nuevo después de un ataque (solo se ve; ya produce).</summary>
         public bool Reconstruyendo => _reconstruirHasta > Time.time;
 
+        /// <summary>Muralla convertida en puerta: tu gente la cruza y se abre a su paso; los enemigos no.</summary>
+        public bool EsPuerta { get; private set; }
+        private const float SegundosAbierta = 0.8f;
+        private const float AnguloAbierta = 80f;
+        private float _abiertaHasta;
+        private float _angulo;          // qué tan abiertas están las hojas
+        private bool _puertaEnX = true; // la muralla corre de este a oeste (si no, de norte a sur)
+        private Transform _hojaA, _hojaB; // pivotes de las dos hojas
+
         public const float SegundosReconstruccion = 8f;
         private float _reconstruirDesde;
         private float _reconstruirHasta;
@@ -153,8 +162,57 @@ namespace Altepetl
             ActualizarVisual();
         }
 
+        /// <summary>Alguien de la aldea la está cruzando: se abre un momento.</summary>
+        public void AbrirPuerta()
+        {
+            if (EsPuerta) _abiertaHasta = Time.time + SegundosAbierta;
+        }
+
+        public void HacerPuerta(bool puerta, GridMap mapa)
+        {
+            if (!EsMuralla || EsPuerta == puerta) return;
+            EsPuerta = puerta;
+            _abiertaHasta = 0f;
+            _angulo = 0f;
+            if (puerta)
+            {
+                _hojaA = Hoja("Hoja izquierda", -1);
+                _hojaB = Hoja("Hoja derecha", 1);
+            }
+            else
+            {
+                if (_hojaA != null) Destroy(_hojaA.gameObject);
+                if (_hojaB != null) Destroy(_hojaB.gameObject);
+                _hojaA = _hojaB = null;
+            }
+            UnirMuralla(mapa);
+        }
+
+        private Transform Hoja(string nombre, int lado)
+        {
+            var pivote = new GameObject(nombre).transform;
+            pivote.SetParent(transform, false);
+            var cubo = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            Destroy(cubo.GetComponent<Collider>());
+            cubo.transform.SetParent(pivote, false);
+            return pivote;
+        }
+
+        private void MoverHojas()
+        {
+            if (!EsPuerta || _hojaA == null) return;
+            bool abierta = !Derribado && Time.time < _abiertaHasta;
+            float objetivo = abierta ? AnguloAbierta : 0f;
+            if (Mathf.Abs(_angulo - objetivo) < 0.01f) return;
+            _angulo = Mathf.MoveTowards(_angulo, objetivo, 240f * Time.deltaTime);
+            // Las dos hojas giran hacia el mismo lado del muro, cada una sobre su gozne.
+            _hojaA.localRotation = Quaternion.Euler(0f, _puertaEnX ? _angulo : -_angulo, 0f);
+            _hojaB.localRotation = Quaternion.Euler(0f, _puertaEnX ? -_angulo : _angulo, 0f);
+        }
+
         private void Update()
         {
+            MoverHojas();
             AvanzarConstruccion(Time.deltaTime);
             if (Derribado) return; // un edificio derribado no produce hasta que termine el ataque
             if (Reconstruyendo || _reconstruirHasta > 0f)
@@ -287,6 +345,10 @@ namespace Altepetl
             if (!EsMuralla) return;
             _uneEste = Union(_uneEste, mapa.En(Origen + new Vector2Int(1, 0)), "Muralla este");
             _uneNorte = Union(_uneNorte, mapa.En(Origen + new Vector2Int(0, 1)), "Muralla norte");
+            // Una puerta se abre a lo largo del muro: de este a oeste si hay murallas a los lados.
+            bool ladoX = _uneEste != null || VecinaMuralla(mapa, new Vector2Int(-1, 0));
+            bool ladoZ = _uneNorte != null || VecinaMuralla(mapa, new Vector2Int(0, -1));
+            _puertaEnX = ladoX || !ladoZ;
             ActualizarVisual();
         }
 
@@ -295,6 +357,12 @@ namespace Altepetl
         {
             _banco.AgregarCapacidad(-Definicion.CapacidadExtra * Nivel);
             Destroy(gameObject);
+        }
+
+        private bool VecinaMuralla(GridMap mapa, Vector2Int desfase)
+        {
+            var vecina = mapa.En(Origen + desfase);
+            return vecina != null && vecina.EsMuralla;
         }
 
         private Transform Union(Transform actual, Building vecino, string nombre)
@@ -346,6 +414,26 @@ namespace Altepetl
 
             // Tramos: del borde de este poste al del vecino, un poco más bajos y delgados.
             float alturaTramo = altura * 0.85f;
+            if (EsPuerta)
+            {
+                // En vez del poste, un dintel sobre el hueco y dos hojas de madera que giran sobre sus goznes
+                // (los tramos de las vecinas llegan justo hasta los goznes).
+                float gozne = lado * 0.5f;
+                float grueso = 0.12f;
+                _modelo.localScale = _puertaEnX ? new Vector3(lado + 0.2f, 0.1f, 0.3f) : new Vector3(0.3f, 0.1f, lado + 0.2f);
+                _modelo.localPosition = new Vector3(0f, _base + alturaTramo + 0.05f, 0f);
+                for (int i = 0; i < 2; i++)
+                {
+                    var pivote = i == 0 ? _hojaA : _hojaB;
+                    if (pivote == null) continue;
+                    int signo = i == 0 ? -1 : 1;
+                    pivote.localPosition = _puertaEnX ? new Vector3(signo * gozne, _base, 0f) : new Vector3(0f, _base, signo * gozne);
+                    var hoja = pivote.GetChild(0);
+                    hoja.localScale = _puertaEnX ? new Vector3(gozne, alturaTramo * 0.9f, grueso) : new Vector3(grueso, alturaTramo * 0.9f, gozne);
+                    hoja.localPosition = _puertaEnX ? new Vector3(-signo * gozne * 0.5f, alturaTramo * 0.45f, 0f) : new Vector3(0f, alturaTramo * 0.45f, -signo * gozne * 0.5f);
+                    hoja.GetComponent<Renderer>().material.color = Derribado ? new Color(0.25f, 0.22f, 0.2f) : new Color(0.45f, 0.30f, 0.18f);
+                }
+            }
             if (_uneEste != null)
             {
                 _uneEste.localScale = new Vector3(1f - lado, alturaTramo, 0.4f);

@@ -30,6 +30,7 @@ namespace Altepetl
             public bool VaAChinampa;    // va a trabajar (o ya trabaja) en una chinampa de los alrededores
             public Vector3 Puerta;
             public Vector3 Destino;
+            public readonly Caminos.Andante Andar = new Caminos.Andante();
             public float Hasta;         // hasta cuándo espera, está adentro o sigue en el mismo lugar de la obra
             public float Fase;
             public float Rumbo;
@@ -235,13 +236,16 @@ namespace Altepetl
             }
 
             Vector3 plano = Plano(persona);
-            Vector3 hacia = persona.Destino - plano;
-            bool caminando = hacia.sqrMagnitude > 0.0004f;
+            bool caminando = (persona.Destino - plano).sqrMagnitude > 0.0004f;
             if (caminando)
             {
+                // Rodean edificios y murallas; cruzan la muralla solo por las puertas.
+                Vector3 siguiente = persona.Andar.Siguiente(Manager.Caminos, plano, persona.Destino, Manager.PasaAldeano);
+                Vector3 hacia = siguiente - plano;
                 float paso = Velocidad * Time.deltaTime;
-                plano = hacia.magnitude <= paso ? persona.Destino : plano + hacia.normalized * paso;
+                plano = hacia.magnitude <= paso ? siguiente : plano + hacia.normalized * paso;
                 persona.Rumbo = Mathf.Atan2(hacia.x, hacia.z) * Mathf.Rad2Deg;
+                Manager.CruzarPuerta(plano, hacia.normalized);
             }
             else
             {
@@ -353,6 +357,7 @@ namespace Altepetl
                 persona.Suelo = Manager.Paisaje != null ? Manager.Paisaje.AlturaSuelo(punto) : 0f;
                 persona.Cuerpo.localPosition = new Vector3(punto.x, Tamano, punto.z);
                 if (persona.Acalli != null) persona.Acalli.localPosition = new Vector3(punto.x, 0.03f, punto.z);
+                persona.Andar.Olvidar();
             }
             persona.Casa = null;
             persona.CasaDeAfuera = false;
@@ -411,6 +416,7 @@ namespace Altepetl
         private static void Teletransportar(Persona persona)
         {
             persona.Cuerpo.localPosition = new Vector3(persona.Destino.x, Tamano, persona.Destino.z);
+            persona.Andar.Olvidar();
         }
 
         // ---------- Crear y quitar gente ----------

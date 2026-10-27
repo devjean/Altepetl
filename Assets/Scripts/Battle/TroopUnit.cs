@@ -27,6 +27,7 @@ namespace Altepetl
         private float _velocidad;
         private EnemyBuilding _objetivo;
         private Renderer _render;
+        private Color _color;
         private float _destelloHasta;
 
         /// <summary>vidaInicial: fracción de la vida máxima con la que entra (las heridas entran incompletas).</summary>
@@ -55,12 +56,13 @@ namespace Altepetl
             var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             Destroy(cuerpo.GetComponent<Collider>());
             cuerpo.transform.SetParent(transform, false);
-            // Los de más rango se ven un poco más grandes.
-            float tamano = 0.3f * (1f + 0.12f * rango);
+            // Los de más rango se ven un poco más grandes, y la élite con su atavío.
+            float tamano = 0.3f * Rangos.Tamano(rango);
             cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
             cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
             _render = cuerpo.GetComponent<Renderer>();
-            _render.material.color = definicion.Color;
+            _color = Rangos.ColorDe(pueblo, definicion.Color, rango);
+            _render.material.color = _color;
         }
 
         public void RecibirDano(float cantidad)
@@ -79,7 +81,9 @@ namespace Altepetl
         {
             if (Muerta || _batalla.Terminada) return;
 
-            _render.material.color = Time.time < _destelloHasta ? Color.white : Definicion.Color;
+            _render.material.color = Time.time < _destelloHasta ? Color.white : _color;
+            // Con un yaotequihua cerca se pelea mejor.
+            float dano = _danoPorSegundo * _batalla.MultiplicadorLider(this) * Time.deltaTime;
 
             var defensor = _batalla.DefensorCercano(transform.position, Definicion.Alcance + DistanciaParaPelear);
             if (defensor != null)
@@ -92,7 +96,7 @@ namespace Altepetl
                     transform.position += haciaDefensor.normalized * Mathf.Min(_velocidad * Time.deltaTime, distancia - Definicion.Alcance);
                     return;
                 }
-                defensor.RecibirDano(_danoPorSegundo * Time.deltaTime, this);
+                defensor.RecibirDano(dano, this);
                 return;
             }
 
@@ -114,7 +118,7 @@ namespace Altepetl
                 transform.position += haciaObjetivo.normalized * paso;
                 return;
             }
-            _objetivo.RecibirDano(_danoPorSegundo * Time.deltaTime, this);
+            _objetivo.RecibirDano(dano, this);
         }
     }
 }

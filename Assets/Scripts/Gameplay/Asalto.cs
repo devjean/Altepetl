@@ -277,7 +277,7 @@ namespace Altepetl
             _vencidos++;
             // Como en batalla, al vencer a un invasor se puede tomar un cautivo.
             if (atacante != null && !atacante.Invasor && !atacante.Muerto
-                && Random.value < Rangos.ProbabilidadCaptura(Manager.Pueblo))
+                && Random.value < Rangos.ProbabilidadCapturaGuerrero(Manager.Pueblo, atacante.Rango))
             {
                 atacante.Capturas++;
                 _cautivos++;
@@ -300,6 +300,18 @@ namespace Altepetl
                 }
             }
             return mejor;
+        }
+
+        /// <summary>Si hay un yaotequihua (élite tlaxcalteca o acolhua) cerca del defensor, pega más.</summary>
+        public float MultiplicadorLider(Combatiente defensor)
+        {
+            float radio = Rangos.RadioLider * Rangos.RadioLider;
+            foreach (var otro in _defensores)
+            {
+                if (otro == null || otro == defensor || otro.Muerto || !Rangos.EsLider(Manager.Pueblo, otro.Rango)) continue;
+                if ((otro.transform.position - defensor.transform.position).sqrMagnitude <= radio) return 1f + Rangos.BonoLider;
+            }
+            return 1f;
         }
 
         /// <summary>El edificio en pie más cercano (sin murallas); los de alcance prefieren torres.</summary>

@@ -500,6 +500,12 @@ namespace Altepetl
 
             if (Pueblo == null) return;
             if (NivelTelpochcalli > 0) Ejercito.Avanzar(Time.deltaTime, DuracionEntrenamiento);
+            int rangoFormando = Ejercito.FormandoRango;
+            if (NivelCalmecac > 0 && Ejercito.AvanzarFormacion(Time.deltaTime))
+            {
+                MostrarMensaje($"{Terminos.Un} {Terminos.Tropa} salió del calmécac como {Rangos.Nombre(Pueblo, rangoFormando).ToLowerInvariant()}", 4f);
+                Guardar();
+            }
             // Los heridos empiezan a sanar ya de vuelta en la aldea, cuando llegan al temazcalli.
             bool curando = ModoActual == Modo.Aldea && !_tropasEnAldea.HeridosLlegando;
             int curados = curando ? Ejercito.Curar(Time.deltaTime, CamasCuracion) : 0;
@@ -654,8 +660,14 @@ namespace Altepetl
         /// <summary>Cada obra (construcción o mejora) ocupa a esta gente hasta que termina.</summary>
         public const int MacehualtinPorObra = 10;
 
-        /// <summary>20 con el tecpan 1 y 10 más por cada nivel: 2 obras a la vez al empezar, 6 con el tecpan 5.</summary>
-        public int Poblacion => 10 + 10 * Mathf.Max(1, NivelTecpan);
+        /// <summary>
+        /// 20 con el tecpan 1 y 10 más por cada nivel: 2 obras a la vez al empezar, 6 con el tecpan 5.
+        /// Entre los tlaxcaltecas cada yaotequihua suma 2 más: el mérito de guerra abría el poder político.
+        /// </summary>
+        public int Poblacion => 10 + 10 * Mathf.Max(1, NivelTecpan) + GentePorElite * Ejercito.Elites;
+
+        public const int GentePorYaotequihuaTlaxcalteca = 2;
+        private int GentePorElite => Pueblo != null && Pueblo.Id == PuebloId.Tlaxcaltecas ? GentePorYaotequihuaTlaxcalteca : 0;
 
         /// <summary>Obras en marcha. Las murallas son rápidas y no ocupan a nadie.</summary>
         public int ObrasEnCurso
@@ -896,6 +908,74 @@ namespace Altepetl
             return costo;
         }
 
+        // ---------- Calmécac ----------
+
+        public const int ElitesPorNivelCalmecac = 2;
+        public const float SegundosFormacionBase = 45f;      // se acorta 10 % por nivel del calmécac
+        public static readonly int[] CostoFormacion = ResourceInfo.Costo(maiz: 150, plumas: 3);
+
+        public int NivelCalmecac
+        {
+            get
+            {
+                int nivel = 0;
+                foreach (var edificio in _edificios)
+                {
+                    if (edificio.Definicion.Forma) nivel = Mathf.Max(nivel, edificio.Nivel);
+                }
+                return nivel;
+            }
+        }
+
+        /// <summary>Cuántos de élite puede haber a la vez: pocos, como en la historia.</summary>
+        public int MaximoElites => ElitesPorNivelCalmecac * NivelCalmecac;
+
+        public float DuracionFormacion =>
+            SegundosFormacionBase * (1f - 0.1f * Mathf.Max(0, NivelCalmecac - 1)) * Pueblo.MultiplicadorTiempoEntrenamiento;
+
+        public int CostoTerminarFormacion => Mathf.Max(1, Mathf.CeilToInt(Ejercito.SegundosFormacion / 10f));
+
+        /// <summary>Manda al calmécac a una tropa que ya capturó, para que salga con ese rango de élite.</summary>
+        public void TryFormar(TroopId id, int rangoDestino)
+        {
+            if (NivelCalmecac <= 0 || !Rangos.EsElite(rangoDestino) || !Rangos.Existe(Pueblo, rangoDestino)) return;
+            if (Ejercito.Formando)
+            {
+                MostrarMensaje("El calmécac ya está formando a alguien");
+                return;
+            }
+            if (Ejercito.Elites >= MaximoElites)
+            {
+                MostrarMensaje("Sube el calmécac para formar a más");
+                return;
+            }
+            if (Ejercito.Get(id, Rangos.Capturador) <= 0)
+            {
+                MostrarMensaje($"Solo entran {Terminos.Los} {Rangos.Nombre(Pueblo, Rangos.Capturador).ToLowerInvariant()} san{Terminos.O}s");
+                return;
+            }
+            if (!Banco.TryGastar(CostoFormacion))
+            {
+                MostrarMensaje("Recursos insuficientes");
+                return;
+            }
+            Ejercito.EmpezarFormacion(id, rangoDestino, DuracionFormacion);
+            Guardar();
+        }
+
+        public bool TryTerminarFormacion()
+        {
+            if (!Ejercito.Formando) return false;
+            if (!Banco.TryGastar(ResourceInfo.Costo(plumas: CostoTerminarFormacion)))
+            {
+                MostrarMensaje("No tienes suficientes plumas de quetzal");
+                return false;
+            }
+            Ejercito.TerminarFormacion();
+            Guardar();
+            return true;
+        }
+
         public void TryOfrendar(Deidad deidad)
         {
             if (Banco.Get(ResourceType.Cautivos) < Culto.CostoOfrenda)
@@ -1097,9 +1177,10 @@ namespace Altepetl
             NivelesCompletados = Mathf.Clamp(datos.nivelesCompletados, 0, Campana.Length);
             _estrellas.Clear();
             if (datos.estrellas != null) _estrellas.AddRange(datos.estrellas);
-            if (datos.defensa != null)
+            var defensa = Army.Remapear(datos.defensa);
+            if (defensa != null)
             {
-                for (int i = 0; i < _defensa.Length && i < datos.defensa.Length; i++) _defensa[i] = Mathf.Max(0, datos.defensa[i]);
+                for (int i = 0; i < _defensa.Length; i++) _defensa[i] = Mathf.Max(0, defensa[i]);
             }
 
             AplicarTiempoAusente(SaveSystem.SegundosDesde(datos));
@@ -1129,6 +1210,7 @@ namespace Altepetl
             }
             int tropasAntes = Ejercito.Total;
             if (NivelTelpochcalli > 0) Ejercito.Avanzar(segundos, DuracionEntrenamiento);
+            bool formada = NivelCalmecac > 0 && Ejercito.AvanzarFormacion(segundos);
             int curados = Ejercito.Curar(segundos, CamasCuracion);
 
             var ganancias = new List<string>();
@@ -1142,6 +1224,7 @@ namespace Altepetl
             int tropasNuevas = Ejercito.Total - tropasAntes;
             if (tropasNuevas > 0) ganancias.Add($"+{tropasNuevas} {Terminos.Tropas}");
             if (curados > 0) ganancias.Add($"{curados} {Terminos.Tropas} curad{Terminos.O}s");
+            if (formada) ganancias.Add($"{Terminos.Un} {Terminos.Tropa} salió del calmécac");
             if (ganancias.Count > 0)
             {
                 MostrarMensaje("Mientras no estabas: " + string.Join(", ", ganancias), 5f);

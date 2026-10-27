@@ -15,6 +15,7 @@ namespace Altepetl
         Teocalli, // nuevos al final: el número se guarda en la partida
         Temazcalli,
         Calpulli,
+        Calmecac,
     }
 
     /// <summary>Pestañas del menú de construcción.</summary>
@@ -52,6 +53,7 @@ namespace Altepetl
         public int CapacidadTropas;       // espacio para tropas por nivel (calpulli)
         public bool Entrena;              // entrena tropas (telpochcalli)
         public int CamasCuracion;         // heridos que cura a la vez, por nivel (temazcalli)
+        public bool Forma;                // forma a la élite (calmécac)
 
         public bool EsDefensa;            // ataca a las tropas enemigas en batalla
         public float AlcanceDefensa;
@@ -199,6 +201,22 @@ namespace Altepetl
                 Categoria = CategoriaEdificio.Militar,
                 VidaBase = 600,
                 MaximoPorTecpan = new[] { 1, 2, 2, 3, 3 },
+            },
+            new BuildingDefinition
+            {
+                Id = BuildingId.Calmecac,
+                Nombre = "Calmécac",
+                Descripcion = "Escuela de los hijos de los pipiltin, a cargo de sacerdotes: religión, calendario, escritura y guerra. "
+                              + "Aquí [los] [tropas] que ya tomaron cautivos se forman como élite. Pide tecpan 3 (y con él, el teocalli).",
+                Tamano = 2,
+                Altura = 1.5f,
+                Color = new Color(0.80f, 0.72f, 0.58f),
+                Costo = ResourceInfo.Costo(maiz: 200, madera: 150, obsidiana: 60),
+                SegundosConstruccion = 40f,
+                Forma = true,
+                Categoria = CategoriaEdificio.Militar,
+                VidaBase = 900,
+                MaximoPorTecpan = new[] { 0, 0, 1, 1, 1 },
             },
             new BuildingDefinition
             {

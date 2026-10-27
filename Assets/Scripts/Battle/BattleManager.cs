@@ -422,12 +422,24 @@ namespace Altepetl
             if (edificio.Definicion.Id == BuildingId.Tecpan) TecpanDestruido = true;
         }
 
-        /// <summary>Al vencer a un defensor también se le puede tomar cautivo.</summary>
+        /// <summary>Si hay un yaotequihua (élite tlaxcalteca o acolhua) cerca de la tropa, pega más.</summary>
+        public float MultiplicadorLider(TroopUnit tropa)
+        {
+            float radio = Rangos.RadioLider * Rangos.RadioLider;
+            foreach (var otra in _tropas)
+            {
+                if (otra == null || otra == tropa || otra.Muerta || !Rangos.EsLider(_manager.Pueblo, otra.Rango)) continue;
+                if ((otra.transform.position - tropa.transform.position).sqrMagnitude <= radio) return 1f + Rangos.BonoLider;
+            }
+            return 1f;
+        }
+
+        /// <summary>Al vencer a un defensor también se le puede tomar cautivo (la élite mexica, más seguido).</summary>
         public void AlMorirDefensor(Defensor defensor, TroopUnit atacante)
         {
             _defensores.Remove(defensor);
             _defensoresDerrotados++;
-            if (atacante != null && !atacante.Muerta && Random.value < Rangos.ProbabilidadCaptura(_manager.Pueblo))
+            if (atacante != null && !atacante.Muerta && Random.value < Rangos.ProbabilidadCapturaGuerrero(_manager.Pueblo, atacante.Rango))
             {
                 atacante.Capturas++;
                 _cautivos++;

@@ -545,13 +545,15 @@ namespace Altepetl
                 Nombre = "Poyauhtlan",
                 Descripcion = "Pueblos vecinos, con una sola torre.",
                 Historia =
-                    "Según la tradición que recogió Diego Muñoz Camargo, los teochichimecas que serían los tlaxcaltecas salieron de "
-                    + "Chicomóztoc, las Siete Cuevas, guiados por su dios Camaxtli, y se asentaron en los llanos de Poyauhtlan, en la "
-                    + "orilla oriental del lago, en tierras acolhuas.\n\n"
-                    + "Ahí, en el año 1 Conejo, se dio una de las dos batallas más recordadas de su historia: la de Poyauhtlan, \"a "
-                    + "orillas de la laguna, desde Coatlinchan hasta Chimalhuacan\". Después de esa guerra, siguiendo a Camaxtli, "
-                    + "dejaron el valle y partieron hacia el oriente.\n\n"
-                    + "La tradición dice que pelearon contra los pueblos del lago que no los querían como vecinos.",
+                    "Según la tradición que recogió Diego Muñoz Camargo, los teochichimecas salieron de Chicomóztoc, las Siete "
+                    + "Cuevas, guiados por su dios Camaxtli, y se asentaron en los llanos de Poyauhtlan, en la orilla oriental del "
+                    + "lago. Todavía no eran tlaxcaltecas: eran los chichimecas de Poyauhtlan, antepasados de los grupos que después "
+                    + "fundarían Tlaxcallan.\n\n"
+                    + "Muñoz Camargo cuenta que los pueblos vecinos temían que siguieran extendiendo su territorio, y que una "
+                    + "coalición de tepanecas y culhuas-mexicas los atacó para echarlos de la orilla del lago. En el año 1 Conejo los "
+                    + "chichimecas vencieron en una batalla junto a la laguna, desde Coatlinchan hasta Chimalhuacan. Tiempo después, "
+                    + "siguiendo a Camaxtli, emprendieron su peregrinación hacia el oriente.\n\n"
+                    + "Así lo cuenta la crónica, escrita siglos después de los hechos.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
@@ -600,14 +602,17 @@ namespace Altepetl
             new CampaignLevel
             {
                 Nombre = "Texcalticpac",
-                Descripcion = "Una segunda batalla en tierras nuevas.",
+                Descripcion = "Los huexotzincas y sus aliados cercan Tepeticpac.",
                 Historia =
-                    "Desde Tepeticpac crecieron otras cabeceras: Ocotelulco, Tizatlan y Quiahuiztlan. Muñoz Camargo cuenta que las "
-                    + "tierras se repartieron en paz; cada cabecera tenía su propio señor, y entre las cuatro gobernaron Tlaxcallan. "
-                    + "A diferencia de Tenochtitlan, aquí no mandaba un solo gobernante.\n\n"
-                    + "No todo fue paz. Muñoz Camargo recuerda, junto a Poyauhtlan, una segunda batalla \"famosa y cruel\": la de "
-                    + "Texcalticpac, en el año 9 Pedernal, en el corazón del nuevo territorio. No dice contra quién se peleó; las "
-                    + "tierras se disputaban con los vecinos, entre ellos Cholollan.",
+                    "Las cuatro cabeceras crecieron alrededor de Tepeticpac: Ocotelulco, Tizatlan y Quiahuiztlan, cada una con su "
+                    + "propio señor; entre las cuatro gobernaron Tlaxcallan, sin un solo gobernante. Pero la tradición que recoge "
+                    + "Muñoz Camargo recuerda también una guerra entre los propios chichimecas: algunos se rebelaron contra sus "
+                    + "antiguos jefes para gobernar sus tierras sin someterse a una sola autoridad.\n\n"
+                    + "Más tarde, los huexotzincas y sus aliados cercaron Tepeticpac. Los defensores pidieron ayuda a Texcoco, "
+                    + "mientras los mexicas-tepanecas, aunque habían prometido apoyar a Huexotzinco, evitaron entrar en combate. Los "
+                    + "chichimecas resistieron y derrotaron a los atacantes.\n\n"
+                    + "La crónica no deja claro si fueron dos guerras o una sola, la batalla de Texcalticpac, que fecha en el año 9 "
+                    + "Pedernal.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 2),

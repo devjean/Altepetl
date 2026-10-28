@@ -24,7 +24,7 @@ namespace Altepetl
         private Renderer _render;
         private float _altura;
 
-        public void Inicializar(BuildingDefinition definicion, int nivel, Vector3 centro, BattleManager batalla)
+        public void Inicializar(BuildingDefinition definicion, int nivel, Vector3 centro, BattleManager batalla, bool plataforma = false)
         {
             Definicion = definicion;
             _batalla = batalla;
@@ -43,8 +43,23 @@ namespace Altepetl
             _render = cubo.GetComponent<Renderer>();
             _altura = definicion.Altura * (1f + 0.15f * (Mathf.Max(1, nivel) - 1));
             float lado = definicion.Tamano * 0.9f;
-            _modelo.localScale = new Vector3(lado, _altura, lado);
-            _modelo.localPosition = new Vector3(0f, _altura * 0.5f, 0f);
+            float base_ = 0f;
+            if (plataforma)
+            {
+                // Sobre el lago, cada edificio va en su plataforma de piedra, como en Tenochtitlan.
+                base_ = 0.14f;
+                var piedra = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                piedra.name = "Plataforma";
+                Destroy(piedra.GetComponent<Collider>());
+                piedra.transform.SetParent(transform, false);
+                float ladoPlataforma = definicion.Tamano * 0.96f;
+                piedra.transform.localScale = new Vector3(ladoPlataforma, base_, ladoPlataforma);
+                piedra.transform.localPosition = new Vector3(0f, base_ * 0.5f, 0f);
+                piedra.GetComponent<Renderer>().material.color = new Color(0.62f, 0.60f, 0.55f);
+                _altura += base_;
+            }
+            _modelo.localScale = new Vector3(lado, _altura - base_, lado);
+            _modelo.localPosition = new Vector3(0f, base_ + (_altura - base_) * 0.5f, 0f);
             ActualizarColor();
         }
 
@@ -54,9 +69,10 @@ namespace Altepetl
             Vida = Mathf.Max(0f, Vida - cantidad);
             if (Destruido)
             {
-                // Quedan ruinas planas.
+                // Quedan ruinas planas (sobre su plataforma, si la hay).
+                float base_ = _modelo.localPosition.y - _modelo.localScale.y * 0.5f;
                 _modelo.localScale = new Vector3(_modelo.localScale.x, 0.08f, _modelo.localScale.z);
-                _modelo.localPosition = new Vector3(0f, 0.04f, 0f);
+                _modelo.localPosition = new Vector3(0f, base_ + 0.04f, 0f);
                 _batalla.AlDestruirEdificio(this, atacante);
             }
             ActualizarColor();

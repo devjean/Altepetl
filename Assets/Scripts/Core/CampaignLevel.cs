@@ -31,6 +31,14 @@ namespace Altepetl
         }
     }
 
+    /// <summary>Dónde está la aldea enemiga: en tierra, en la orilla del lago (agua al este) o sobre el lago.</summary>
+    public enum Escenario
+    {
+        Tierra,
+        Orilla,
+        Lago,
+    }
+
     /// <summary>
     /// Un capítulo de campaña: una aldea enemiga contra la IA y la historia que lo acompaña.
     /// </summary>
@@ -39,6 +47,10 @@ namespace Altepetl
         public const int TamanoMapa = 12;
 
         public string Nombre;
+        /// <summary>En el lago o en la orilla, tus [tropas] llegan en acalli por el agua y desembarcan.</summary>
+        public Escenario Escenario = Escenario.Tierra;
+        /// <summary>Una calzada de piedra que sale de la aldea hacia el este, sobre el agua (en la orilla o el lago).</summary>
+        public bool Calzada;
         public string Descripcion;
         public EdificioEnemigo[] Edificios;
         public GrupoDefensor[] Defensores = new GrupoDefensor[0];
@@ -208,7 +220,8 @@ namespace Altepetl
             new CampaignLevel
             {
                 Nombre = "Chapultepec",
-                Descripcion = "Un cerro muy defendido. Aquí se perdió.",
+                Descripcion = "Un cerro en la orilla del lago, muy defendido. Aquí se perdió.",
+                Escenario = Escenario.Orilla,
                 Historia =
                     "Ya en la cuenca de México, los mexicas se establecieron en Chapultepec. Eran recién llegados, sin tierra "
                     + "propia, y los pueblos del lago no los querían ahí.\n\n"
@@ -264,7 +277,8 @@ namespace Altepetl
             new CampaignLevel
             {
                 Nombre = "Al servicio de Culhuacan",
-                Descripcion = "Guerra contra Xochimilco. Mitad del botín.",
+                Descripcion = "Xochimilco, entre chinampas: se llega en acalli. Mitad del botín.",
+                Escenario = Escenario.Lago,
                 Historia =
                     "Tras la derrota, Coxcoxtli, señor de Culhuacan, dejó vivir a los mexicas en Tizaapan, una tierra pedregosa. "
                     + "Sobrevivieron y, como vasallos de Culhuacan, fueron llamados a su guerra contra Xochimilco.\n\n"
@@ -298,7 +312,9 @@ namespace Altepetl
             new CampaignLevel
             {
                 Nombre = "Tributarios de Azcapotzalco",
-                Descripcion = "Guerra para los tepanecas. Mitad del botín.",
+                Descripcion = "Ciudad de la orilla, con calzada. Guerra para los tepanecas. Mitad del botín.",
+                Escenario = Escenario.Orilla,
+                Calzada = true,
                 Historia =
                     "La Tira se corta antes del final de la historia. Las crónicas cuentan lo que sigue: en un islote del lago los "
                     + "mexicas vieron la señal prometida, un águila sobre un nopal, y ahí fundaron México-Tenochtitlan, "

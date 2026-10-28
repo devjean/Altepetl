@@ -172,6 +172,7 @@ namespace Altepetl
             Colocando = null;
             Moviendo = null;
             EligiendoMuros = false;
+            MejorandoMuros = false;
             _murosElegidos.Clear();
             _grupo.Clear();
             _desfases.Clear();
@@ -185,6 +186,7 @@ namespace Altepetl
 
         /// <summary>Se están eligiendo murallas conectadas en línea para moverlas juntas.</summary>
         public bool EligiendoMuros { get; private set; }
+        public bool MejorandoMuros { get; private set; }
         public int CuantosMurosElegidos => _murosElegidos.Count;
         public int CuantosEnGrupo => _grupo.Count;
 
@@ -213,6 +215,54 @@ namespace Altepetl
             EmpezarGrupo(new List<Building> { edificio });
         }
 
+        public void EmpezarMejorarMuros(Building muro)
+        {
+            if (!MuroMejorable(muro) || Asalto.EnCurso) return;
+            CancelarColocacion();
+            Seleccionar(null);
+            EligiendoMuros = true;
+            MejorandoMuros = true;
+            _murosElegidos.Add(muro);
+        }
+
+        private bool MuroMejorable(Building muro)
+        {
+            if (muro == null || muro.Definicion.Id != BuildingId.Muralla) return false;
+            var estado = PuedeMejorar(muro);
+            return estado == EstadoMejora.Disponible || estado == EstadoMejora.SinRecursos;
+        }
+
+        public int[] CostoMejorarMuros()
+        {
+            var total = new int[ResourceInfo.Count];
+            foreach (var muro in _murosElegidos)
+            {
+                if (muro == null) continue;
+                var costo = muro.Definicion.CostoMejora(muro.Nivel);
+                for (int i = 0; i < total.Length; i++) total[i] += costo[i];
+            }
+            return total;
+        }
+
+        public bool PuedeMejorarMuros()
+        {
+            if (!MejorandoMuros || Asalto.EnCurso || _murosElegidos.Count == 0) return false;
+            foreach (var muro in _murosElegidos)
+                if (!MuroMejorable(muro)) return false;
+            return Banco.PuedePagar(CostoMejorarMuros());
+        }
+
+        public void MejorarMurosElegidos()
+        {
+            // Validar el grupo entero antes de cobrar: nunca dejar una mejora parcial.
+            if (!PuedeMejorarMuros() || !Banco.TryGastar(CostoMejorarMuros())) return;
+            int cantidad = _murosElegidos.Count;
+            foreach (var muro in _murosElegidos) muro.EmpezarMejora();
+            CancelarColocacion();
+            Guardar();
+            MostrarMensaje($"Mejorando {cantidad} murallas");
+        }
+
         private void EmpezarGrupo(List<Building> edificios)
         {
             _grupo.Clear();
@@ -229,9 +279,10 @@ namespace Altepetl
         /// <summary>Pasa de elegir murallas a moverlas.</summary>
         public void MoverMurosElegidos()
         {
-            if (!EligiendoMuros || _murosElegidos.Count == 0) return;
+            if (!EligiendoMuros || MejorandoMuros || _murosElegidos.Count == 0) return;
             var muros = new List<Building>(_murosElegidos);
             EligiendoMuros = false;
+            MejorandoMuros = false;
             _murosElegidos.Clear();
             EmpezarGrupo(muros);
         }
@@ -254,7 +305,7 @@ namespace Altepetl
                 for (var c = inicio + eje * signo; EsMuralla(c); c += eje * signo)
                 {
                     var muro = Mapa.En(c);
-                    if (!_murosElegidos.Contains(muro)) _murosElegidos.Add(muro);
+                    if (!_murosElegidos.Contains(muro) && (!MejorandoMuros || MuroMejorable(muro))) _murosElegidos.Add(muro);
                 }
             }
         }
@@ -274,7 +325,7 @@ namespace Altepetl
                     var siguiente = casilla + paso;
                     if (!EsMuralla(siguiente)) continue;
                     var muro = Mapa.En(siguiente);
-                    if (_murosElegidos.Contains(muro)) continue;
+                    if (_murosElegidos.Contains(muro) || (MejorandoMuros && !MuroMejorable(muro))) continue;
                     _murosElegidos.Add(muro);
                     pendientes.Enqueue(siguiente);
                 }
@@ -528,7 +579,14 @@ namespace Altepetl
             var casilla = Mapa.MundoACasilla(punto);
             if (EligiendoMuros)
             {
-                TryAgregarMuro(casilla);
+                if (MejorandoMuros)
+                {
+                    var muro = Mapa.En(casilla);
+                    if (muro != null && _murosElegidos.Contains(muro)) _murosElegidos.Remove(muro);
+                    else if (MuroMejorable(muro)) _murosElegidos.Add(muro);
+                    else MostrarMensaje("Elige una muralla terminada que pueda subir de nivel");
+                }
+                else TryAgregarMuro(casilla);
             }
             else if (Moviendo != null)
             {
@@ -1388,7 +1446,7 @@ namespace Altepetl
                         dedo.PintaInicio = Mapa.MundoACasilla(inicio);
                         ColocarMurallaEn(dedo.PintaInicio);
                     }
-                    else if (!batalla && !dedo.EnHud && EligiendoMuros && PunteroEnSuelo(dedo.Inicio, out Vector3 sobre))
+                    else if (!batalla && !dedo.EnHud && EligiendoMuros && !MejorandoMuros && PunteroEnSuelo(dedo.Inicio, out Vector3 sobre))
                     {
                         var muro = Mapa.En(Mapa.MundoACasilla(sobre));
                         dedo.EligeMuros = muro != null && _murosElegidos.Contains(muro);

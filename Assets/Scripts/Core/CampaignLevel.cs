@@ -167,11 +167,13 @@ namespace Altepetl
                 Nombre = "Salida de Aztlán",
                 Descripcion = "Pueblos del camino, con una sola torre.",
                 Historia =
-                    "Los mexicas contaban que venían de Aztlán, un lugar rodeado de agua en algún punto del norte. "
-                    + "No sabemos si existió como un lugar real o si es sobre todo un origen sagrado.\n\n"
-                    + "Huitzilopochtli les habló: había una tierra que les correspondía y debían buscarla. "
-                    + "Los teomamaque, los cargadores del dios, llevaban a cuestas su bulto sagrado, y el pueblo los seguía.\n\n"
-                    + "En el camino no todos los pueblos los recibían en paz.",
+                    "Los mexicas contaban que venían de Aztlán, un lugar rodeado de agua. No sabemos si existió como lugar real o "
+                    + "si es sobre todo un origen sagrado.\n\n"
+                    + "La Tira de la peregrinación empieza ahí: en el año 1 Pedernal cruzan el agua en una canoa y llegan a "
+                    + "Colhuacan, donde Huitzilopochtli, en su bulto sagrado, les habla. Los teomamaque, los cargadores del dios, lo "
+                    + "llevarían a cuestas durante todo el camino.\n\n"
+                    + "Los pueblos del camino que aquí se enfrentan no están en la Tira: son una recreación de un viaje largo por "
+                    + "tierras ajenas.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
@@ -191,10 +193,12 @@ namespace Altepetl
                 Nombre = "La peregrinación",
                 Descripcion = "Dos torres vigilan los almacenes.",
                 Historia =
-                    "La peregrinación no fue un solo viaje: duró muchas generaciones, más o menos entre los siglos XII y XIV. "
-                    + "Se asentaban un tiempo, sembraban y volvían a partir cuando el dios lo ordenaba.\n\n"
-                    + "Hubo separaciones: Malinalxóchitl, hermana de Huitzilopochtli, fue abandonada con su gente. "
-                    + "Para mantener el favor del dios, los mexicas le ofrecían su propia sangre, punzándose con espinas de maguey.",
+                    "La peregrinación no fue un solo viaje: duró generaciones. La Tira muestra parada tras parada, con los años que "
+                    + "pasaron en cada una; sembraban, levantaban un templo y partían otra vez cuando el dios lo ordenaba.\n\n"
+                    + "En Coatepec encendieron su primer fuego nuevo, la ceremonia que cerraba un ciclo de 52 años. Otras "
+                    + "tradiciones, recogidas por Durán y en la Crónica Mexicáyotl, cuentan que en el camino quedó atrás "
+                    + "Malinalxóchitl, hermana de Huitzilopochtli, con su gente.\n\n"
+                    + "La ciudad que aquí se ataca es una recreación: la Tira no registra una batalla en este tramo.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
@@ -219,13 +223,14 @@ namespace Altepetl
                 Descripcion = "Un cerro en la orilla del lago, muy defendido. Aquí se perdió.",
                 Escenario = Escenario.Orilla,
                 Historia =
-                    "Ya en el Valle de México, los mexicas se establecieron en Chapultepec. Eran recién llegados, "
-                    + "sin tierra propia, y los pueblos del lago no los querían ahí.\n\n"
-                    + "Cópil, hijo de Malinalxóchitl, llegó a vengar a su madre. Los mexicas lo mataron y arrojaron su corazón al lago; "
-                    + "según el mito, de ahí nacería la piedra donde crecería el nopal de la señal.\n\n"
-                    + "Después, una alianza de pueblos del lago cayó sobre Chapultepec y los mexicas fueron derrotados. "
-                    + "Esta batalla es muy difícil: pelea lo mejor que puedas, que la historia sigue aunque pierdas. "
-                    + "Destruirla por completo es un reto para un ejército grande.",
+                    "Ya en la cuenca de México, los mexicas se establecieron en Chapultepec. Eran recién llegados, sin tierra "
+                    + "propia, y los pueblos del lago no los querían ahí.\n\n"
+                    + "Las fuentes no cuentan igual la derrota. La Tira muestra a los colhuas llevándose prisioneros a Huitzilíhuitl, "
+                    + "el jefe mexica, y a su hija; las crónicas posteriores hablan de una alianza de Culhuacan, Azcapotzalco, "
+                    + "Xochimilco y Xaltocan, y añaden la historia de Cópil, el hijo de Malinalxóchitl, cuyo corazón arrojado al lago "
+                    + "daría origen al nopal de la señal.\n\n"
+                    + "El juego sigue la versión de la Tira: los mexicas de Chapultepec son derrotados y dispersados.\n\n"
+                    + "Esta batalla es muy difícil: pelea lo mejor que puedas, que la historia sigue aunque pierdas.",
                 Edificios = new[]
                 {
                     // El tecpan en lo alto, rodeado de murallas.
@@ -275,9 +280,12 @@ namespace Altepetl
                 Descripcion = "Xochimilco, entre chinampas: se llega en acalli. Mitad del botín.",
                 Escenario = Escenario.Lago,
                 Historia =
-                    "Tras la derrota, el señor de Culhuacan dejó a los mexicas vivir en Tizapan, una tierra pedregosa y llena de serpientes. "
-                    + "Sobrevivieron, y Culhuacan los llamó como guerreros en su guerra contra Xochimilco.\n\n"
-                    + "Sin tierra propia, los mexicas pelean para otro señor. La mitad del botín es para Culhuacan.",
+                    "Tras la derrota, Coxcoxtli, señor de Culhuacan, dejó vivir a los mexicas en Tizaapan, una tierra pedregosa. "
+                    + "Sobrevivieron y, como vasallos de Culhuacan, fueron llamados a su guerra contra Xochimilco.\n\n"
+                    + "La Tira termina en esa guerra: las últimas láminas muestran a los mexicas peleando por Culhuacan y la tira "
+                    + "queda inconclusa. Las crónicas cuentan que volvieron con muchos cautivos, prueba de que peleaban por otro "
+                    + "señor sin tierra propia.\n\n"
+                    + "La mitad del botín es para Culhuacan.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 2),
@@ -308,10 +316,14 @@ namespace Altepetl
                 Escenario = Escenario.Orilla,
                 Calzada = true,
                 Historia =
-                    "Por fin, en un islote del lago, los mexicas vieron la señal que Huitzilopochtli había prometido: "
-                    + "un águila sobre un nopal que crecía de una piedra. Ahí fundaron México-Tenochtitlan, tradicionalmente en 1325.\n\n"
-                    + "Pero la ciudad nacía débil. Los mexicas tributaban a los tepanecas de Azcapotzalco, el poder más grande del valle, "
-                    + "y peleaban sus guerras. La mitad del botín es para Azcapotzalco.",
+                    "La Tira se corta antes del final de la historia. Las crónicas cuentan lo que sigue: en un islote del lago los "
+                    + "mexicas vieron la señal prometida, un águila sobre un nopal, y ahí fundaron México-Tenochtitlan, "
+                    + "tradicionalmente en el año 1325.\n\n"
+                    + "La ciudad nació débil. Durante casi un siglo los mexicas fueron tributarios de los tepanecas de Azcapotzalco, "
+                    + "el poder más grande del valle, y pelearon sus guerras como vasallos: así crecieron, hasta que en 1428 "
+                    + "cambiaron de bando.\n\n"
+                    + "La ciudad que aquí se ataca no es una batalla concreta: representa esas guerras al servicio de Azcapotzalco. "
+                    + "La mitad del botín es para los tepanecas.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 3),
@@ -354,11 +366,14 @@ namespace Altepetl
                 Nombre = "La llegada de Xólotl",
                 Descripcion = "Un pueblo del valle, con una sola torre.",
                 Historia =
-                    "Después de la caída de Tula y del mundo tolteca, muchos grupos del norte entraron en la Cuenca de México. "
-                    + "Uno de los más importantes era el de Xólotl, un gran jefe chichimeca.\n\n"
-                    + "Los chichimecas de Xólotl no eran agricultores: cazaban con arco y flecha, recolectaban, vivían en cuevas "
-                    + "y recorrían territorios muy amplios. Alrededor de los lagos, en cambio, vivían pueblos sedentarios que sembraban maíz.\n\n"
-                    + "No todos los pueblos del valle recibieron en paz a los recién llegados.",
+                    "Después de la caída de Tula, grupos del norte entraron en la cuenca de México. El Códice Xólotl cuenta la "
+                    + "llegada de Xólotl, un gran jefe chichimeca, con su hijo Nopaltzin: pasaron junto a las ruinas de Tula "
+                    + "cubiertas de hierba, recorrieron el valle y tomaron posesión de la tierra con una ceremonia en el cerro "
+                    + "Xocotl, disparando flechas a los cuatro rumbos.\n\n"
+                    + "Los chichimecas cazaban con arco y flecha y vivían en cuevas. En las orillas de los lagos vivían pueblos que "
+                    + "sembraban maíz y guardaban la herencia tolteca. Según el códice, al principio no hubo guerra: cada quien "
+                    + "respetó las tierras del otro.\n\n"
+                    + "La aldea que aquí se ataca es una recreación para el juego.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
@@ -379,11 +394,12 @@ namespace Altepetl
                 Nombre = "Tenayuca",
                 Descripcion = "Culhuacan se niega a pagar tributo.",
                 Historia =
-                    "Xólotl hizo de Tenayuca su primera capital. Desde ahí organizó el territorio: "
-                    + "repartió tierras y señoríos entre sus jefes y entre los grupos que fueron llegando después.\n\n"
-                    + "Según la Historia chichimeca de Fernando de Alva Ixtlilxóchitl, Xólotl reclamó tributo a los señores toltecas de Culhuacan. "
-                    + "Nauhyotzin respondió que no reconocían a ningún señor extranjero y que querían conservar su libertad. "
-                    + "Xólotl envió entonces a su hijo Nopaltzin con un ejército, y la batalla se dio en la laguna y los carrizales de Culhuacan.",
+                    "Xólotl hizo de Tenayuca su primera capital y desde ahí repartió tierras y señoríos entre sus jefes y entre los "
+                    + "grupos que fueron llegando.\n\n"
+                    + "Según el Códice Xólotl, Xólotl exigió a Nauhyotl, señor tolteca de Culhuacan, que lo reconociera como su "
+                    + "señor. Nauhyotl se negó: los reyes toltecas no reconocían más superior que sus dioses. Xólotl envió a su hijo "
+                    + "Nopaltzin, y la batalla se dio a orillas de la laguna, en el año 13 Casa. Fue muy sangrienta. Después, Xólotl "
+                    + "fue a Culhuacan y puso como señor a Achitómetl.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
@@ -408,13 +424,14 @@ namespace Altepetl
                 Nombre = "La rebelión de Yacanex",
                 Descripcion = "Señores rebeldes: muchos arqueros.",
                 Historia =
-                    "Poco a poco, los chichimecas adoptaron la agricultura, la vida sedentaria y costumbres de los pueblos que ya estaban ahí. "
-                    + "Según Ixtlilxóchitl, Tlotzin impulsó el cultivo de la tierra después de aprenderlo de Tecpoyo Achcauhtli. "
-                    + "Algunos chichimecas aceptaron sembrar; otros, apegados a las costumbres de sus antepasados, "
-                    + "se marcharon a las sierras de Metztitlan y Totépec.\n\n"
-                    + "Más tarde, durante el gobierno de Quinatzin, Yacanex y otros señores se rebelaron, "
-                    + "y las tropas de Quinatzin salieron a enfrentarlos.\n\n"
-                    + "Sus defensores son casi todos arqueros: entra con guerreros que aguanten.",
+                    "Poco a poco los chichimecas adoptaron la agricultura y las costumbres de los pueblos del lago. Según Alva "
+                    + "Ixtlilxóchitl, Tlotzin aprendió a sembrar del chalca Tecpoyo Achcauhtli; algunos chichimecas aceptaron, y "
+                    + "otros, apegados a la vida de sus antepasados, se fueron a las sierras.\n\n"
+                    + "El Códice Xólotl cuenta otra disputa. Yacanex, jefe de los chichimecas cazadores de Tepetlaóztoc, pidió a "
+                    + "Achitómetl la mano de su hija Atotoztli, que ya estaba prometida a Huetzin, señor de Coatlinchan. Yacanex se "
+                    + "alzó contra Huetzin, y Huetzin y Quinatzin lo derrotaron en una batalla sangrienta. Muerto Tlotzin, Yacanex "
+                    + "volvió a rebelarse con apoyo de otros señoríos.\n\n"
+                    + "Sus defensores son en su mayoría arqueros.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 2),
@@ -438,13 +455,15 @@ namespace Altepetl
             new CampaignLevel
             {
                 Nombre = "La guerra tepaneca",
-                Descripcion = "Los tepanecas cercan Texcoco. Aquí se perdió.",
+                Descripcion = "Los tepanecas atacan Texcoco. Aquí se perdió.",
                 Historia =
-                    "Con el tiempo, el centro del poder acolhua pasó de Tenayuca a Texcoco, junto al lago. "
-                    + "Pero los tepanecas de Azcapotzalco, gobernados por Tezozómoc, se volvieron el poder más grande del valle.\n\n"
-                    + "En 1418 los tepanecas atacaron Texcoco. El señor Ixtlilxóchitl salió a pelear por su ciudad.\n\n"
-                    + "Esta batalla es muy difícil: pelea lo mejor que puedas, que la historia sigue aunque pierdas. "
-                    + "Destruirla por completo es un reto para un ejército grande.",
+                    "Con el tiempo el centro del poder acolhua pasó de Tenayuca a Texcoco. Pero Tezozómoc, señor de los tepanecas "
+                    + "de Azcapotzalco, se volvió el poder más grande del valle.\n\n"
+                    + "Techotlalatzin murió hacia 1409 y lo sucedió su hijo Ixtlilxóchitl. Tezozómoc le hizo la guerra. Según el "
+                    + "Códice Xólotl, Ixtlilxóchitl cayó en una trampa de Tezozómoc y fue asesinado; su hijo Nezahualcóyotl escapó "
+                    + "escondido en un árbol. Las fuentes ponen esa muerte hacia 1418.\n\n"
+                    + "Tezozómoc se repartió el Acolhuacan con sus aliados, y Texcoco quedó bajo señores impuestos por Azcapotzalco.\n\n"
+                    + "Esta batalla es muy difícil: pelea lo mejor que puedas, que la historia sigue aunque pierdas.",
                 Edificios = new[]
                 {
                     // El campamento tepaneca: tecpan amurallado y torres reforzadas.
@@ -493,10 +512,14 @@ namespace Altepetl
                 Nombre = "Nezahualcóyotl",
                 Descripcion = "Contra Azcapotzalco, junto a los mexicas.",
                 Historia =
-                    "Nezahualcóyotl pasó años huyendo y escondiéndose de los tepanecas. Cuando murió Tezozómoc, "
-                    + "su hijo Maxtla tomó el poder en Azcapotzalco y siguió persiguiéndolo.\n\n"
-                    + "Con la ayuda de Huexotzinco y de Tlaxcallan, Nezahualcóyotl recuperó Texcoco. "
-                    + "Después se unió a los mexicas de Itzcóatl, y juntos marcharon contra Azcapotzalco en 1428.",
+                    "Nezahualcóyotl pasó años huyendo. Cuando murió Tezozómoc, su hijo Maxtla tomó el poder en Azcapotzalco y "
+                    + "siguió persiguiéndolo. El Códice Xólotl termina aquí, en 1429, con Nezahualcóyotl tejiendo alianzas: Chalco, "
+                    + "Huexotla, Coatlinchan, Huexotzinco, Tlaxcallan y los mexicas.\n\n"
+                    + "Lo que sigue lo cuentan Alva Ixtlilxóchitl y las crónicas mexicas, y no todas en el mismo orden: con guerreros "
+                    + "de Huexotzinco y Tlaxcallan recuperó Texcoco; junto a los mexicas de Itzcóatl derrotó a Azcapotzalco, en 1428; "
+                    + "y de esa victoria nació la Triple Alianza de Tenochtitlan, Texcoco y Tlacopan, que gobernaría el valle durante "
+                    + "casi un siglo.\n\n"
+                    + "Esta batalla representa la caída de Azcapotzalco.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 3),
@@ -538,11 +561,15 @@ namespace Altepetl
                 Nombre = "Poyauhtlan",
                 Descripcion = "Pueblos vecinos, con una sola torre.",
                 Historia =
-                    "Hace unos 800 o 900 años, varios grupos chichimecas llegaron del norte. Entre ellos venían los primeros tlaxcaltecas, "
-                    + "guiados por Camaxtli, su dios tutelar.\n\n"
-                    + "Según la tradición que recogió Diego Muñoz Camargo en su Historia de Tlaxcala, se asentaron en los llanos de Poyauhtlan, "
-                    + "en tierras de Texcoco, y vivían de la caza. Ahí se enfrentaron con los pueblos vecinos, "
-                    + "y después de esa guerra decidieron seguir su camino.",
+                    "Según la tradición que recogió Diego Muñoz Camargo, los teochichimecas salieron de Chicomóztoc, las Siete "
+                    + "Cuevas, guiados por su dios Camaxtli, y se asentaron en los llanos de Poyauhtlan, en la orilla oriental del "
+                    + "lago. Todavía no eran tlaxcaltecas: eran los chichimecas de Poyauhtlan, antepasados de los grupos que después "
+                    + "fundarían Tlaxcallan.\n\n"
+                    + "Muñoz Camargo cuenta que los pueblos vecinos temían que siguieran extendiendo su territorio, y que una "
+                    + "coalición de tepanecas y culhuas-mexicas los atacó para echarlos de la orilla del lago. En el año 1 Conejo los "
+                    + "chichimecas vencieron en una batalla junto a la laguna, desde Coatlinchan hasta Chimalhuacan. Tiempo después, "
+                    + "siguiendo a Camaxtli, emprendieron su peregrinación hacia el oriente.\n\n"
+                    + "Así lo cuenta la crónica, escrita siglos después de los hechos.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
@@ -563,10 +590,12 @@ namespace Altepetl
                 Nombre = "Tepeticpac",
                 Descripcion = "Los olmeca-xicalancas defienden la región.",
                 Historia =
-                    "Después partieron hacia el oriente, al valle de Puebla-Tlaxcala. Se establecieron en Tepeticpac, "
-                    + "en lo alto de un cerro fácil de defender, y ahí fundaron su primer altepetl.\n\n"
-                    + "Según Muñoz Camargo, los olmeca-xicalancas tenían asentamientos y fortificaciones en partes de la región, "
-                    + "como Xochitécatl, y los recién llegados se enfrentaron a ellos.",
+                    "Partieron al oriente, al valle de Puebla-Tlaxcala. Según Muñoz Camargo llegaron a la sierra de Tepeticpac en "
+                    + "el año 5 Pedernal; al lugar lo llamaron Texcalticpac, \"sobre los riscos\", y de ahí vendría el nombre "
+                    + "Tlaxcallan.\n\n"
+                    + "La región no estaba vacía: los olmeca-xicalancas la habitaban desde antes. Muñoz Camargo cuenta que los "
+                    + "teochichimecas los expulsaron y ocuparon sus tierras, y que Culhua Quanez, primer señor de los teochichimecas, "
+                    + "fundó en Tepeticpac la primera cabecera.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5),
@@ -588,14 +617,18 @@ namespace Altepetl
             },
             new CampaignLevel
             {
-                Nombre = "Las cuatro cabeceras",
-                Descripcion = "Un señorío vecino disputa las tierras.",
+                Nombre = "Texcalticpac",
+                Descripcion = "Los huexotzincas y sus aliados cercan Tepeticpac.",
                 Historia =
-                    "Desde Tepeticpac crecieron otras cabeceras: Ocotelulco, Tizatlán y Quiahuiztlán. "
-                    + "Cada una tenía su propio señor, y entre las cuatro formaron el núcleo de Tlaxcallan.\n\n"
-                    + "A diferencia de Tenochtitlan, aquí no mandaba un solo gobernante: Tlaxcallan fue una confederación de más de veinte altepemeh "
-                    + "y el poder se repartía entre los principales señores.\n\n"
-                    + "Mientras crecían, tuvieron que defender sus tierras de los señoríos vecinos.",
+                    "Las cuatro cabeceras crecieron alrededor de Tepeticpac: Ocotelulco, Tizatlan y Quiahuiztlan, cada una con su "
+                    + "propio señor; entre las cuatro gobernaron Tlaxcallan, sin un solo gobernante. Pero la tradición que recoge "
+                    + "Muñoz Camargo recuerda también una guerra entre los propios chichimecas: algunos se rebelaron contra sus "
+                    + "antiguos jefes para gobernar sus tierras sin someterse a una sola autoridad.\n\n"
+                    + "Más tarde, los huexotzincas y sus aliados cercaron Tepeticpac. Los defensores pidieron ayuda a Texcoco, "
+                    + "mientras los mexicas-tepanecas, aunque habían prometido apoyar a Huexotzinco, evitaron entrar en combate. Los "
+                    + "chichimecas resistieron y derrotaron a los atacantes.\n\n"
+                    + "La crónica no deja claro si fueron dos guerras o una sola, la batalla de Texcalticpac, que fecha en el año 9 "
+                    + "Pedernal.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 2),
@@ -625,10 +658,14 @@ namespace Altepetl
                 Nombre = "El cerco",
                 Descripcion = "Una guarnición de la Triple Alianza.",
                 Historia =
-                    "La Triple Alianza fue conquistando los pueblos de alrededor y Tlaxcallan quedó rodeada. "
-                    + "Sin comercio con el exterior, por muchos años les faltaron la sal y el algodón.\n\n"
-                    + "Mexicas y tlaxcaltecas peleaban además guerras floridas, la xochiyaoyotl, para tomar cautivos y probar a sus guerreros. "
-                    + "Tlaxcallan nunca se rindió.",
+                    "Con los años, los mexicas y sus aliados fueron sometiendo a los pueblos de alrededor y Tlaxcallan quedó "
+                    + "rodeada. Muñoz Camargo cuenta que, cuando los tlaxcaltecas preguntaron por qué se les hacía la guerra, el señor "
+                    + "de México exigió tributo; ellos contestaron que nunca lo habían pagado y que preferían morir.\n\n"
+                    + "No fue una batalla sino un cerco de \"más de sesenta años\": les faltaron el algodón, la sal, el cacao, el oro "
+                    + "y las plumas. Hubo escaramuzas constantes en las fronteras, que servían para ejercitar a los guerreros. "
+                    + "Pueblos enteros, otomíes, xaltocamecas y chalcas, se refugiaron en Tlaxcallan y recibieron tierras a cambio de "
+                    + "defender la frontera.\n\n"
+                    + "La guarnición que aquí se ataca es una recreación de esas escaramuzas de frontera.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 3),
@@ -657,9 +694,14 @@ namespace Altepetl
                 Nombre = "Tlaxcallan no se rinde",
                 Descripcion = "Un gran ejército mexica. Muchos defensores.",
                 Historia =
-                    "A principios del siglo XVI, los mexicas de Motecuhzoma Xocoyotzin enviaron grandes ejércitos contra Tlaxcallan.\n\n"
-                    + "Los tlaxcaltecas resistieron desde sus cerros. Esta vez el campamento enemigo está lleno de guerreros: "
-                    + "lleva a tu ejército completo.",
+                    "A principios del siglo XVI Tlaxcallan estaba en guerra con Huexotzinco, su vecino. Los huexotzincas, agotados, "
+                    + "pidieron ayuda a Motecuhzoma Xocoyotzin, y los mexicas entraron en la guerra.\n\n"
+                    + "Las crónicas mexicas cuentan combates de muchos días, con refuerzos de Texcoco y Tlacopan, y la captura del "
+                    + "guerrero tlaxcalteca Tlahuicole, que prefirió morir en la piedra de sacrificio antes que servir a México. "
+                    + "Muñoz Camargo lo recuerda como el más valiente de los suyos.\n\n"
+                    + "Tlaxcallan no fue conquistada. Pocos años después, en 1519, llegarían los españoles, y los tlaxcaltecas "
+                    + "decidirían su propio destino.\n\n"
+                    + "El campamento enemigo está lleno de guerreros: lleva a tu ejército completo.",
                 Edificios = new[]
                 {
                     new EdificioEnemigo(BuildingId.Tecpan, 5, 5, 4),

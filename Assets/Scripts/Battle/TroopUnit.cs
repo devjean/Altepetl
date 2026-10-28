@@ -27,6 +27,7 @@ namespace Altepetl
         private float _velocidad;
         private EnemyBuilding _objetivo;
         private Renderer _render;
+        private Color _color;
         private float _destelloHasta;
         private Transform _cuerpo;
         private Transform _acalli;   // canoa, en los campos con agua
@@ -59,12 +60,13 @@ namespace Altepetl
             var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             Destroy(cuerpo.GetComponent<Collider>());
             cuerpo.transform.SetParent(transform, false);
-            // Los de más rango se ven un poco más grandes.
-            float tamano = 0.3f * (1f + 0.12f * rango);
+            // Los de más rango se ven un poco más grandes, y la élite con su atavío.
+            float tamano = 0.3f * Rangos.Tamano(rango);
             cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
             cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
             _render = cuerpo.GetComponent<Renderer>();
-            _render.material.color = definicion.Color;
+            _color = Rangos.ColorDe(pueblo, definicion.Color, rango);
+            _render.material.color = _color;
             _cuerpo = cuerpo.transform;
             _tamano = tamano;
             _fase = Random.value * Mathf.PI * 2f;
@@ -116,7 +118,9 @@ namespace Altepetl
         {
             if (Muerta || _batalla.Terminada) return;
 
-            _render.material.color = Time.time < _destelloHasta ? Color.white : Definicion.Color;
+            _render.material.color = Time.time < _destelloHasta ? Color.white : _color;
+            // Con un yaotequihua cerca se pelea mejor.
+            float dano = _danoPorSegundo * _batalla.MultiplicadorLider(this) * Time.deltaTime;
 
             var defensor = _batalla.DefensorCercano(transform.position, Definicion.Alcance + DistanciaParaPelear);
             if (defensor != null)
@@ -131,7 +135,7 @@ namespace Altepetl
                     return;
                 }
                 Remar(Vector3.zero);
-                defensor.RecibirDano(_danoPorSegundo * Time.deltaTime, this);
+                defensor.RecibirDano(dano, this);
                 return;
             }
 
@@ -155,7 +159,7 @@ namespace Altepetl
                 return;
             }
             Remar(Vector3.zero);
-            _objetivo.RecibirDano(_danoPorSegundo * Time.deltaTime, this);
+            _objetivo.RecibirDano(dano, this);
         }
     }
 }

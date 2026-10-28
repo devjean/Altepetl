@@ -539,11 +539,12 @@ namespace Altepetl
 
             var def = edificio.Definicion;
             bool entrena = def.Entrena && edificio.Nivel > 0;
+            bool forma = def.Forma && edificio.Nivel > 0;
             // Al tecpan le faltan edificios para subir: se listan en el panel.
             var faltan = def.Id == BuildingId.Tecpan && !edificio.EnConstruccion
                 ? Manager.RequisitosFaltantesTecpan(edificio.Nivel + 1)
                 : new List<RequisitoTecpan>();
-            float altoPanel = entrena ? 410 : def.CamasCuracion > 0 ? 310 : 250;
+            float altoPanel = entrena ? 410 : forma ? 450 : def.CamasCuracion > 0 ? 310 : 250;
             if (faltan.Count > 0) altoPanel += 22 + 19 * faltan.Count;
             if (def.Id == BuildingId.Muralla) altoPanel += 50; // lugar para el botón de la puerta
             // A la izquierda de la columna de recursos, para no taparla.
@@ -619,14 +620,16 @@ namespace Altepetl
             {
                 info += $"\nEjército: {Manager.Ejercito.Espacio} / {Manager.CapacidadEjercito}";
             }
+            if (forma) info = $"Nivel {edificio.Nivel}. " + Rangos.DescripcionElite(Manager.Pueblo) + $"\nVida: {edificio.Vida}";
             if (def.Entrena && edificio.Nivel > 0)
             {
                 if (Manager.Ejercito.Heridos.Count > 0) info += $"\nHeridos en el temazcalli: {Manager.Ejercito.Heridos.Count}";
                 string veteranos = TextoRangos(Manager.Ejercito);
                 if (veteranos.Length > 0) info += "\nCon rango: " + veteranos;
             }
-            GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, entrena ? 120 : panel.height - (def.Id == BuildingId.Muralla ? 150 : 100)), info, _texto);
+            GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, entrena || forma ? 120 : panel.height - (def.Id == BuildingId.Muralla ? 150 : 100)), info, _texto);
             if (entrena) DibujarEntrenamiento(panel);
+            if (forma) DibujarFormacion(panel);
 
             var botonRect = new Rect(panel.x + 10, panel.yMax - 54, panel.width - 20, 44);
             if (edificio.EnConstruccion)
@@ -936,6 +939,56 @@ namespace Altepetl
             if (GUI.Button(new Rect(panel.x + 10, panel.y + 306, panel.width - 20, 40), $"Terminar entrenamiento ({Plumas(plumas)})", _boton))
             {
                 Manager.TryTerminarEntrenamiento();
+            }
+            GUI.enabled = true;
+        }
+
+        /// <summary>El calmécac: quiénes pueden ascender a la élite y quién se está formando.</summary>
+        private void DibujarFormacion(Rect panel)
+        {
+            var ejercito = Manager.Ejercito;
+            var pueblo = Manager.Pueblo;
+            string capturador = Rangos.Nombre(pueblo, Rangos.Capturador).ToLowerInvariant();
+            string estado = $"Élite: {ejercito.Elites} / {Manager.MaximoElites}. Solo entran {Terminos.Los} {capturador} san{Terminos.O}s.";
+            if (ejercito.Formando)
+            {
+                estado += $"\nFormando {TroopCatalog.Get(ejercito.FormandoTipo).Nombre.ToLowerInvariant()} como "
+                          + $"{Rangos.Nombre(pueblo, ejercito.FormandoRango).ToLowerInvariant()}: {Mathf.CeilToInt(ejercito.SegundosFormacion)} s";
+            }
+            else
+            {
+                estado += $"\nCuesta {TextoCosto(GameManager.CostoFormacion)}, {Mathf.CeilToInt(Manager.DuracionFormacion)} s";
+            }
+            GUI.Label(new Rect(panel.x + 10, panel.y + 164, panel.width - 20, 48), estado, _textoChico);
+
+            bool mexica = pueblo.Id == PuebloId.Mexicas;
+            bool puede = !ejercito.Formando && ejercito.Elites < Manager.MaximoElites && Manager.Banco.PuedePagar(GameManager.CostoFormacion);
+            float y = panel.y + 216;
+            foreach (var tropa in TroopCatalog.Todos)
+            {
+                int listos = ejercito.Get(tropa.Id, Rangos.Capturador);
+                GUI.Label(new Rect(panel.x + 10, y + 6, 120, 26), $"{tropa.Nombre} ({listos})", _textoUnaLinea);
+                GUI.enabled = puede && listos > 0;
+                if (mexica)
+                {
+                    // Los mexicas eligen la orden: mismas fuerzas, distinto atavío.
+                    if (GUI.Button(new Rect(panel.x + 132, y, 66, 34), "Cuauhtli", _botonChico)) Manager.TryFormar(tropa.Id, Rangos.Elite);
+                    if (GUI.Button(new Rect(panel.x + 204, y, 66, 34), "Ocelotl", _botonChico)) Manager.TryFormar(tropa.Id, Rangos.Ocelotl);
+                }
+                else if (GUI.Button(new Rect(panel.x + 132, y, 138, 34), Rangos.Nombre(pueblo, Rangos.Elite), _botonChico))
+                {
+                    Manager.TryFormar(tropa.Id, Rangos.Elite);
+                }
+                GUI.enabled = true;
+                y += 38;
+            }
+
+            if (!ejercito.Formando) return;
+            int plumas = Manager.CostoTerminarFormacion;
+            GUI.enabled = Manager.Banco.Get(ResourceType.Plumas) >= plumas;
+            if (GUI.Button(new Rect(panel.x + 10, panel.y + 336, panel.width - 20, 40), $"Terminar formación ({Plumas(plumas)})", _boton))
+            {
+                Manager.TryTerminarFormacion();
             }
             GUI.enabled = true;
         }

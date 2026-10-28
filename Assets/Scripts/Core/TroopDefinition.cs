@@ -90,11 +90,29 @@ namespace Altepetl
     /// </summary>
     public static class Rangos
     {
-        public const int Count = 3;
+        public const int Count = 5;
         public const int Joven = 0;
         public const int Experimentado = 1;
         public const int Capturador = 2;
+        /// <summary>Cuarto rango, el que se gana en el calmécac. Para los mexicas es la orden cuauhtli (águila).</summary>
+        public const int Elite = 3;
+        /// <summary>Solo mexicas: la orden ocelotl (jaguar). Mismas fuerzas que cuauhtli, distinto atavío.</summary>
+        public const int Ocelotl = 4;
         public const float BonoPorRango = 0.15f; // +15 % de vida y ataque por rango
+        public const float BonoElite = 0.4f;     // la élite, +40 % sobre el tlamani
+        /// <summary>Un yaotequihua (tlaxcaltecas y acolhuas) hace pelear mejor a los que tiene cerca.</summary>
+        public const float BonoLider = 0.10f;
+        public const float RadioLider = 2.5f;
+        /// <summary>Un cuauhtli u ocelotl que vence a un guerrero tiene más probabilidad de capturarlo.</summary>
+        public const float CapturaExtraElite = 0.30f;
+
+        public static bool EsElite(int rango) => rango >= Elite;
+
+        /// <summary>El rango ocelotl solo existe entre los mexicas.</summary>
+        public static bool Existe(Pueblo pueblo, int rango)
+        {
+            return rango != Ocelotl || (pueblo != null && pueblo.Id == PuebloId.Mexicas);
+        }
 
         /// <summary>
         /// Probabilidad de hacer una captura al derribar un edificio. Los mexicas, que necesitan
@@ -105,9 +123,26 @@ namespace Altepetl
             return pueblo != null && pueblo.Id == PuebloId.Mexicas ? 0.26f : 0.2f;
         }
 
-        private static readonly string[] NombresMexicas = { "Joven guerrero", "Guerrero experimentado", "Tlamani" };
+        /// <summary>Probabilidad de capturar a un guerrero vencido; la élite mexica tiene más.</summary>
+        public static float ProbabilidadCapturaGuerrero(Pueblo pueblo, int rango)
+        {
+            float probabilidad = ProbabilidadCaptura(pueblo);
+            if (EsElite(rango) && pueblo != null && pueblo.Id == PuebloId.Mexicas) probabilidad += CapturaExtraElite;
+            return probabilidad;
+        }
+
+        /// <summary>¿Este rango hace de líder (yaotequihua) para los de alrededor? Los mexicas no: su élite es prestigio propio.</summary>
+        public static bool EsLider(Pueblo pueblo, int rango)
+        {
+            return EsElite(rango) && pueblo != null && pueblo.Id != PuebloId.Mexicas;
+        }
+
+        private static readonly string[] NombresMexicas =
+            { "Joven guerrero", "Guerrero experimentado", "Tlamani", "Cuauhtli", "Ocelotl" };
         // De acolhuas y tlaxcaltecas no hay una lista de rangos tan detallada; se usan nombres generales.
-        private static readonly string[] NombresGenerales = { "Joven guerrero", "Guerrero experimentado", "Veterano" };
+        // Yaotequihua: capitán de guerra por méritos (en Tlaxcala documentado; en Texcoco se usa como palabra general).
+        private static readonly string[] NombresGenerales =
+            { "Joven guerrero", "Guerrero experimentado", "Veterano", "Yaotequihua", "Yaotequihua" };
 
         public static string Nombre(Pueblo pueblo, int rango)
         {
@@ -115,11 +150,50 @@ namespace Altepetl
             return nombres[UnityEngine.Mathf.Clamp(rango, 0, Count - 1)];
         }
 
-        public static float Multiplicador(int rango) => 1f + BonoPorRango * rango;
+        /// <summary>Lo que es la élite de cada pueblo, para las fichas.</summary>
+        public static string DescripcionElite(Pueblo pueblo)
+        {
+            if (pueblo == null) return "";
+            switch (pueblo.Id)
+            {
+                case PuebloId.Mexicas:
+                    return "Las órdenes cuauhtli (águila) y ocelotl (jaguar): un honor que se ganaba con capturas. "
+                           + "Mismas fuerzas, distinto atavío. Al vencer a un guerrero tienen más probabilidad de capturarlo.";
+                case PuebloId.Tlaxcaltecas:
+                    return "Los yaotequihuaque: capitanes de guerra por sus hazañas, sin necesidad de ser nobles. "
+                           + "Los que pelean cerca de uno atacan 10% más, y cada uno suma 2 macehualtin al altepetl, "
+                           + "porque en Tlaxcallan el mérito de guerra abría el poder político.";
+                default:
+                    return "Yaotequihua, palabra náhuatl general para capitán de guerra (de los acolhuas no hay un nombre propio documentado). "
+                           + "Los que pelean cerca de uno atacan 10% más.";
+            }
+        }
 
-        /// <summary>Rango con el que regresa una tropa que sobrevivió a la batalla.</summary>
+        public static float Multiplicador(int rango)
+        {
+            if (EsElite(rango)) return (1f + BonoPorRango * Capturador) * (1f + BonoElite);
+            return 1f + BonoPorRango * rango;
+        }
+
+        /// <summary>Tamaño del monito: crece con el rango; cuauhtli y ocelotl son iguales.</summary>
+        public static float Tamano(int rango) => 1f + 0.12f * UnityEngine.Mathf.Min(rango, Elite);
+
+        /// <summary>Color del monito: el de su tipo, y la élite con su atavío encima.</summary>
+        public static Color ColorDe(Pueblo pueblo, Color tipo, int rango)
+        {
+            if (!EsElite(rango)) return tipo;
+            bool mexica = pueblo != null && pueblo.Id == PuebloId.Mexicas;
+            Color atavio;
+            if (!mexica) atavio = new Color(0.95f, 0.93f, 0.85f);          // manta blanca con divisa
+            else if (rango == Ocelotl) atavio = new Color(0.95f, 0.78f, 0.30f); // piel de jaguar
+            else atavio = new Color(0.50f, 0.33f, 0.14f);                    // plumaje de águila
+            return Color.Lerp(tipo, atavio, 0.6f);
+        }
+
+        /// <summary>Rango con el que regresa una tropa que sobrevivió a la batalla. La élite no se pierde.</summary>
         public static int AlRegresar(int rango, int capturas)
         {
+            if (EsElite(rango)) return rango;
             if (capturas > 0) return Capturador;
             return UnityEngine.Mathf.Max(rango, Experimentado);
         }

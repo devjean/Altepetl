@@ -28,6 +28,10 @@ namespace Altepetl
         private EnemyBuilding _objetivo;
         private Renderer _render;
         private float _destelloHasta;
+        private Transform _cuerpo;
+        private Transform _acalli;   // canoa, en los campos con agua
+        private float _tamano;
+        private float _fase;
 
         /// <summary>vidaInicial: fracción de la vida máxima con la que entra (las heridas entran incompletas).</summary>
         public void Inicializar(TroopDefinition definicion, int rango, float vidaInicial, Pueblo pueblo, Culto culto,
@@ -61,6 +65,39 @@ namespace Altepetl
             cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
             _render = cuerpo.GetComponent<Renderer>();
             _render.material.color = definicion.Color;
+            _cuerpo = cuerpo.transform;
+            _tamano = tamano;
+            _fase = Random.value * Mathf.PI * 2f;
+
+            if (batalla.HayAgua)
+            {
+                // Llegan por el agua en acalli; la canoa se ve mientras van sobre el agua.
+                var acalli = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                acalli.name = "Acalli";
+                Destroy(acalli.GetComponent<Collider>());
+                acalli.transform.SetParent(transform, false);
+                acalli.transform.localScale = new Vector3(0.2f, 0.08f, 0.6f);
+                acalli.GetComponent<Renderer>().material.color = new Color(0.45f, 0.30f, 0.18f);
+                _acalli = acalli.transform;
+                Remar(Vector3.forward);
+            }
+        }
+
+        /// <summary>Sobre el agua, el monito va en su canoa y se mece; en tierra, la canoa se queda atrás.</summary>
+        private void Remar(Vector3 rumbo)
+        {
+            if (_acalli == null) return;
+            bool enAgua = _batalla.EnAgua(transform.position);
+            if (_acalli.gameObject.activeSelf != enAgua) _acalli.gameObject.SetActive(enAgua);
+            if (!enAgua)
+            {
+                _cuerpo.localPosition = new Vector3(0f, _tamano, 0f);
+                return;
+            }
+            float vaiven = Mathf.Sin(Time.time * 1.8f + _fase) * 0.015f;
+            _acalli.localPosition = new Vector3(0f, 0.04f + vaiven, 0f);
+            if (rumbo.sqrMagnitude > 0.0001f) _acalli.localRotation = Quaternion.Euler(0f, Mathf.Atan2(rumbo.x, rumbo.z) * Mathf.Rad2Deg, 0f);
+            _cuerpo.localPosition = new Vector3(0f, 0.08f + vaiven + _tamano, 0f);
         }
 
         public void RecibirDano(float cantidad)
@@ -90,8 +127,10 @@ namespace Altepetl
                 if (distancia > Definicion.Alcance + MargenAlcance)
                 {
                     transform.position += haciaDefensor.normalized * Mathf.Min(_velocidad * Time.deltaTime, distancia - Definicion.Alcance);
+                    Remar(haciaDefensor);
                     return;
                 }
+                Remar(Vector3.zero);
                 defensor.RecibirDano(_danoPorSegundo * Time.deltaTime, this);
                 return;
             }
@@ -112,8 +151,10 @@ namespace Altepetl
             {
                 float paso = Mathf.Min(_velocidad * Time.deltaTime, distanciaAlBorde - Definicion.Alcance);
                 transform.position += haciaObjetivo.normalized * paso;
+                Remar(haciaObjetivo);
                 return;
             }
+            Remar(Vector3.zero);
             _objetivo.RecibirDano(_danoPorSegundo * Time.deltaTime, this);
         }
     }

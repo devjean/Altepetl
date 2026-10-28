@@ -383,10 +383,10 @@ namespace Altepetl
             lugares.Add(punto);
         }
 
-        /// <summary>Los heridos se ven más apagados.</summary>
-        private static Color ColorDe(Monito monito)
+        /// <summary>Los heridos se ven más apagados; la élite lleva su atavío.</summary>
+        private Color ColorDe(Monito monito)
         {
-            var color = TroopCatalog.Get(monito.Tipo).Color;
+            var color = Rangos.ColorDe(Manager.Pueblo, TroopCatalog.Get(monito.Tipo).Color, monito.Rango);
             return monito.Herido ? Color.Lerp(color, new Color(0.45f, 0.42f, 0.40f), 0.5f) : color;
         }
 
@@ -398,7 +398,7 @@ namespace Altepetl
             Destroy(cuerpo.GetComponent<Collider>()); // que no estorbe al tocar los edificios
             cuerpo.transform.SetParent(transform, false);
 
-            monito.Tamano = 0.18f * (1f + 0.12f * monito.Rango);
+            monito.Tamano = 0.18f * Rangos.Tamano(monito.Rango);
             cuerpo.transform.localScale = new Vector3(monito.Tamano, monito.Tamano, monito.Tamano);
             cuerpo.transform.localPosition = new Vector3(inicio.x, monito.Tamano, inicio.z);
 

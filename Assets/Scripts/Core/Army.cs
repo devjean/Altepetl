@@ -59,6 +59,23 @@ namespace Altepetl
 
         public static int Indice(TroopId id, int rango) => (int)id * Rangos.Count + rango;
 
+        /// <summary>
+        /// Acomoda un arreglo por tipo y rango guardado con menos rangos (partidas anteriores al calmécac)
+        /// al tamaño actual. Devuelve null si el tamaño no cuadra con ningún número de rangos.
+        /// </summary>
+        public static int[] Remapear(int[] viejo)
+        {
+            if (viejo == null || viejo.Length == 0 || viejo.Length % TroopCatalog.Count != 0) return null;
+            int rangos = viejo.Length / TroopCatalog.Count;
+            if (rangos == Rangos.Count) return (int[])viejo.Clone();
+            var nuevo = new int[TroopCatalog.Count * Rangos.Count];
+            for (int t = 0; t < TroopCatalog.Count; t++)
+            {
+                for (int r = 0; r < rangos && r < Rangos.Count; r++) nuevo[t * Rangos.Count + r] = viejo[t * rangos + r];
+            }
+            return nuevo;
+        }
+
         /// <summary>Segundos para curar a una tropa de ese tipo y rango desde 0 hasta toda su vida.</summary>
         public static float SegundosCuracionCompleta(TroopId id, int rango)
         {
@@ -94,8 +111,30 @@ namespace Altepetl
             }
         }
 
-        /// <summary>Tropas sanas y heridas.</summary>
-        public int Total => Sanos + _heridos.Count;
+        /// <summary>Tropas de ese rango, sanas y heridas.</summary>
+        public int TotalConRango(int rango)
+        {
+            int total = ConRango(rango);
+            foreach (var herido in _heridos)
+            {
+                if (herido.rango == rango) total++;
+            }
+            return total;
+        }
+
+        /// <summary>Cuántas de élite hay (sanas, heridas y la que se está formando).</summary>
+        public int Elites
+        {
+            get
+            {
+                int total = Formando ? 1 : 0;
+                for (int r = Rangos.Elite; r < Rangos.Count; r++) total += TotalConRango(r);
+                return total;
+            }
+        }
+
+        /// <summary>Tropas sanas y heridas (y la que está en el calmécac).</summary>
+        public int Total => Sanos + _heridos.Count + (Formando ? 1 : 0);
         public IReadOnlyList<Herido> Heridos => _heridos;
 
         public int HeridosDe(TroopId id, int rango)
@@ -272,6 +311,45 @@ namespace Altepetl
             }
         }
 
+        // ---------- Formación en el calmécac ----------
+
+        private int _formandoTipo = -1;
+        private int _formandoRango;
+        private float _formacionRestante;
+
+        public bool Formando => _formandoTipo >= 0;
+        public TroopId FormandoTipo => (TroopId)_formandoTipo;
+        public int FormandoRango => _formandoRango;
+        public float SegundosFormacion => _formacionRestante;
+
+        /// <summary>Saca a una tropa que ya capturó (tlamani o veterano) y la manda al calmécac.</summary>
+        public bool EmpezarFormacion(TroopId id, int rangoDestino, float segundos)
+        {
+            if (Formando || !Quitar(id, Rangos.Capturador)) return false;
+            _formandoTipo = (int)id;
+            _formandoRango = rangoDestino;
+            _formacionRestante = segundos;
+            return true;
+        }
+
+        /// <summary>Avanza la formación. Devuelve true si en este paso salió la tropa de élite.</summary>
+        public bool AvanzarFormacion(float segundos)
+        {
+            if (!Formando) return false;
+            _formacionRestante -= segundos;
+            if (_formacionRestante > 0f) return false;
+            TerminarFormacion();
+            return true;
+        }
+
+        public void TerminarFormacion()
+        {
+            if (!Formando) return;
+            Agregar(FormandoTipo, _formandoRango, 1);
+            _formandoTipo = -1;
+            _formacionRestante = 0f;
+        }
+
         // ---------- Guardado ----------
 
         public void Exportar(SaveData datos)
@@ -284,14 +362,18 @@ namespace Altepetl
             datos.entrenamientoRestante = _restante;
             datos.heridos = new List<Herido>();
             foreach (var h in _heridos) datos.heridos.Add(new Herido(h.tipo, h.rango, h.vida));
+            datos.formacionTipo = _formandoTipo;
+            datos.formacionRango = _formandoRango;
+            datos.formacionRestante = _formacionRestante;
         }
 
         public void Importar(SaveData datos)
         {
             Array.Clear(_tropas, 0, _tropas.Length);
-            if (datos.tropasPorRango != null && datos.tropasPorRango.Length == _tropas.Length)
+            var porRango = Remapear(datos.tropasPorRango);
+            if (porRango != null)
             {
-                for (int i = 0; i < _tropas.Length; i++) _tropas[i] = Math.Max(0, datos.tropasPorRango[i]);
+                for (int i = 0; i < _tropas.Length; i++) _tropas[i] = Math.Max(0, porRango[i]);
             }
             else if (datos.tropas != null)
             {
@@ -324,6 +406,10 @@ namespace Altepetl
                 }
             }
             _restante = _cola.Count > 0 ? Math.Max(0f, datos.entrenamientoRestante) : 0f;
+
+            _formandoTipo = datos.formacionTipo >= 0 && datos.formacionTipo < TroopCatalog.Count ? datos.formacionTipo : -1;
+            _formandoRango = Math.Max(Rangos.Elite, Math.Min(Rangos.Count - 1, datos.formacionRango));
+            _formacionRestante = Math.Max(0f, datos.formacionRestante);
         }
     }
 }

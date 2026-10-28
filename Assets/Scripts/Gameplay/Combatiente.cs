@@ -74,12 +74,14 @@ namespace Altepetl
             var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             Destroy(cuerpo.GetComponent<Collider>());
             cuerpo.transform.SetParent(transform, false);
-            float tamano = 0.3f * (1f + 0.12f * rango);
+            float tamano = 0.3f * Rangos.Tamano(rango);
             cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
             cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
             _render = cuerpo.GetComponent<Renderer>();
             // Los invasores, más oscuros y rojizos, como los defensores de las aldeas enemigas.
-            _color = invasor ? Color.Lerp(definicion.Color, new Color(0.35f, 0.08f, 0.08f), 0.55f) : definicion.Color;
+            _color = invasor
+                ? Color.Lerp(definicion.Color, new Color(0.35f, 0.08f, 0.08f), 0.55f)
+                : Rangos.ColorDe(pueblo, definicion.Color, rango);
             _render.material.color = _color;
         }
 
@@ -161,7 +163,9 @@ namespace Altepetl
                 return;
             }
             Peleo = true;
-            rival.RecibirDano(_danoPorSegundo * Time.deltaTime, this);
+            float dano = _danoPorSegundo * Time.deltaTime;
+            if (!Invasor) dano *= _asalto.MultiplicadorLider(this); // con un yaotequihua cerca se pelea mejor
+            rival.RecibirDano(dano, this);
         }
 
         /// <summary>El siguiente punto hacia el destino, rodeando lo que estorbe según quién camina.</summary>

@@ -40,6 +40,32 @@ namespace Altepetl
 
         public Vector3 Centro => Origen + new Vector3(CampaignLevel.TamanoMapa * 0.5f, 0f, CampaignLevel.TamanoMapa * 0.5f);
 
+        /// <summary>El campo tiene agua (orilla o lago): las tropas van en acalli hasta desembarcar.</summary>
+        public bool HayAgua => Nivel != null && Nivel.Escenario != Escenario.Tierra;
+
+        /// <summary>
+        /// ¿Ese punto está sobre el agua? En la orilla, el agua queda al este del campo; en el lago, todo
+        /// alrededor del islote. La calzada, si hay, va seca.
+        /// </summary>
+        public bool EnAgua(Vector3 punto)
+        {
+            if (!HayAgua) return false;
+            float x = punto.x - Origen.x, z = punto.z - Origen.z;
+            int tamano = CampaignLevel.TamanoMapa;
+            if (Nivel.Calzada && x >= tamano && Mathf.Abs(z - tamano * 0.5f) < AnchoCalzada * 0.5f) return false;
+            if (Nivel.Escenario == Escenario.Orilla) return x > tamano + MargenOrilla;
+            return x < -MargenOrilla || z < -MargenOrilla || x > tamano + MargenOrilla || z > tamano + MargenOrilla;
+        }
+
+        private const float MargenOrilla = 0.4f;  // franja de tierra que sobresale del campo antes del agua
+        private const float AnchoCalzada = 1.2f;
+        private static readonly Color ColorAgua = new Color(0.28f, 0.50f, 0.58f);
+        private static readonly Color ColorTierra = new Color(0.55f, 0.50f, 0.36f);
+        private static readonly Color ColorPiedra = new Color(0.62f, 0.60f, 0.55f);
+        private static readonly Color ColorLodo = new Color(0.36f, 0.30f, 0.20f);
+        private static readonly Color ColorSiembra = new Color(0.40f, 0.62f, 0.28f);
+        private static readonly Color ColorTule = new Color(0.45f, 0.60f, 0.30f);
+
         /// <summary>Derribar el tecpan da una estrella.</summary>
         public bool TecpanDestruido { get; private set; }
         public IReadOnlyList<EnemyBuilding> Edificios => _edificios;
@@ -154,14 +180,7 @@ namespace Altepetl
             int tamano = CampaignLevel.TamanoMapa;
             _ocupado = new bool[tamano, tamano];
 
-            var suelo = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            suelo.name = "Suelo enemigo";
-            Destroy(suelo.GetComponent<Collider>());
-            float lado = tamano + MargenDespliegue * 2;
-            suelo.transform.SetParent(transform, false);
-            suelo.transform.localScale = new Vector3(lado / 10f, 1f, lado / 10f);
-            suelo.transform.position = Centro;
-            suelo.GetComponent<Renderer>().material.color = new Color(0.55f, 0.50f, 0.36f);
+            CrearTerreno(tamano);
 
             foreach (var datos in Nivel.Edificios)
             {
@@ -169,7 +188,7 @@ namespace Altepetl
                 var edificio = new GameObject().AddComponent<EnemyBuilding>();
                 edificio.transform.SetParent(transform, false);
                 var centro = Origen + new Vector3(datos.X + definicion.Tamano * 0.5f, 0f, datos.Y + definicion.Tamano * 0.5f);
-                edificio.Inicializar(definicion, datos.Nivel, centro, this);
+                edificio.Inicializar(definicion, datos.Nivel, centro, this, plataforma: Nivel.Escenario == Escenario.Lago);
                 _edificios.Add(edificio);
 
                 for (int x = datos.X; x < datos.X + definicion.Tamano; x++)
@@ -182,6 +201,88 @@ namespace Altepetl
             }
             CrearDefensores();
             CrearZonaProhibida();
+        }
+
+        /// <summary>
+        /// El suelo: tierra; o la orilla del lago, con el agua al este y tules; o un islote entre chinampas.
+        /// Con calzada, una franja de piedra sale de la aldea hacia el este sobre el agua.
+        /// </summary>
+        private void CrearTerreno(int tamano)
+        {
+            float lado = tamano + MargenDespliegue * 2;
+            var suelo = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            suelo.name = "Suelo enemigo";
+            Destroy(suelo.GetComponent<Collider>());
+            suelo.transform.SetParent(transform, false);
+            suelo.transform.localScale = new Vector3(lado / 10f, 1f, lado / 10f);
+            suelo.transform.position = Centro + new Vector3(0f, Nivel.Escenario == Escenario.Lago ? -0.05f : 0f, 0f);
+            suelo.GetComponent<Renderer>().material.color = Nivel.Escenario == Escenario.Lago ? ColorAgua : ColorTierra;
+
+            var azar = new System.Random(IndiceNivel * 131 + 7);
+            switch (Nivel.Escenario)
+            {
+                case Escenario.Orilla:
+                {
+                    // Tierra hasta un poco después del campo; de ahí al este, el agua con tules en la orilla.
+                    float orilla = tamano + MargenOrilla;
+                    float anchoAgua = lado * 0.5f - tamano * 0.5f + tamano - orilla;
+                    Pieza(Origen + new Vector3(orilla + anchoAgua * 0.5f, -0.04f, tamano * 0.5f), new Vector3(anchoAgua, 0.04f, lado), ColorAgua);
+                    for (int i = 0; i < 18; i++)
+                    {
+                        float z = -MargenDespliegue + (float)azar.NextDouble() * lado;
+                        if (Nivel.Calzada && Mathf.Abs(z - tamano * 0.5f) < AnchoCalzada) continue;
+                        Tule(Origen + new Vector3(orilla + 0.2f + (float)azar.NextDouble() * 0.8f, 0f, z), azar);
+                    }
+                    break;
+                }
+                case Escenario.Lago:
+                {
+                    // El islote de la aldea, de lodo y piedra, y chinampas alrededor.
+                    float isla = tamano + MargenOrilla * 2f;
+                    Pieza(Centro + new Vector3(0f, -0.06f, 0f), new Vector3(isla, 0.12f, isla), ColorTierra);
+                    for (int i = 0; i < 16; i++)
+                    {
+                        float x = -MargenDespliegue + 1f + (float)azar.NextDouble() * (lado - 2f);
+                        float z = -MargenDespliegue + 1f + (float)azar.NextDouble() * (lado - 2f);
+                        var p = Origen + new Vector3(x, 0f, z);
+                        if (!EnAgua(p) || (Nivel.Calzada && x > tamano && Mathf.Abs(z - tamano * 0.5f) < 2.5f)) continue;
+                        if (x > -1.5f && x < tamano + 1.5f && z > -1.5f && z < tamano + 1.5f) continue;
+                        Chinampa(p, i % 2 == 0, azar);
+                    }
+                    break;
+                }
+            }
+            if (Nivel.Calzada)
+            {
+                float largo = lado * 0.5f - tamano * 0.5f;
+                Pieza(Origen + new Vector3(tamano + largo * 0.5f, -0.04f, tamano * 0.5f), new Vector3(largo, 0.08f, AnchoCalzada), ColorPiedra);
+            }
+        }
+
+        private void Chinampa(Vector3 p, bool larga, System.Random azar)
+        {
+            var tam = larga ? new Vector3(1.2f, 0.08f, 2.4f) : new Vector3(2.4f, 0.08f, 1.2f);
+            Pieza(p + new Vector3(0f, 0.0f, 0f), tam, ColorLodo);
+            Pieza(p + new Vector3(0f, 0.06f, 0f), new Vector3(tam.x * 0.8f, 0.04f, tam.z * 0.8f), ColorSiembra);
+            // Un ahuejote en una esquina, como los que sujetan las chinampas.
+            var esquina = new Vector3(tam.x * 0.45f, 0f, tam.z * 0.45f);
+            Pieza(p + esquina + new Vector3(0f, 0.45f, 0f), new Vector3(0.12f, 0.45f, 0.12f), ColorSiembra * 0.85f, PrimitiveType.Cylinder);
+        }
+
+        private void Tule(Vector3 p, System.Random azar)
+        {
+            float alto = 0.3f + (float)azar.NextDouble() * 0.3f;
+            Pieza(p + new Vector3(0f, alto * 0.5f, 0f), new Vector3(0.06f, alto * 0.5f, 0.06f), ColorTule, PrimitiveType.Cylinder);
+        }
+
+        private void Pieza(Vector3 posicion, Vector3 escala, Color color, PrimitiveType tipo = PrimitiveType.Cube)
+        {
+            var pieza = GameObject.CreatePrimitive(tipo);
+            Destroy(pieza.GetComponent<Collider>());
+            pieza.transform.SetParent(transform, false);
+            pieza.transform.position = posicion;
+            pieza.transform.localScale = escala;
+            pieza.GetComponent<Renderer>().material.color = color;
         }
 
         public TroopId PrimeraTropaDisponible()

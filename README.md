@@ -56,3 +56,10 @@ Abre cualquier escena (por ejemplo `SampleScene`) y pulsa **Play**. El juego se 
 | `Assets/Scripts/Battle` | Batalla contra la IA: `BattleManager`, tropas y edificios enemigos |
 | `Assets/Scripts/UI` | HUD provisional con IMGUI |
 | `Assets/Scripts/Editor` | Menú "Altepetl" del editor (borrar partida, abrir carpeta de guardado) |
+
+### Plumas en mejoras de murallas múltiples
+
+- **Completar materiales e iniciar** compra solo los materiales faltantes del grupo con las equivalencias existentes y empieza las mejoras.
+- **Terminar todo ahora** incluye las plumas para materiales faltantes y la aceleración de cada tramo; los materiales disponibles se consumen normalmente.
+- En una muralla en obra, **Terminar obra / seleccionar varias** permite elegir otras murallas en construcción y pagar la suma de su aceleración. Las obras que terminan durante la selección ya no se cobran.
+- Los botones se deshabilitan si no alcanzan las plumas. Cancelar no cobra nada.

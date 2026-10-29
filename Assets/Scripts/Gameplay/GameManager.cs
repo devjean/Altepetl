@@ -173,6 +173,7 @@ namespace Altepetl
             Moviendo = null;
             EligiendoMuros = false;
             MejorandoMuros = false;
+            AcelerandoMuros = false;
             _murosElegidos.Clear();
             _grupo.Clear();
             _desfases.Clear();
@@ -187,6 +188,7 @@ namespace Altepetl
         /// <summary>Se están eligiendo murallas conectadas en línea para moverlas juntas.</summary>
         public bool EligiendoMuros { get; private set; }
         public bool MejorandoMuros { get; private set; }
+        public bool AcelerandoMuros { get; private set; }
         public int CuantosMurosElegidos => _murosElegidos.Count;
         public int CuantosEnGrupo => _grupo.Count;
 
@@ -215,19 +217,22 @@ namespace Altepetl
             EmpezarGrupo(new List<Building> { edificio });
         }
 
-        public void EmpezarMejorarMuros(Building muro)
+        public void EmpezarMejorarMuros(Building muro, bool acelerar = false)
         {
-            if (!MuroMejorable(muro) || Asalto.EnCurso) return;
+            if (muro == null || muro.Definicion.Id != BuildingId.Muralla || Asalto.EnCurso) return;
+            if (acelerar ? !muro.EnConstruccion : !MuroMejorable(muro)) return;
             CancelarColocacion();
             Seleccionar(null);
             EligiendoMuros = true;
             MejorandoMuros = true;
+            AcelerandoMuros = acelerar;
             _murosElegidos.Add(muro);
         }
 
         private bool MuroMejorable(Building muro)
         {
             if (muro == null || muro.Definicion.Id != BuildingId.Muralla) return false;
+            if (AcelerandoMuros) return muro.EnConstruccion;
             var estado = PuedeMejorar(muro);
             return estado == EstadoMejora.Disponible || estado == EstadoMejora.SinRecursos;
         }
@@ -237,30 +242,74 @@ namespace Altepetl
             var total = new int[ResourceInfo.Count];
             foreach (var muro in _murosElegidos)
             {
-                if (muro == null) continue;
+                if (muro == null || AcelerandoMuros) continue;
                 var costo = muro.Definicion.CostoMejora(muro.Nivel);
                 for (int i = 0; i < total.Length; i++) total[i] += costo[i];
             }
             return total;
         }
 
-        public bool PuedeMejorarMuros()
+        public int CostoPlumasMuros(bool terminar)
+        {
+            int total = AcelerandoMuros ? 0 : PlumasParaCompletar(CostoMejorarMuros());
+            if (total < 0) return -1;
+            if (terminar || AcelerandoMuros)
+                foreach (var muro in _murosElegidos)
+                {
+                    if (muro == null) continue;
+                    total += AcelerandoMuros
+                        ? (muro.EnConstruccion ? muro.CostoAcelerar : 0)
+                        : Mathf.Max(1, Mathf.CeilToInt(muro.SegundosParaNivel(muro.Nivel + 1) / 10f));
+                }
+            return total;
+        }
+
+        public bool PuedeMejorarMuros(bool conPlumas = false, bool terminar = false)
         {
             if (!MejorandoMuros || Asalto.EnCurso || _murosElegidos.Count == 0) return false;
             foreach (var muro in _murosElegidos)
-                if (!MuroMejorable(muro)) return false;
+            {
+                if (muro == null) return false;
+                // Una obra que terminó mientras se elegían otras ya no cuesta plumas.
+                if (!AcelerandoMuros && !MuroMejorable(muro)) return false;
+            }
+            if (AcelerandoMuros && CostoPlumasMuros(true) == 0) return false;
+            if (conPlumas || terminar || AcelerandoMuros)
+            {
+                int costo = CostoPlumasMuros(terminar);
+                return costo >= 0 && Banco.Get(ResourceType.Plumas) >= costo;
+            }
             return Banco.PuedePagar(CostoMejorarMuros());
         }
 
-        public void MejorarMurosElegidos()
+        public void MejorarMurosElegidos(bool conPlumas = false, bool terminar = false)
         {
-            // Validar el grupo entero antes de cobrar: nunca dejar una mejora parcial.
-            if (!PuedeMejorarMuros() || !Banco.TryGastar(CostoMejorarMuros())) return;
+            if (!PuedeMejorarMuros(conPlumas, terminar)) return;
+            int acelerar = 0;
+            if (terminar || AcelerandoMuros)
+                acelerar = CostoPlumasMuros(true) - (AcelerandoMuros ? 0 : PlumasParaCompletar(CostoMejorarMuros()));
+            if (!AcelerandoMuros)
+            {
+                var costo = CostoMejorarMuros();
+                if (conPlumas || terminar)
+                {
+                    if (!PagarConPlumas(costo)) return;
+                }
+                else if (!Banco.TryGastar(costo)) return;
+            }
+            // Se cobra todo antes de iniciar o completar cualquier tramo.
+            if (acelerar > 0 && !Banco.TryGastar(ResourceInfo.Costo(plumas: acelerar))) return;
             int cantidad = _murosElegidos.Count;
-            foreach (var muro in _murosElegidos) muro.EmpezarMejora();
+            foreach (var muro in _murosElegidos)
+            {
+                if (!AcelerandoMuros) muro.EmpezarMejora();
+                if ((terminar || AcelerandoMuros) && muro.EnConstruccion)
+                    muro.AvanzarConstruccion(muro.SegundosRestantes);
+            }
+            bool terminado = terminar || AcelerandoMuros;
             CancelarColocacion();
             Guardar();
-            MostrarMensaje($"Mejorando {cantidad} murallas");
+            MostrarMensaje(terminado ? $"Obras de {cantidad} murallas terminadas" : $"Mejorando {cantidad} murallas");
         }
 
         private void EmpezarGrupo(List<Building> edificios)
@@ -283,6 +332,7 @@ namespace Altepetl
             var muros = new List<Building>(_murosElegidos);
             EligiendoMuros = false;
             MejorandoMuros = false;
+            AcelerandoMuros = false;
             _murosElegidos.Clear();
             EmpezarGrupo(muros);
         }

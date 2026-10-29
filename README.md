@@ -24,6 +24,7 @@ Abre cualquier escena (por ejemplo `SampleScene`) y pulsa **Play**. El juego se 
 - Toca un edificio para ver su información. Si está en construcción, puedes terminarlo con plumas de quetzal, y si te falta material para mejorarlo, **Con plumas** (al mejorar y también al construir) compra lo que falta (1 pluma por cada 25 de maíz o madera, o por cada 8 de obsidiana) y empieza la mejora.
 - Los edificios se mejoran desde su panel (hasta nivel 5): producen, almacenan y aguantan más. Ningún edificio puede superar el nivel del tecpan, y el nivel del tecpan también limita cuántos edificios de cada tipo puedes tener (se ve en el menú de construcción).
 - **Requisitos del tecpan:** para subir el tecpan necesitas antes los edificios clave a cierto nivel (por ejemplo, para el nivel 3: chinampas/cultivos y leñadores nivel 2, yacimiento de obsidiana, petlacalco, teocalli y 10 murallas). Lo que falta se lista en el panel del tecpan.
+- **Mejorar varias murallas:** toca una muralla y pulsa **Mejorar / seleccionar varias**. Toca otros tramos para agregarlos o quitarlos (también pueden estar separados), o usa **Línea** y **Conectados**. Las elegidas se marcan en amarillo y el total suma el costo de subir un nivel cada tramo según su nivel actual. **Mejorar (N)** confirma el grupo completo; si faltan recursos, está deshabilitado. Los tramos en obra o limitados por el tecpan no se pueden agregar. **Cancelar**, Esc o clic derecho sale sin gastar.
 - **Murallas en línea:** al colocar murallas, pon el dedo (o el ratón) en el mapa y arrástralo: se van poniendo una por casilla en línea recta, en la dirección en que empezaste, mientras alcance el material. Las casillas ocupadas se saltan.
 - **Mover edificios:** toca un edificio y pulsa **Mover**, luego toca el nuevo lugar. Es gratis y sirve aunque esté en obra; el edificio conserva su nivel y su tiempo de obra.
 - **Macehualtin (población):** la gente del pueblo levanta las obras. Empiezas con 20 y cada nivel del tecpan suma 10 (20 a 60). Cada construcción o mejora ocupa a 10 hasta que termina, así que con el tecpan 1 puedes tener 2 obras a la vez y con el tecpan 5, 6; las murallas son rápidas y no ocupan a nadie. Si no hay 10 libres, sale «Todos los macehualtin están ocupados» (puedes terminar una obra con plumas para liberarlos). Arriba al centro se ve cuántos quedan libres, con su barra. En la aldea pasean, a ratos entran a algún edificio o caminan a las casitas de los alrededores (subiendo las terrazas de los cerros si hace falta) y se meten un rato, van a trabajar a las chinampas de afuera, a veces se quedan parados un buen rato y, cuando hay obra, diez caminan hasta ella y trabajan alrededor (en el lago, en Tenochtitlan o en la orilla de Texcoco, van en acalli). Con términos en español se llaman pobladores.
@@ -55,3 +56,10 @@ Abre cualquier escena (por ejemplo `SampleScene`) y pulsa **Play**. El juego se 
 | `Assets/Scripts/Battle` | Batalla contra la IA: `BattleManager`, tropas y edificios enemigos |
 | `Assets/Scripts/UI` | HUD provisional con IMGUI |
 | `Assets/Scripts/Editor` | Menú "Altepetl" del editor (borrar partida, abrir carpeta de guardado) |
+
+### Plumas en mejoras de murallas múltiples
+
+- **Completar materiales e iniciar** compra solo los materiales faltantes del grupo con las equivalencias existentes y empieza las mejoras.
+- **Terminar todo ahora** incluye las plumas para materiales faltantes y la aceleración de cada tramo; los materiales disponibles se consumen normalmente.
+- En una muralla en obra, **Terminar obra / seleccionar varias** permite elegir otras murallas en construcción y pagar la suma de su aceleración. Las obras que terminan durante la selección ya no se cobran.
+- Los botones se deshabilitan si no alcanzan las plumas. Cancelar no cobra nada.

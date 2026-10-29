@@ -634,7 +634,7 @@ namespace Altepetl
                     var muro = Mapa.En(casilla);
                     if (muro != null && _murosElegidos.Contains(muro)) _murosElegidos.Remove(muro);
                     else if (MuroMejorable(muro)) _murosElegidos.Add(muro);
-                    else MostrarMensaje("Elige una muralla terminada que pueda subir de nivel");
+                    else if (muro != null) MostrarMensaje(AcelerandoMuros ? "Elige una muralla en obra" : "Elige una muralla terminada que pueda subir de nivel");
                 }
                 else TryAgregarMuro(casilla);
             }

@@ -252,31 +252,39 @@ namespace Altepetl
             {
                 if (Manager.MejorandoMuros)
                 {
-                    var mejora = new Rect(0, alto - 194, ancho, 194);
-                    Zona(mejora);
-                    GUI.Box(mejora, GUIContent.none, _caja);
+                    // Misma barra que Mover: una fila, y un solo botón de acción según el caso.
+                    var barraMejora = new Rect(0, alto - 64, ancho, 64);
+                    Zona(barraMejora);
+                    GUI.Box(barraMejora, GUIContent.none, _caja);
                     int cantidad = Manager.CuantosMurosElegidos;
-                    GUI.Label(new Rect(16, mejora.y + 8, ancho - 32, 56),
-                        $"Murallas: {cantidad} seleccionadas. Toca una muralla para agregarla o quitarla.\n" + (Manager.AcelerandoMuros ? "Selecciona obras para terminarlas al instante." : $"Cada una sube un nivel. Total: {TextoCosto(Manager.CostoMejorarMuros())}"), _textoChico);
-                    float inicio = ancho - 540;
-                    if (GUI.Button(new Rect(inicio, mejora.y + 74, 120, 48), "Línea", _boton)) Manager.ElegirLineaCompleta();
-                    if (GUI.Button(new Rect(inicio + 130, mejora.y + 74, 120, 48), "Conectados", _boton)) Manager.ElegirConectados();
-                    GUI.enabled = !Manager.AcelerandoMuros && Manager.PuedeMejorarMuros();
-                    if (GUI.Button(new Rect(inicio + 260, mejora.y + 74, 130, 48), $"Mejorar ({cantidad})", _boton)) Manager.MejorarMurosElegidos();
-                    GUI.enabled = true;
-                    if (GUI.Button(new Rect(inicio + 400, mejora.y + 74, 120, 48), "Cancelar", _boton)) Manager.CancelarColocacion();
-                    int materiales = Manager.CostoPlumasMuros(false);
-                    if (!Manager.AcelerandoMuros && !Manager.Banco.PuedePagar(Manager.CostoMejorarMuros()))
+                    bool obras = Manager.AcelerandoMuros;
+                    bool alcanza = !obras && Manager.Banco.PuedePagar(Manager.CostoMejorarMuros());
+                    string resumen = obras
+                        ? $"Obras elegidas: {cantidad}. Toca una muralla en obra para agregarla o quitarla."
+                        : $"Murallas elegidas: {cantidad}, cada una sube un nivel. Toca una para agregarla o quitarla.\nTotal: {TextoCosto(Manager.CostoMejorarMuros())}";
+                    GUI.Label(new Rect(16, barraMejora.y + 8, ancho - 580, 50), resumen, _textoChico);
+                    float xm = ancho - 560;
+                    if (GUI.Button(new Rect(xm, barraMejora.y + 8, 120, 48), "Línea", _boton)) Manager.ElegirLineaCompleta();
+                    if (GUI.Button(new Rect(xm + 130, barraMejora.y + 8, 120, 48), "Conectados", _boton)) Manager.ElegirConectados();
+                    var accion = new Rect(xm + 260, barraMejora.y + 8, 150, 48);
+                    if (obras)
                     {
-                        GUI.enabled = Manager.PuedeMejorarMuros(true);
-                        if (GUI.Button(new Rect(16, mejora.y + 132, (ancho - 48) / 2, 48), $"Completar materiales e iniciar\n{materiales} plumas", _boton))
-                            Manager.MejorarMurosElegidos(true);
+                        GUI.enabled = Manager.PuedeMejorarMuros(true, true);
+                        if (GUI.Button(accion, $"Terminar ({cantidad})\n{Plumas(Manager.CostoPlumasMuros(true))}", _boton)) Manager.MejorarMurosElegidos(true, true);
                     }
-                    GUI.enabled = Manager.PuedeMejorarMuros(true, true);
-                    if (GUI.Button(new Rect(ancho / 2, mejora.y + 132, ancho / 2 - 16, 48),
-                        $"Terminar todo ahora\n{Manager.CostoPlumasMuros(true)} plumas", _boton))
-                        Manager.MejorarMurosElegidos(true, true);
+                    else if (alcanza)
+                    {
+                        GUI.enabled = Manager.PuedeMejorarMuros();
+                        if (GUI.Button(accion, $"Mejorar ({cantidad})", _boton)) Manager.MejorarMurosElegidos();
+                    }
+                    else
+                    {
+                        // Falta material: se completa con plumas, como en el botón de un solo edificio.
+                        GUI.enabled = Manager.PuedeMejorarMuros(true);
+                        if (GUI.Button(accion, $"Con plumas ({cantidad})\n{Plumas(Manager.CostoPlumasMuros(false))}", _boton)) Manager.MejorarMurosElegidos(true);
+                    }
                     GUI.enabled = true;
+                    if (GUI.Button(new Rect(xm + 420, barraMejora.y + 8, 120, 48), "Cancelar", _boton)) Manager.CancelarColocacion();
                     _menuAbierto = false;
                     return;
                 }
@@ -576,7 +584,7 @@ namespace Altepetl
                 : new List<RequisitoTecpan>();
             float altoPanel = entrena ? 410 : forma ? 450 : def.CamasCuracion > 0 ? 310 : 250;
             if (faltan.Count > 0) altoPanel += 22 + 19 * faltan.Count;
-            if (def.Id == BuildingId.Muralla) altoPanel += 50; // lugar para el botón de la puerta
+            if (def.Id == BuildingId.Muralla) altoPanel += edificio.EnConstruccion ? 50 : 100; // puerta y "varias"
             // A la izquierda de la columna de recursos, para no taparla.
             var panel = new Rect(ancho - 60 - AnchoColumnaRecursos - 280, AltoBarraSuperior + 10, 280, altoPanel);
             Zona(panel);
@@ -593,13 +601,28 @@ namespace Altepetl
                 Manager.EmpezarMover(edificio);
                 return;
             }
-            if (def.Id == BuildingId.Muralla && !edificio.EnConstruccion)
+            if (def.Id == BuildingId.Muralla)
             {
-                // Puerta: tu gente cruza el muro por ahí; para los enemigos sigue siendo muralla.
-                if (GUI.Button(new Rect(panel.x + 10, panel.yMax - 104, panel.width - 20, 40),
-                        edificio.EsPuerta ? "Cerrar el hueco (volver a muralla)" : "Hacer puerta", _boton))
+                // Varias murallas a la vez: mejorar un grupo, o terminar varias obras con plumas.
+                bool enObra = edificio.EnConstruccion;
+                var estadoMuro = enObra ? GameManager.EstadoMejora.Disponible : Manager.PuedeMejorar(edificio);
+                GUI.enabled = !Manager.Asalto.EnCurso
+                              && (estadoMuro == GameManager.EstadoMejora.Disponible || estadoMuro == GameManager.EstadoMejora.SinRecursos);
+                if (GUI.Button(new Rect(panel.x + 10, panel.yMax - (enObra ? 104 : 154), panel.width - 20, 40),
+                        enObra ? "Terminar varias obras…" : "Mejorar varias murallas…", _boton))
                 {
-                    Manager.AlternarPuerta(edificio);
+                    Manager.EmpezarMejorarMuros(edificio, enObra);
+                    return;
+                }
+                GUI.enabled = true;
+                if (!enObra)
+                {
+                    // Puerta: tu gente cruza el muro por ahí; para los enemigos sigue siendo muralla.
+                    if (GUI.Button(new Rect(panel.x + 10, panel.yMax - 104, panel.width - 20, 40),
+                            edificio.EsPuerta ? "Cerrar el hueco (volver a muralla)" : "Hacer puerta", _boton))
+                    {
+                        Manager.AlternarPuerta(edificio);
+                    }
                 }
             }
 
@@ -664,14 +687,6 @@ namespace Altepetl
             var botonRect = new Rect(panel.x + 10, panel.yMax - 54, panel.width - 20, 44);
             if (edificio.EnConstruccion)
             {
-                if (def.Id == BuildingId.Muralla)
-                {
-                    GUI.enabled = !Manager.Asalto.EnCurso;
-                    if (GUI.Button(botonRect, "Terminar obra / seleccionar varias", _boton))
-                        Manager.EmpezarMejorarMuros(edificio, true);
-                    GUI.enabled = true;
-                    return;
-                }
                 int costo = edificio.CostoAcelerar;
                 GUI.enabled = Manager.Banco.Get(ResourceType.Plumas) >= costo;
                 if (GUI.Button(botonRect, $"Terminar ya ({costo} plumas de quetzal)", _boton))
@@ -683,26 +698,6 @@ namespace Altepetl
             }
 
             var estado = Manager.PuedeMejorar(edificio);
-            if (def.Id == BuildingId.Muralla &&
-                (estado == GameManager.EstadoMejora.Disponible || estado == GameManager.EstadoMejora.SinRecursos))
-            {
-                int completar = estado == GameManager.EstadoMejora.SinRecursos
-                    ? Manager.PlumasParaCompletar(def.CostoMejora(edificio.Nivel)) : -1;
-                var elegir = botonRect;
-                if (completar >= 0) elegir.width = botonRect.width * 0.62f - 4f;
-                GUI.enabled = !Manager.Asalto.EnCurso;
-                if (GUI.Button(elegir, $"Mejorar / seleccionar varias\n{TextoCosto(def.CostoMejora(edificio.Nivel))}", _boton))
-                    Manager.EmpezarMejorarMuros(edificio);
-                GUI.enabled = true;
-                if (completar >= 0)
-                {
-                    var conPlumas = new Rect(elegir.xMax + 4f, botonRect.y, botonRect.width - elegir.width - 4f, botonRect.height);
-                    GUI.enabled = !Manager.Asalto.EnCurso && Manager.Banco.Get(ResourceType.Plumas) >= completar;
-                    if (GUI.Button(conPlumas, $"Con plumas\n{Plumas(completar)}", _boton)) Manager.TryMejorarConPlumas(edificio);
-                    GUI.enabled = true;
-                }
-                return;
-            }
             switch (estado)
             {
                 case GameManager.EstadoMejora.NivelMaximo:

@@ -81,6 +81,15 @@ namespace Altepetl
                 return;
             }
 
+            if (Manager.Asalto.EstadoActual == Asalto.Estado.Pendiente)
+            {
+                // Hasta decidir si se ve o se salta, no se puede construir ni mover nada: el ataque ya ocurrió.
+                DibujarRecursos(ancho);
+                DibujarAtaqueAusente(ancho, alto);
+                DibujarMensaje(ancho, alto);
+                return;
+            }
+
             DibujarResaltadoSeleccion();
             DibujarRecursos(ancho);
             DibujarInsigniaOfrenda();
@@ -1366,7 +1375,8 @@ namespace Altepetl
                 GUI.Label(new Rect(aviso.x + 10, aviso.y + 4, aviso.width - 130, 56),
                     $"¡Se acercan enemigos! Llegan en {Mathf.CeilToInt(asalto.SegundosAviso)} s."
                     + $"\nVienen {Terminos.TropasCuenta(asalto.CuantosVienen)}. Defienden: {defienden}.", _textoChico);
-                if (GUI.Button(new Rect(aviso.xMax - 116, aviso.y + 8, 106, 46), "Defensa", _boton))
+                // Si el ataque ocurrió en tu ausencia, los defensores ya están decididos.
+                if (!asalto.Ausente && GUI.Button(new Rect(aviso.xMax - 116, aviso.y + 8, 106, 46), "Defensa", _boton))
                 {
                     _defensaAbierta = true;
                     CerrarPaneles();
@@ -1426,7 +1436,7 @@ namespace Altepetl
                 + $"{(Terminos.Nahuatl ? "Los" : "Las")} que caen se pierden y {Terminos.Los} herid{Terminos.O}s van al temazcalli. "
                 + $"{(Terminos.Nahuatl ? "Los" : "Las")} demás se resguardan.", _textoChico);
 
-            bool enCurso = Manager.Asalto.EnCurso;
+            bool enCurso = Manager.Asalto.EnCurso || Manager.Asalto.Ausente;
             float y = panel.y + 104;
             bool hayFilas = false;
             foreach (var tropa in TroopCatalog.Todos)
@@ -1454,6 +1464,16 @@ namespace Altepetl
             {
                 GUI.Label(new Rect(panel.x + 20, panel.yMax - 96, panel.width - 40, 30), "Durante el ataque ya no se puede cambiar.", _textoChico);
             }
+            else
+            {
+                // Cuándo fue el último ataque y si queda escudo contra ataques en tu ausencia.
+                var asalto = Manager.Asalto;
+                string linea = asalto.SegundosDesdeUltimoAtaque < 0f
+                    ? "Todavía no han atacado " + Terminos.TuAldea + "."
+                    : $"Último ataque: hace {TextoHoras(asalto.SegundosDesdeUltimoAtaque / 3600f)}, {(asalto.UltimoAtaqueDefendido ? "defendido" : "no se pudo detener")}.";
+                if (asalto.SegundosEscudo > 0f) linea += $" Escudo: {TextoHoras(asalto.SegundosEscudo / 3600f)}.";
+                GUI.Label(new Rect(panel.x + 20, panel.yMax - 96, panel.width - 40, 30), linea, _textoChico);
+            }
 
             GUI.enabled = !enCurso;
             if (GUI.Button(new Rect(panel.x + 20, panel.yMax - 60, 140, 44), "Todas", _boton))
@@ -1478,6 +1498,32 @@ namespace Altepetl
             }
         }
 
+        /// <summary>Al volver tras una ausencia larga: hubo un ataque y se puede ver o saltar.</summary>
+        private void DibujarAtaqueAusente(float ancho, float alto)
+        {
+            var asalto = Manager.Asalto;
+            var panel = new Rect((ancho - 480) / 2, (alto - 260) / 2, 480, 260);
+            Zona(panel);
+            GUI.Box(panel, GUIContent.none, _caja);
+            Titulo(new Rect(panel.x + 10, panel.y + 12, panel.width - 20, 34), "Mientras no estabas…");
+            int defienden = Manager.TotalDefensoresListos;
+            string texto = $"{Terminos.TropasCuenta(asalto.CuantosVienen)} enemig{Terminos.O}s atacaron {Terminos.TuAldea}."
+                           + (asalto.HayVigia ? " La torre de vigía marcó por dónde entraron." : "")
+                           + (defienden > 0
+                               ? $"\nSalieron a defender {Terminos.TropasCuenta(defienden)}, {Terminos.Los} que elegiste en Defensa."
+                               : "\nNadie salió a defender: no habías elegido defensores.")
+                           + "\n\nPuedes ver el ataque tal como ocurrió o saltarlo y ver solo el resultado.";
+            GUI.Label(new Rect(panel.x + 20, panel.y + 54, panel.width - 40, 130), texto, _texto);
+            if (GUI.Button(new Rect(panel.x + 40, panel.yMax - 64, 190, 48), "Ver el ataque", _boton))
+            {
+                asalto.VerAusente();
+            }
+            if (GUI.Button(new Rect(panel.xMax - 230, panel.yMax - 64, 190, 48), "Saltar", _boton))
+            {
+                asalto.SaltarAusente();
+            }
+        }
+
         private void DibujarResultadoAsalto(float ancho, float alto)
         {
             var resultado = Manager.Asalto.Resultado;
@@ -1490,7 +1536,8 @@ namespace Altepetl
                 resultado.Defendida ? $"¡Defendiste {Terminos.TuAldea}!" : (resultado.Derribados > 0 ? "Saquearon " + Terminos.TuAldea : "Se retiraron"));
 
             string perdidas = TextoCosto(resultado.Perdidas);
-            string texto = $"Enemigos vencidos: {resultado.Vencidos} de {resultado.Invasores}"
+            string texto = (Manager.Asalto.Ausente ? "Ocurrió mientras no estabas.\n" : "")
+                           + $"Enemigos vencidos: {resultado.Vencidos} de {resultado.Invasores}"
                            + $"\nEdificios derribados: {resultado.Derribados}"
                            + $"\nSe llevaron: {(perdidas.Length > 0 ? perdidas : "nada")}";
             if (resultado.Defensores > 0)
@@ -1516,6 +1563,11 @@ namespace Altepetl
             if (ascensos.Count > 0) texto += "\nAscensos: " + string.Join(", ", ascensos);
             if (resultado.Cautivos > 0) texto += $"\nMamaltin capturados: +{resultado.Cautivos}";
             texto += "\nTus edificios se reparan solos.";
+            if (Manager.Asalto.Ausente)
+            {
+                float horas = Manager.Asalto.SegundosEscudo / 3600f;
+                if (horas > 0f) texto += $"\nEscudo: nadie volverá a atacar en tu ausencia durante {TextoHoras(horas)}.";
+            }
             GUI.Label(new Rect(panel.x + 20, panel.y + 56, panel.width - 40, 250), texto, _texto);
 
             if (GUI.Button(new Rect(panel.x + 120, panel.yMax - 64, panel.width - 240, 48), "Aceptar", _boton))
@@ -1732,6 +1784,17 @@ namespace Altepetl
                 GUI.Label(rect, Manager.Mensaje, _pistaSeleccion);
             }
             else GUI.Box(rect, Manager.Mensaje, _boton);
+        }
+
+        /// <summary>«25 min», «3 h», «1 día y 4 h»: para tiempos largos entre sesiones.</summary>
+        private static string TextoHoras(float horas)
+        {
+            if (horas < 1f) return $"{Mathf.Max(1, Mathf.RoundToInt(horas * 60f))} min";
+            if (horas < 24f) return $"{Mathf.FloorToInt(horas)} h";
+            int dias = Mathf.FloorToInt(horas / 24f);
+            int resto = Mathf.FloorToInt(horas - dias * 24f);
+            string texto = dias == 1 ? "1 día" : $"{dias} días";
+            return resto > 0 ? $"{texto} y {resto} h" : texto;
         }
 
         private static string TextoCosto(int[] costo)

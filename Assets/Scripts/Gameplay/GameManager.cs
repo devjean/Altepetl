@@ -526,6 +526,50 @@ namespace Altepetl
         public void Seleccionar(Building edificio)
         {
             Seleccionado = edificio;
+            _ultimoToqueSeleccion = float.NegativeInfinity;
+        }
+
+        private readonly List<Building> _candidatosSeleccion = new List<Building>();
+        private readonly List<Building> _anterioresSeleccion = new List<Building>();
+        private readonly List<float> _distanciasSeleccion = new List<float>();
+        private Vector2 _posicionSeleccion;
+        private float _ultimoToqueSeleccion = float.NegativeInfinity;
+        private Matrix4x4 _vistaSeleccion;
+
+        private void SeleccionarEnPantalla(Vector2 posicion, Vector2Int casilla)
+        {
+            var rayo = _camara.ScreenPointToRay(posicion);
+            _candidatosSeleccion.Clear();
+            _distanciasSeleccion.Clear();
+            // Solo se consulta al tocar; gente, adornos del paisaje y tropas no interceptan la selección.
+            foreach (var edificio in _edificios)
+            {
+                if (edificio == null || !edificio.gameObject.activeInHierarchy
+                    || !edificio.TryTocarFigura(rayo, out float distancia)) continue;
+                int indice = 0;
+                while (indice < _distanciasSeleccion.Count && _distanciasSeleccion[indice] <= distancia) indice++;
+                _candidatosSeleccion.Insert(indice, edificio);
+                _distanciasSeleccion.Insert(indice, distancia);
+            }
+            var baseTocada = Mapa.En(casilla);
+            if (baseTocada != null && !_candidatosSeleccion.Contains(baseTocada)) _candidatosSeleccion.Add(baseTocada);
+            float escala = Mathf.Min(Screen.width / 960f, Screen.height / 540f);
+            bool repetir = Time.unscaledTime - _ultimoToqueSeleccion <= 1.5f
+                && Vector2.Distance(posicion, _posicionSeleccion) <= 16f * escala
+                && _vistaSeleccion == _camara.projectionMatrix * _camara.worldToCameraMatrix
+                && _candidatosSeleccion.Count == _anterioresSeleccion.Count;
+            if (repetir)
+                for (int i = 0; i < _candidatosSeleccion.Count; i++)
+                    if (_candidatosSeleccion[i] != _anterioresSeleccion[i]) { repetir = false; break; }
+            int elegido = repetir ? (_candidatosSeleccion.IndexOf(Seleccionado) + 1) % Mathf.Max(1, _candidatosSeleccion.Count) : 0;
+            Seleccionar(_candidatosSeleccion.Count > 0 ? _candidatosSeleccion[elegido] : null);
+            _anterioresSeleccion.Clear();
+            _anterioresSeleccion.AddRange(_candidatosSeleccion);
+            _posicionSeleccion = posicion;
+            _vistaSeleccion = _camara.projectionMatrix * _camara.worldToCameraMatrix;
+            _ultimoToqueSeleccion = Time.unscaledTime;
+            if (_candidatosSeleccion.Count > 1)
+                MostrarMensaje($"{Seleccionado.Nombre} ({elegido + 1}/{_candidatosSeleccion.Count}). Toca de nuevo aquí para alternar.");
         }
 
         public void MostrarMensaje(string texto, float segundos = 2.5f)
@@ -648,7 +692,7 @@ namespace Altepetl
             }
             else
             {
-                Seleccionar(Mapa.En(casilla));
+                SeleccionarEnPantalla(posicion, casilla);
             }
         }
 

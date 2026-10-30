@@ -22,6 +22,7 @@ namespace Altepetl
         private GUIStyle _titulo;
         private GUIStyle _texto;
         private GUIStyle _textoChico;
+        private GUIStyle _pistaSeleccion;
         private GUIStyle _textoUnaLinea;
         private GUIStyle _inicial;
         private GUIStyle _boton;
@@ -80,6 +81,7 @@ namespace Altepetl
                 return;
             }
 
+            DibujarResaltadoSeleccion();
             DibujarRecursos(ancho);
             DibujarInsigniaOfrenda();
             DibujarMenuConstruccion(ancho, alto);
@@ -94,6 +96,35 @@ namespace Altepetl
             DibujarDefensa(ancho);
             DibujarResultadoAsalto(ancho, alto);
             DibujarMensaje(ancho, alto);
+        }
+
+        private void DibujarResaltadoSeleccion()
+        {
+            var edificio = Manager.Seleccionado;
+            var camara = Camera.main;
+            if (edificio == null || camara == null || Manager.EnModoColocar) return;
+            var limites = edificio.LimitesSeleccion();
+            Vector2 minimo = new Vector2(float.PositiveInfinity, float.PositiveInfinity);
+            Vector2 maximo = new Vector2(float.NegativeInfinity, float.NegativeInfinity);
+            for (int i = 0; i < 8; i++)
+            {
+                var esquina = limites.center + Vector3.Scale(limites.extents,
+                    new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                var pantalla = camara.WorldToScreenPoint(esquina);
+                if (pantalla.z <= 0f) return;
+                var punto = new Vector2(pantalla.x / _escala, (Screen.height - pantalla.y) / _escala);
+                minimo = Vector2.Min(minimo, punto);
+                maximo = Vector2.Max(maximo, punto);
+            }
+            // Se dibuja sobre el mundo para identificar también estructuras completamente tapadas.
+            var marco = Rect.MinMaxRect(minimo.x - 3, minimo.y - 3, maximo.x + 3, maximo.y + 3);
+            var anterior = GUI.color;
+            GUI.color = new Color(1f, 0.85f, 0.2f);
+            GUI.DrawTexture(new Rect(marco.x, marco.y, marco.width, 2), _blanco);
+            GUI.DrawTexture(new Rect(marco.x, marco.yMax - 2, marco.width, 2), _blanco);
+            GUI.DrawTexture(new Rect(marco.x, marco.y, 2, marco.height), _blanco);
+            GUI.DrawTexture(new Rect(marco.xMax - 2, marco.y, 2, marco.height), _blanco);
+            GUI.color = anterior;
         }
 
         private void Zona(Rect rect)
@@ -1686,7 +1717,21 @@ namespace Altepetl
             // En la aldea va entre los botones Atacar y Construir, para no tapar los paneles.
             float abajo = Manager.ModoActual == GameManager.Modo.Batalla ? AltoBarraInferior + 50 : 53;
             var rect = new Rect((ancho - 360) / 2, alto - abajo, 360, 36);
-            GUI.Box(rect, Manager.Mensaje, _boton);
+            if (Manager.MensajeEsPista)
+            {
+                if (_pistaSeleccion == null)
+                    _pistaSeleccion = new GUIStyle(_textoChico) { alignment = TextAnchor.MiddleCenter, wordWrap = true };
+                rect.y -= 12;
+                rect.height = 48;
+                // La sombra mantiene el contraste sobre agua y tierra sin añadir un panel al mapa.
+                var sombra = rect;
+                sombra.position += new Vector2(1f, 1f);
+                _pistaSeleccion.normal.textColor = new Color(0.08f, 0.07f, 0.05f, 0.8f);
+                GUI.Label(sombra, Manager.Mensaje, _pistaSeleccion);
+                _pistaSeleccion.normal.textColor = new Color(1f, 0.95f, 0.82f, 0.95f);
+                GUI.Label(rect, Manager.Mensaje, _pistaSeleccion);
+            }
+            else GUI.Box(rect, Manager.Mensaje, _boton);
         }
 
         private static string TextoCosto(int[] costo)

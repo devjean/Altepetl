@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Altepetl
@@ -379,6 +380,35 @@ namespace Altepetl
             Destroy(tramo.GetComponent<Collider>());
             tramo.transform.SetParent(transform, false);
             return tramo.transform;
+        }
+
+        private readonly List<Renderer> _partesSeleccion = new List<Renderer>();
+
+        /// <summary>Comprueba el toque contra las piezas visibles, sin añadir colisiones al juego.</summary>
+        public bool TryTocarFigura(Ray rayo, out float distancia)
+        {
+            distancia = float.PositiveInfinity;
+            GetComponentsInChildren(false, _partesSeleccion);
+            foreach (var parte in _partesSeleccion)
+            {
+                if (!parte.enabled) continue;
+                var matriz = parte.transform.worldToLocalMatrix;
+                var local = new Ray(matriz.MultiplyPoint3x4(rayo.origin), matriz.MultiplyVector(rayo.direction));
+                if (!parte.localBounds.IntersectRay(local, out float entrada)) continue;
+                var punto = parte.transform.TransformPoint(local.GetPoint(entrada));
+                distancia = Mathf.Min(distancia, Vector3.Distance(rayo.origin, punto));
+            }
+            return !float.IsPositiveInfinity(distancia);
+        }
+
+        /// <summary>Volumen visible para señalar el edificio incluso cuando está detrás de otro.</summary>
+        public Bounds LimitesSeleccion()
+        {
+            GetComponentsInChildren(false, _partesSeleccion);
+            var limites = new Bounds(transform.position, Vector3.zero);
+            foreach (var parte in _partesSeleccion)
+                if (parte.enabled) limites.Encapsulate(parte.bounds);
+            return limites;
         }
 
         private void ActualizarVisual()

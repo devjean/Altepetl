@@ -1760,6 +1760,20 @@ namespace Altepetl
             _sol.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
         }
 
+        private float _opacidadEdificios = 1f;
+
+        private void LateUpdate()
+        {
+            // El zoom es relativo al encuadre de la aldea y no depende del tamaño de pantalla.
+            bool enAldea = Pueblo != null && ModoActual == Modo.Aldea;
+            float acercamiento = enAldea ? Mathf.InverseLerp(0.8f, ZoomMinimo, _zoom) : 0f;
+            float objetivo = Mathf.Lerp(1f, 0.45f, Mathf.SmoothStep(0f, 1f, acercamiento));
+            _opacidadEdificios = enAldea ? Mathf.MoveTowards(_opacidadEdificios, objetivo, Time.unscaledDeltaTime * 2f) : 1f;
+            // Después de las obras y del daño, para que su color no borre la transparencia.
+            foreach (var edificio in _edificios)
+                if (edificio != null) edificio.FijarOpacidadVista(_opacidadEdificios);
+        }
+
         /// <summary>El cielo y la luz cambian poco a poco con el dios cuya ofrenda está activa.</summary>
         private void ActualizarAmbiente()
         {

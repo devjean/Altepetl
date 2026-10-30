@@ -54,6 +54,9 @@ namespace Altepetl
         private float _acumulado;
         private Transform _modelo;
         private Renderer _render;
+        private Material _materialModelo;
+        private Material _materialTransparente;
+        private bool _vistaTransparente;
         private float _base; // alto de la plataforma sobre el lago (aldea mexica)
         private bool _chinampaEnOrilla; // chinampa acolhua: parcela más chica para que se vean los canales
         private Transform _uneEste, _uneNorte; // tramos que unen una muralla con la de al lado
@@ -78,6 +81,7 @@ namespace Altepetl
             cubo.transform.SetParent(transform, false);
             _modelo = cubo.transform;
             _render = cubo.GetComponent<Renderer>();
+            _materialModelo = _render.material;
             if (pueblo.EnLago) CrearPlataforma();
             else if (definicion.Id == BuildingId.Granja && pueblo.NombreGranja == "Chinampa") CrearChinampaEnLaOrilla();
 
@@ -335,6 +339,51 @@ namespace Altepetl
             arbol.GetComponent<Renderer>().material.color = new Color(0.30f, 0.50f, 0.25f);
         }
 
+        /// <summary>Atenúa solo el cuerpo de los edificios altos; terreno, plataformas y murallas quedan sólidos.</summary>
+        public void FijarOpacidadVista(float opacidad)
+        {
+            if (_materialModelo == null) return;
+            float altura = Definicion.Altura * (1f + 0.15f * (Mathf.Max(1, Nivel) - 1));
+            bool transparente = opacidad < 0.999f && !EsMuralla && !Derribado && altura >= 1.2f;
+            if (!transparente)
+            {
+                if (_vistaTransparente) _render.sharedMaterial = _materialModelo;
+                _vistaTransparente = false;
+                return;
+            }
+            if (_materialTransparente == null)
+            {
+                // Una copia por edificio evita alterar materiales de otras estructuras o del enemigo.
+                _materialTransparente = new Material(_materialModelo);
+                _materialTransparente.SetFloat("_Surface", 1f);
+                _materialTransparente.SetFloat("_Blend", 0f);
+                _materialTransparente.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                _materialTransparente.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                _materialTransparente.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
+                _materialTransparente.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                _materialTransparente.SetFloat("_ZWrite", 0f);
+                _materialTransparente.SetFloat("_AlphaClip", 0f);
+                _materialTransparente.SetOverrideTag("RenderType", "Transparent");
+                _materialTransparente.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                _materialTransparente.DisableKeyword("_ALPHATEST_ON");
+                _materialTransparente.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                _materialTransparente.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                _materialTransparente.SetShaderPassEnabled("DepthOnly", false);
+                _materialTransparente.SetShaderPassEnabled("ShadowCaster", false);
+            }
+            var color = _materialModelo.color;
+            color.a *= Mathf.Clamp01(opacidad);
+            _materialTransparente.color = color;
+            if (!_vistaTransparente) _render.sharedMaterial = _materialTransparente;
+            _vistaTransparente = true;
+        }
+
+        private void OnDestroy()
+        {
+            if (_materialTransparente != null) Destroy(_materialTransparente);
+            if (_materialModelo != null) Destroy(_materialModelo);
+        }
+
         private bool EsMuralla => Definicion.Id == BuildingId.Muralla;
 
         /// <summary>
@@ -435,12 +484,12 @@ namespace Altepetl
 
             _modelo.localScale = new Vector3(lado, altura, lado);
             _modelo.localPosition = new Vector3(0f, _base + altura * 0.5f, 0f);
-            _render.material.color = EnConstruccion
+            _materialModelo.color = EnConstruccion
                 ? Color.Lerp(Color.gray, Definicion.Color, 0.4f)
                 : Definicion.Color;
-            if (Derribado) _render.material.color = new Color(0.25f, 0.22f, 0.2f);
-            else if (levantado < 1f) _render.material.color = Color.Lerp(new Color(0.25f, 0.22f, 0.2f), _render.material.color, levantado);
-            else if (DanoAsalto > 0f) _render.material.color = Color.Lerp(new Color(0.3f, 0.1f, 0.1f), _render.material.color, FraccionVidaAsalto);
+            if (Derribado) _materialModelo.color = new Color(0.25f, 0.22f, 0.2f);
+            else if (levantado < 1f) _materialModelo.color = Color.Lerp(new Color(0.25f, 0.22f, 0.2f), _materialModelo.color, levantado);
+            else if (DanoAsalto > 0f) _materialModelo.color = Color.Lerp(new Color(0.3f, 0.1f, 0.1f), _materialModelo.color, FraccionVidaAsalto);
 
             // Tramos: del borde de este poste al del vecino, un poco más bajos y delgados.
             float alturaTramo = altura * 0.85f;
@@ -468,13 +517,13 @@ namespace Altepetl
             {
                 _uneEste.localScale = new Vector3(1f - lado, alturaTramo, 0.4f);
                 _uneEste.localPosition = new Vector3(0.5f, _base + alturaTramo * 0.5f, 0f);
-                _uneEste.GetComponent<Renderer>().material.color = _render.material.color;
+                _uneEste.GetComponent<Renderer>().material.color = _materialModelo.color;
             }
             if (_uneNorte != null)
             {
                 _uneNorte.localScale = new Vector3(0.4f, alturaTramo, 1f - lado);
                 _uneNorte.localPosition = new Vector3(0f, _base + alturaTramo * 0.5f, 0.5f);
-                _uneNorte.GetComponent<Renderer>().material.color = _render.material.color;
+                _uneNorte.GetComponent<Renderer>().material.color = _materialModelo.color;
             }
         }
     }

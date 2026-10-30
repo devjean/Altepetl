@@ -569,12 +569,18 @@ namespace Altepetl
             _vistaSeleccion = _camara.projectionMatrix * _camara.worldToCameraMatrix;
             _ultimoToqueSeleccion = Time.unscaledTime;
             if (_candidatosSeleccion.Count > 1)
-                MostrarMensaje($"{Seleccionado.Nombre} ({elegido + 1}/{_candidatosSeleccion.Count}). Toca de nuevo aquí para alternar.");
+            {
+                MostrarMensaje($"{Seleccionado.Nombre} ({elegido + 1}/{_candidatosSeleccion.Count}).\nToca de nuevo para alternar.");
+                MensajeEsPista = true;
+            }
         }
+
+        public bool MensajeEsPista { get; private set; }
 
         public void MostrarMensaje(string texto, float segundos = 2.5f)
         {
             Mensaje = texto;
+            MensajeEsPista = false;
             _mensajeHasta = Time.time + segundos;
         }
 

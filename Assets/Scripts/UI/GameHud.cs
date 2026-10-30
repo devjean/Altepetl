@@ -22,6 +22,7 @@ namespace Altepetl
         private GUIStyle _titulo;
         private GUIStyle _texto;
         private GUIStyle _textoChico;
+        private GUIStyle _pistaSeleccion;
         private GUIStyle _textoUnaLinea;
         private GUIStyle _inicial;
         private GUIStyle _boton;
@@ -1721,7 +1722,21 @@ namespace Altepetl
             // En la aldea va entre los botones Atacar y Construir, para no tapar los paneles.
             float abajo = Manager.ModoActual == GameManager.Modo.Batalla ? AltoBarraInferior + 50 : 53;
             var rect = new Rect((ancho - 360) / 2, alto - abajo, 360, 36);
-            GUI.Box(rect, Manager.Mensaje, _boton);
+            if (Manager.MensajeEsPista)
+            {
+                if (_pistaSeleccion == null)
+                    _pistaSeleccion = new GUIStyle(_textoChico) { alignment = TextAnchor.MiddleCenter, wordWrap = true };
+                rect.y -= 12;
+                rect.height = 48;
+                // La sombra mantiene el contraste sobre agua y tierra sin añadir un panel al mapa.
+                var sombra = rect;
+                sombra.position += new Vector2(1f, 1f);
+                _pistaSeleccion.normal.textColor = new Color(0.08f, 0.07f, 0.05f, 0.8f);
+                GUI.Label(sombra, Manager.Mensaje, _pistaSeleccion);
+                _pistaSeleccion.normal.textColor = new Color(1f, 0.95f, 0.82f, 0.95f);
+                GUI.Label(rect, Manager.Mensaje, _pistaSeleccion);
+            }
+            else GUI.Box(rect, Manager.Mensaje, _boton);
         }
 
         private static string TextoCosto(int[] costo)

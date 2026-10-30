@@ -20,6 +20,10 @@ Este archivo lo leen las herramientas de IA que trabajan en el repo. Resume cóm
 - Reutiliza lo que ya existe antes de duplicarlo: `Caminos` para rutas, `Banco` para pagos (`PuedePagar`/`TryGastar`) y `PlumasParaCompletar` para lo que falta, `PuedeMejorar` para el estado de una mejora, `MostrarMensaje` para avisos, `Guardar()` después de cambios de estado.
 - Equilibrio: los ajustes de números son pequeños y se discuten antes; no cambies costos, tiempos ni daños de paso.
 
+## Recordatorios de arte
+
+- Cuando se traten texturas, materiales o arte definitivo, consultar `PENDIENTES.md` y recordar a Dante el pendiente de personalizar la textura del material transparente de edificios en `Resources`.
+
 ## Historia y nombres
 
 - La ambientación se toma en serio. No inventes palabras, instituciones, rangos ni personajes nahuas; usa los que ya están en el repo o deja el término en español y márcalo en el PR para que se decida. Los textos de la campaña distinguen lo documentado en las fuentes de lo que es recreación del juego.

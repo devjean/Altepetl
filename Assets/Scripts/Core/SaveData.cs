@@ -7,7 +7,7 @@ namespace Altepetl
     [Serializable]
     public sealed class SaveData
     {
-        public const int VersionActual = 7; // 2: nivel de los edificios. 3: ejército y campaña. 4: rangos y ofrendas. 5: heridos. 6: estrellas. 7: mapa de 24
+        public const int VersionActual = 8; // 2: nivel de los edificios. 3: ejército y campaña. 4: rangos y ofrendas. 5: heridos. 6: estrellas. 7: mapa de 24. 8: ataques sin conexión
 
         public int version = VersionActual;
         public PuebloId pueblo;
@@ -30,6 +30,13 @@ namespace Altepetl
         public int deidadActiva;               // ofrenda activa en el teocalli
         public float ofrendaRestante;          // segundos que le quedan
         public float favorHuitzilopochtli = 50f; // solo mexicas
+
+        // Ataques mientras el juego estaba cerrado (versión 8). En partidas viejas todo empieza en cero.
+        public long escudoHastaUtcTicks;       // hasta cuándo no habrá otro ataque sin conexión
+        public long ultimoAtaqueUtcTicks;      // cuándo fue el último ataque a la aldea (en vivo o sin conexión)
+        public bool ultimoAtaqueDefendido;
+        public bool ataquePendiente;           // se cerró el juego con un ataque sin conexión por ver o saltar
+        public int invasoresPendientes;
     }
 
     [Serializable]

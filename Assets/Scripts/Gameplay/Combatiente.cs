@@ -89,7 +89,7 @@ namespace Altepetl
         {
             if (Muerto) return;
             Vida -= cantidad;
-            _destelloHasta = Time.time + 0.15f;
+            _destelloHasta = _asalto.Reloj + 0.15f;
             if (Muerto)
             {
                 _asalto.AlCaer(this, atacante);
@@ -97,28 +97,32 @@ namespace Altepetl
             }
         }
 
-        private void Update()
+        /// <summary>
+        /// Un paso del ataque. Lo llama el asalto con su propio reloj (no Update), para que el mismo
+        /// código sirva en vivo y para resolver en un instante un ataque que ocurrió sin conexión.
+        /// </summary>
+        public void Avanzar(float dt)
         {
             if (Muerto || !_asalto.EnCurso) return;
-            _render.material.color = Time.time < _destelloHasta ? Color.white : _color;
+            _render.material.color = _asalto.Reloj < _destelloHasta ? Color.white : _color;
 
-            if (Invasor) ActuarInvasor();
-            else ActuarDefensor();
+            if (Invasor) ActuarInvasor(dt);
+            else ActuarDefensor(dt);
         }
 
-        private void ActuarInvasor()
+        private void ActuarInvasor(float dt)
         {
             var rival = _asalto.MasCercano(transform.position, invasores: false, Definicion.Alcance + DistanciaParaPelear);
             if (rival != null)
             {
-                Pelear(rival);
+                Pelear(rival, dt);
                 return;
             }
 
             // Una muralla en el camino: primero hay que derribarla.
             if (_muro != null && !_muro.Derribado)
             {
-                Golpear(_muro);
+                Golpear(_muro, dt);
                 return;
             }
             _muro = null;
@@ -129,7 +133,7 @@ namespace Altepetl
                 if (_objetivo == null) return;
                 _andar.Olvidar();
             }
-            Golpear(_objetivo);
+            Golpear(_objetivo, dt);
         }
 
         /// <summary>Para un invasor solo se pasa por las ruinas y por el edificio al que va.</summary>
@@ -141,29 +145,29 @@ namespace Altepetl
             return edificio.Derribado || (edificio.Definicion.Id == BuildingId.Muralla && edificio.EsPuerta);
         }
 
-        private void ActuarDefensor()
+        private void ActuarDefensor(float dt)
         {
             var rival = _asalto.MasCercano(transform.position, invasores: true, float.MaxValue);
             if (rival != null)
             {
-                Pelear(rival);
+                Pelear(rival, dt);
                 return;
             }
-            Caminar(_puesto, 0f);
+            Caminar(_puesto, 0f, dt);
         }
 
-        private void Pelear(Combatiente rival)
+        private void Pelear(Combatiente rival, float dt)
         {
             Vector3 hacia = rival.transform.position - transform.position;
             hacia.y = 0f;
             float distancia = hacia.magnitude - 0.2f;
             if (distancia > Definicion.Alcance + MargenAlcance)
             {
-                Caminar(rival.transform.position, Definicion.Alcance + 0.2f);
+                Caminar(rival.transform.position, Definicion.Alcance + 0.2f, dt);
                 return;
             }
             Peleo = true;
-            float dano = _danoPorSegundo * Time.deltaTime;
+            float dano = _danoPorSegundo * dt;
             if (!Invasor) dano *= _asalto.MultiplicadorLider(this); // con un yaotequihua cerca se pelea mejor
             rival.RecibirDano(dano, this);
         }
@@ -174,9 +178,9 @@ namespace Altepetl
             Vector3 plano = transform.position.WithY0();
             if (Invasor)
             {
-                if (Time.time >= _revisarRuta)
+                if (_asalto.Reloj >= _revisarRuta)
                 {
-                    _revisarRuta = Time.time + CadaCuantoRevisaRuta;
+                    _revisarRuta = _asalto.Reloj + CadaCuantoRevisaRuta;
                     _andar.Olvidar();
                 }
                 bool nueva = _andar.Ruta == null;
@@ -200,7 +204,7 @@ namespace Altepetl
         }
 
         /// <summary>Camina hasta el edificio y, ya a su alcance, lo golpea.</summary>
-        private void Golpear(Building edificio)
+        private void Golpear(Building edificio, float dt)
         {
             Vector3 hacia = edificio.transform.position - transform.position;
             hacia.y = 0f;
@@ -209,7 +213,7 @@ namespace Altepetl
             {
                 Vector3 siguiente = Siguiente(edificio.transform.position.WithY0(), 0f);
                 Vector3 rumbo = (siguiente - transform.position.WithY0()).normalized;
-                Vector3 paso = rumbo * Mathf.Min(_velocidad * Time.deltaTime, distanciaAlBorde - Definicion.Alcance);
+                Vector3 paso = rumbo * Mathf.Min(_velocidad * dt, distanciaAlBorde - Definicion.Alcance);
                 // Sin rodeo (va derecho), una muralla en el camino se derriba primero.
                 if (_andar.Ruta == null)
                 {
@@ -223,11 +227,11 @@ namespace Altepetl
                 transform.position += paso;
                 return;
             }
-            _asalto.DanarEdificio(edificio, _danoPorSegundo * Time.deltaTime);
+            _asalto.DanarEdificio(edificio, _danoPorSegundo * dt);
         }
 
         /// <summary>Camina hacia un punto (un rival o el puesto) rodeando lo que estorbe, hasta quedar a "parar".</summary>
-        private void Caminar(Vector3 destino, float parar)
+        private void Caminar(Vector3 destino, float parar, float dt)
         {
             Vector3 hacia = destino - transform.position;
             hacia.y = 0f;
@@ -236,7 +240,7 @@ namespace Altepetl
             // Un rival se mueve: la ruta se vuelve a buscar cuando se aleja de donde estaba.
             Vector3 siguiente = Siguiente(destino.WithY0(), 0.75f);
             Vector3 rumbo = (siguiente - transform.position.WithY0()).normalized;
-            transform.position += rumbo * Mathf.Min(_velocidad * Time.deltaTime, distancia);
+            transform.position += rumbo * Mathf.Min(_velocidad * dt, distancia);
         }
     }
 }

@@ -57,6 +57,10 @@ namespace Altepetl
         private Material _materialModelo;
         private Material _materialTransparente;
         private bool _vistaTransparente;
+        private static Material _plantillaTransparente;
+        private bool _faltaPlantillaTransparente;
+        private Color _ultimoColorTransparente;
+        private bool _colorTransparenteAsignado;
         private float _base; // alto de la plataforma sobre el lago (aldea mexica)
         private bool _chinampaEnOrilla; // chinampa acolhua: parcela más chica para que se vean los canales
         private Transform _uneEste, _uneNorte; // tramos que unen una muralla con la de al lado
@@ -343,8 +347,7 @@ namespace Altepetl
         public void FijarOpacidadVista(float opacidad)
         {
             if (_materialModelo == null) return;
-            float altura = Definicion.Altura * (1f + 0.15f * (Mathf.Max(1, Nivel) - 1));
-            bool transparente = opacidad < 0.999f && !EsMuralla && !Derribado && altura >= 1.2f;
+            bool transparente = opacidad < 0.999f && !EsMuralla && !Derribado && Definicion.Altura >= 1.2f;
             if (!transparente)
             {
                 if (_vistaTransparente) _render.sharedMaterial = _materialModelo;
@@ -353,27 +356,29 @@ namespace Altepetl
             }
             if (_materialTransparente == null)
             {
-                // Una copia por edificio evita alterar materiales de otras estructuras o del enemigo.
-                _materialTransparente = new Material(_materialModelo);
-                _materialTransparente.SetFloat("_Surface", 1f);
-                _materialTransparente.SetFloat("_Blend", 0f);
-                _materialTransparente.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                _materialTransparente.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                _materialTransparente.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
-                _materialTransparente.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                _materialTransparente.SetFloat("_ZWrite", 0f);
-                _materialTransparente.SetFloat("_AlphaClip", 0f);
-                _materialTransparente.SetOverrideTag("RenderType", "Transparent");
-                _materialTransparente.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                _materialTransparente.DisableKeyword("_ALPHATEST_ON");
-                _materialTransparente.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-                _materialTransparente.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
-                _materialTransparente.SetShaderPassEnabled("DepthOnly", false);
-                _materialTransparente.SetShaderPassEnabled("ShadowCaster", false);
+                if (_faltaPlantillaTransparente) return;
+                if (_plantillaTransparente == null)
+                    _plantillaTransparente = Resources.Load<Material>("Materials/EdificioTransparente");
+                if (_plantillaTransparente == null)
+                {
+                    // Si falta el recurso, conservar el material opaco en vez de mostrar uno inválido.
+                    _faltaPlantillaTransparente = true;
+                    Debug.LogError("Falta Resources/Materials/EdificioTransparente.mat; se mantiene el edificio opaco.", this);
+                    return;
+                }
+                // El recurso incluye la variante transparente en el build; cada edificio tiene su copia.
+                _materialTransparente = new Material(_plantillaTransparente);
+                // El inspector de URP desactiva este pase al validar materiales transparentes.
+                _materialTransparente.SetShaderPassEnabled("ShadowCaster", true);
             }
             var color = _materialModelo.color;
             color.a *= Mathf.Clamp01(opacidad);
-            _materialTransparente.color = color;
+            if (!_colorTransparenteAsignado || !_ultimoColorTransparente.Equals(color))
+            {
+                _materialTransparente.color = color;
+                _ultimoColorTransparente = color;
+                _colorTransparenteAsignado = true;
+            }
             if (!_vistaTransparente) _render.sharedMaterial = _materialTransparente;
             _vistaTransparente = true;
         }

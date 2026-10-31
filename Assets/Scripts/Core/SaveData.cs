@@ -7,7 +7,7 @@ namespace Altepetl
     [Serializable]
     public sealed class SaveData
     {
-        public const int VersionActual = 7; // 2: nivel de los edificios. 3: ejército y campaña. 4: rangos y ofrendas. 5: heridos. 6: estrellas. 7: mapa de 24
+        public const int VersionActual = 9; // 2: nivel de los edificios. 3: ejército y campaña. 4: rangos y ofrendas. 5: heridos. 6: estrellas. 7: mapa de 24. 8: ataques sin conexión (PR aparte). 9: comandantes
 
         public int version = VersionActual;
         public PuebloId pueblo;
@@ -30,6 +30,8 @@ namespace Altepetl
         public int deidadActiva;               // ofrenda activa en el teocalli
         public float ofrendaRestante;          // segundos que le quedan
         public float favorHuitzilopochtli = 50f; // solo mexicas
+
+        public List<ComandanteGuardado> comandantes = new List<ComandanteGuardado>(); // reclutados en el cuauhcalli (versión 9)
     }
 
     [Serializable]

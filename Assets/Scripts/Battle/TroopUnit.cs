@@ -20,6 +20,13 @@ namespace Altepetl
         public int Rango { get; private set; }
         /// <summary>Edificios que derribó en esta batalla.</summary>
         public int Capturas { get; set; }
+        /// <summary>Es el comandante del cuauhcalli: dirige, no muere para siempre y lleva su aura.</summary>
+        public bool EsComandante { get; private set; }
+        public Comandante Comandante { get; private set; }
+        /// <summary>Guerrero aliado (acolhuas): pelea, pero no regresa ni captura.</summary>
+        public bool Aliado { get; private set; }
+        /// <summary>Ataque extra que le queda el resto de la batalla (embestida a nivel 5).</summary>
+        public float BonoResidual { get; set; }
 
         private BattleManager _batalla;
         private float _vidaMaxima;
@@ -33,6 +40,19 @@ namespace Altepetl
         private Transform _acalli;   // canoa, en los campos con agua
         private float _tamano;
         private float _fase;
+
+        /// <summary>Antes de Inicializar: este monito es el comandante.</summary>
+        public void MarcarComandante(Comandante comandante)
+        {
+            EsComandante = true;
+            Comandante = comandante;
+        }
+
+        /// <summary>Antes de Inicializar: este monito es un guerrero aliado.</summary>
+        public void MarcarAliado()
+        {
+            Aliado = true;
+        }
 
         /// <summary>vidaInicial: fracción de la vida máxima con la que entra (las heridas entran incompletas).</summary>
         public void Inicializar(TroopDefinition definicion, int rango, float vidaInicial, Pueblo pueblo, Culto culto,
@@ -54,19 +74,22 @@ namespace Altepetl
                 _velocidad *= 1f + culto.Bono(TipoBono.Velocidad);
             }
 
-            name = definicion.Nombre;
+            name = Aliado ? "Aliado" : definicion.Nombre;
             transform.position = posicion;
 
             var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             Destroy(cuerpo.GetComponent<Collider>());
             cuerpo.transform.SetParent(transform, false);
-            // Los de más rango se ven un poco más grandes, y la élite con su atavío.
-            float tamano = 0.3f * Rangos.Tamano(rango);
+            // Los de más rango se ven un poco más grandes, y la élite con su atavío. El comandante, más grande que todos.
+            float tamano = EsComandante ? 0.46f : 0.3f * Rangos.Tamano(rango);
             cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
             cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
             _render = cuerpo.GetComponent<Renderer>();
-            _color = Rangos.ColorDe(pueblo, definicion.Color, rango);
+            _color = EsComandante ? definicion.Color
+                : Aliado ? Color.Lerp(definicion.Color, new Color(0.55f, 0.55f, 0.50f), 0.6f)   // manta sencilla de contingente aliado
+                : Rangos.ColorDe(pueblo, definicion.Color, rango);
             _render.material.color = _color;
+            if (EsComandante) CrearAnilloDeAura();
             _cuerpo = cuerpo.transform;
             _tamano = tamano;
             _fase = Random.value * Mathf.PI * 2f;
@@ -82,6 +105,25 @@ namespace Altepetl
                 acalli.GetComponent<Renderer>().material.color = new Color(0.45f, 0.30f, 0.18f);
                 _acalli = acalli.transform;
                 Remar(Vector3.forward);
+            }
+        }
+
+        /// <summary>Marcas en el suelo que muestran hasta dónde llega el aura del comandante (placeholder hasta que haya arte).</summary>
+        private void CrearAnilloDeAura()
+        {
+            if (Comandante == null || Comandante.Definicion.Aura == TipoAura.Ninguna) return;
+            var anillo = new GameObject("Aura");
+            anillo.transform.SetParent(transform, false);
+            const int marcas = 16;
+            for (int i = 0; i < marcas; i++)
+            {
+                float angulo = i * Mathf.PI * 2f / marcas;
+                var marca = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(marca.GetComponent<Collider>());
+                marca.transform.SetParent(anillo.transform, false);
+                marca.transform.localPosition = new Vector3(Mathf.Cos(angulo), 0.02f, Mathf.Sin(angulo)) * ReglasComandante.Radio;
+                marca.transform.localScale = new Vector3(0.12f, 0.02f, 0.12f);
+                marca.GetComponent<Renderer>().material.color = Color.Lerp(_color, Color.white, 0.4f);
             }
         }
 
@@ -105,11 +147,14 @@ namespace Altepetl
         public void RecibirDano(float cantidad)
         {
             if (Muerta) return;
-            Vida -= cantidad;
+            // Con un comandante cerca (o su Cohesión / Cerrar filas) el golpe duele menos.
+            Vida -= cantidad * _batalla.MultiplicadorDanoRecibido(this);
             _destelloHasta = Time.time + 0.15f;
             if (Muerta)
             {
-                _batalla.AlMorirTropa(this);
+                if (EsComandante) _batalla.AlCaerComandante(this);
+                else if (Aliado) _batalla.AlMorirAliado(this);
+                else _batalla.AlMorirTropa(this);
                 Destroy(gameObject);
             }
         }
@@ -119,8 +164,9 @@ namespace Altepetl
             if (Muerta || _batalla.Terminada) return;
 
             _render.material.color = Time.time < _destelloHasta ? Color.white : _color;
-            // Con un yaotequihua cerca se pelea mejor.
-            float dano = _danoPorSegundo * _batalla.MultiplicadorLider(this) * Time.deltaTime;
+            // Con un yaotequihua o un comandante cerca se pelea mejor; su habilidad puede dar más.
+            float dano = _danoPorSegundo * _batalla.MultiplicadorAtaque(this) * Time.deltaTime;
+            float velocidad = _velocidad * _batalla.MultiplicadorVelocidad(this);
 
             var defensor = _batalla.DefensorCercano(transform.position, Definicion.Alcance + DistanciaParaPelear);
             if (defensor != null)
@@ -130,7 +176,7 @@ namespace Altepetl
                 float distancia = haciaDefensor.magnitude - 0.2f;
                 if (distancia > Definicion.Alcance + MargenAlcance)
                 {
-                    transform.position += haciaDefensor.normalized * Mathf.Min(_velocidad * Time.deltaTime, distancia - Definicion.Alcance);
+                    transform.position += haciaDefensor.normalized * Mathf.Min(velocidad * Time.deltaTime, distancia - Definicion.Alcance);
                     Remar(haciaDefensor);
                     return;
                 }
@@ -139,9 +185,11 @@ namespace Altepetl
                 return;
             }
 
-            if (_objetivo == null || _objetivo.Destruido)
+            // Con la orden de asalto, deja lo que estaba atacando y va por la defensa más cercana.
+            bool prefiereDefensas = Definicion.PrefiereDefensas || _batalla.PrefiereDefensasAhora(this);
+            if (_objetivo == null || _objetivo.Destruido || (prefiereDefensas && !_objetivo.EsDefensa && _batalla.HayDefensasEnPie))
             {
-                _objetivo = _batalla.ObjetivoPara(transform.position, Definicion.PrefiereDefensas);
+                _objetivo = _batalla.ObjetivoPara(transform.position, prefiereDefensas);
                 if (_objetivo == null) return;
             }
 
@@ -153,7 +201,7 @@ namespace Altepetl
             // podía quedarse a una milésima del alcance sin moverse ni atacar.
             if (distanciaAlBorde > Definicion.Alcance + MargenAlcance)
             {
-                float paso = Mathf.Min(_velocidad * Time.deltaTime, distanciaAlBorde - Definicion.Alcance);
+                float paso = Mathf.Min(velocidad * Time.deltaTime, distanciaAlBorde - Definicion.Alcance);
                 transform.position += haciaObjetivo.normalized * paso;
                 Remar(haciaObjetivo);
                 return;

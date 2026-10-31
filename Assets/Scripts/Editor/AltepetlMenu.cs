@@ -37,6 +37,19 @@ namespace Altepetl.Herramientas
             manager.Asalto.ProvocarAhora();
         }
 
+        [MenuItem("Altepetl/Dar 5 de experiencia a los comandantes")]
+        private static void ExperienciaComandantes()
+        {
+            var manager = Object.FindAnyObjectByType<GameManager>();
+            if (!EditorApplication.isPlaying || manager == null || manager.Comandantes.Count == 0)
+            {
+                Debug.LogWarning("Dale Play y recluta un comandante en el cuauhcalli primero.");
+                return;
+            }
+            manager.DarExperienciaDePrueba(5);
+            Debug.Log("Cada comandante ganó 5 de experiencia (para probar las promociones).");
+        }
+
         [MenuItem("Altepetl/Abrir carpeta de guardado")]
         private static void AbrirCarpeta()
         {

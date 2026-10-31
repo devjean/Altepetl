@@ -26,6 +26,8 @@ namespace Altepetl
     {
         public readonly int[] Sanos = new int[TroopCatalog.Count * Rangos.Count];
         public readonly int[] Heridos = new int[TroopCatalog.Count * Rangos.Count];
+        /// <summary>Posición del comandante que va (en la lista de comandantes de la aldea), o -1 si ninguno.</summary>
+        public int Comandante = -1;
 
         public int Total
         {

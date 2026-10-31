@@ -41,6 +41,7 @@ namespace Altepetl
         private int _nivelArmando = -1;         // nivel de campaña para el que se arma el ejército
         private SeleccionEjercito _seleccion;
         private Deidad _deidadInfo;
+        private ComandanteDefinition _comandanteInfo; // ficha abierta desde el cuauhcalli
         private CategoriaEdificio _pestana = CategoriaEdificio.Suministros;
         private BuildingDefinition _info;
 
@@ -582,6 +583,11 @@ namespace Altepetl
                 lineas.Add($"Cura a {def.CamasCuracion} heridos a la vez por nivel. Sanar a uno muy herido tarda "
                            + $"{Army.FactorCuracion:0.#} veces lo que entrenarlo, y {Mathf.RoundToInt(Army.CuracionExtraPorRango * 100)}% más por cada rango");
             }
+            if (def.Dirige)
+            {
+                lineas.Add($"Recluta a los dos comandantes de tu pueblo (uno en nivel 1, el otro desde nivel 3) por {TextoCosto(ReglasComandante.CostoReclutar)} "
+                           + "y los sube de nivel con experiencia; un comandante no pasa del nivel del cuauhcalli");
+            }
             if (def.EsDefensa) lineas.Add($"Alcance: {def.AlcanceDefensa:0.#} casillas, daño: {def.DanoDefensaPorSegundo:0.#} por segundo");
             if (def.NivelMaximo > 1) lineas.Add($"Se mejora hasta nivel {def.NivelMaximo}: +50% por nivel, sin pasar el nivel del tecpan");
 
@@ -609,11 +615,13 @@ namespace Altepetl
             var def = edificio.Definicion;
             bool entrena = def.Entrena && edificio.Nivel > 0;
             bool forma = def.Forma && edificio.Nivel > 0;
+            bool dirige = def.Dirige && edificio.Nivel > 0;
+            if (!dirige) _comandanteInfo = null;
             // Al tecpan le faltan edificios para subir: se listan en el panel.
             var faltan = def.Id == BuildingId.Tecpan && !edificio.EnConstruccion
                 ? Manager.RequisitosFaltantesTecpan(edificio.Nivel + 1)
                 : new List<RequisitoTecpan>();
-            float altoPanel = entrena ? 410 : forma ? 450 : def.CamasCuracion > 0 ? 310 : 250;
+            float altoPanel = entrena ? 410 : forma ? 450 : dirige ? 480 : def.CamasCuracion > 0 ? 310 : 250;
             if (faltan.Count > 0) altoPanel += 22 + 19 * faltan.Count;
             if (def.Id == BuildingId.Muralla) altoPanel += edificio.EnConstruccion ? 50 : 100; // puerta y "varias"
             // A la izquierda de la columna de recursos, para no taparla.
@@ -705,15 +713,21 @@ namespace Altepetl
                 info += $"\nEjército: {Manager.Ejercito.Espacio} / {Manager.CapacidadEjercito}";
             }
             if (forma) info = $"Nivel {edificio.Nivel}. " + Rangos.DescripcionElite(Manager.Pueblo) + $"\nVida: {edificio.Vida}";
+            if (dirige)
+            {
+                info = $"Nivel {edificio.Nivel}. Comandantes: {Manager.Comandantes.Count} / {Manager.MaximoComandantes} (el segundo, con nivel 3). "
+                       + $"Un comandante solo sube hasta el nivel del cuauhcalli. Se llevan a la batalla desde «Arma tu ejército».\nVida: {edificio.Vida}";
+            }
             if (def.Entrena && edificio.Nivel > 0)
             {
                 if (Manager.Ejercito.Heridos.Count > 0) info += $"\nHeridos en el temazcalli: {Manager.Ejercito.Heridos.Count}";
                 string veteranos = TextoRangos(Manager.Ejercito);
                 if (veteranos.Length > 0) info += "\nCon rango: " + veteranos;
             }
-            GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, entrena || forma ? 120 : panel.height - (def.Id == BuildingId.Muralla ? 150 : 100)), info, _texto);
+            GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, entrena || forma || dirige ? 120 : panel.height - (def.Id == BuildingId.Muralla ? 150 : 100)), info, _texto);
             if (entrena) DibujarEntrenamiento(panel);
             if (forma) DibujarFormacion(panel);
+            if (dirige) DibujarComandantes(panel);
 
             var botonRect = new Rect(panel.x + 10, panel.yMax - 54, panel.width - 20, 44);
             if (edificio.EnConstruccion)
@@ -1077,6 +1091,87 @@ namespace Altepetl
             GUI.enabled = true;
         }
 
+        // ---------- Cuauhcalli ----------
+
+        /// <summary>Los dos comandantes del pueblo: reclutar, subir de nivel y abrir su ficha.</summary>
+        private void DibujarComandantes(Rect panel)
+        {
+            float y = panel.y + 164;
+            foreach (var def in ComandanteCatalog.DePueblo(Manager.Pueblo.Id))
+            {
+                var comandante = Manager.ComandanteDe(def.Id);
+                GUI.Label(new Rect(panel.x + 10, y, panel.width - 80, 24), def.Nombre, _textoUnaLinea);
+                if (GUI.Button(new Rect(panel.xMax - 66, y - 2, 56, 26), "Ficha", _botonChico)) _comandanteInfo = _comandanteInfo == def ? null : def;
+
+                string estado;
+                if (comandante == null) estado = $"Sin reclutar. {def.Papel.Substring(0, 1).ToUpperInvariant()}{def.Papel.Substring(1)}: {def.NombreHabilidad.ToLowerInvariant()}.";
+                else
+                {
+                    estado = $"Nivel {comandante.Nivel}. " + (comandante.EnNivelMaximo ? "Nivel máximo." : $"Experiencia: {comandante.Experiencia} / {comandante.UmbralSiguiente}.");
+                    if (comandante.Promoviendo) estado += $" Subiendo a nivel {comandante.Nivel + 1}: {Mathf.CeilToInt(comandante.PromocionRestante)} s";
+                    else if (comandante.Herido) estado += $" Herido ({Mathf.RoundToInt(comandante.Vida * 100)}%), se cura solo.";
+                    else estado += " Listo para salir.";
+                }
+                GUI.Label(new Rect(panel.x + 10, y + 24, panel.width - 20, 36), estado, _textoChico);
+
+                var boton = new Rect(panel.x + 10, y + 60, panel.width - 20, 40);
+                if (comandante == null)
+                {
+                    bool hayLugar = Manager.Comandantes.Count < Manager.MaximoComandantes;
+                    GUI.enabled = hayLugar && Manager.Banco.PuedePagar(ReglasComandante.CostoReclutar);
+                    string texto = hayLugar ? $"Reclutar ({TextoCosto(ReglasComandante.CostoReclutar)})" : "Cuauhcalli nivel 3 para reclutarlo";
+                    if (GUI.Button(boton, texto, _boton)) Manager.TryReclutar(def);
+                }
+                else if (comandante.Promoviendo)
+                {
+                    int plumas = Manager.CostoTerminarPromocion(comandante);
+                    GUI.enabled = Manager.Banco.Get(ResourceType.Plumas) >= plumas;
+                    if (GUI.Button(boton, $"Terminar ({Plumas(plumas)})", _boton)) Manager.TryTerminarPromocion(comandante);
+                }
+                else if (comandante.EnNivelMaximo)
+                {
+                    GUI.Label(boton, "Ya no sube más", _textoChico);
+                }
+                else
+                {
+                    var costo = ReglasComandante.CostoPromocion(comandante.Nivel);
+                    bool cuauhcalliAlcanza = Manager.NivelCuauhcalli > comandante.Nivel;
+                    GUI.enabled = comandante.PuedeSubir && cuauhcalliAlcanza && !comandante.Herido
+                                  && Manager.ComandantePromoviendo == null && Manager.Banco.PuedePagar(costo);
+                    string texto = !cuauhcalliAlcanza ? $"Cuauhcalli nivel {comandante.Nivel + 1} para subirlo"
+                        : $"Subir a nivel {comandante.Nivel + 1}\n{TextoCosto(costo)}, {Mathf.CeilToInt(Manager.DuracionPromocion(comandante))} s";
+                    if (GUI.Button(boton, texto, _boton)) Manager.TryPromover(comandante);
+                }
+                GUI.enabled = true;
+                y += 110;
+            }
+
+            if (_comandanteInfo != null) DibujarFichaComandante(panel, _comandanteInfo);
+        }
+
+        /// <summary>La ficha del comandante, a la izquierda del panel: quién era, su aura, su habilidad y sus rasgos.</summary>
+        private void DibujarFichaComandante(Rect panelSeleccion, ComandanteDefinition def)
+        {
+            var panel = new Rect(panelSeleccion.x - 320, panelSeleccion.y, 310, 480);
+            Zona(panel);
+            GUI.Box(panel, GUIContent.none, _caja);
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), def.Nombre);
+            if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
+            {
+                _comandanteInfo = null;
+                return;
+            }
+            var comandante = Manager.ComandanteDe(def.Id);
+            int nivel = comandante != null ? comandante.Nivel : 1;
+            string texto = Terminos.Aplicar(def.Descripcion)
+                           + "\n\n" + Terminos.Aplicar(def.TextoAura(nivel))
+                           + $"\n\n{def.NombreHabilidad}: " + Terminos.Aplicar(def.DescripcionHabilidad)
+                           + $"\n\nNivel 3: " + Terminos.Aplicar(def.RasgoNivel3)
+                           + $"\nNivel 5: " + Terminos.Aplicar(def.RasgoNivel5)
+                           + "\n\nSale una vez por batalla y, si cae, vuelve herido: no se pierde. Los niveles son del juego, no rangos históricos.";
+            GUI.Label(new Rect(panel.x + 12, panel.y + 42, panel.width - 24, panel.height - 50), texto, _textoChico);
+        }
+
         private void DibujarBotonAtacar(float alto)
         {
             if (Manager.EnModoColocar) return;
@@ -1264,6 +1359,27 @@ namespace Altepetl
                 _textoChico);
 
             float y = panel.y + 84;
+            if (Manager.Comandantes.Count > 0)
+            {
+                // El comandante va aparte: solo uno por batalla, y solo si está sano y no está subiendo de nivel.
+                GUI.Label(new Rect(panel.x + 20, y + 6, 110, 26), "Comandante:", _textoUnaLinea);
+                if (_seleccion.Comandante >= Manager.Comandantes.Count || (_seleccion.Comandante >= 0 && !Manager.Comandantes[_seleccion.Comandante].Disponible)) _seleccion.Comandante = -1;
+                GUI.backgroundColor = _seleccion.Comandante < 0 ? new Color(1f, 0.85f, 0.2f) : Color.white;
+                if (GUI.Button(new Rect(panel.x + 130, y, 90, 44), "Ninguno", _boton)) _seleccion.Comandante = -1;
+                float xc = panel.x + 226;
+                for (int i = 0; i < Manager.Comandantes.Count; i++)
+                {
+                    var comandante = Manager.Comandantes[i];
+                    GUI.enabled = comandante.Disponible;
+                    GUI.backgroundColor = _seleccion.Comandante == i ? new Color(1f, 0.85f, 0.2f) : Color.white;
+                    string nota = comandante.Promoviendo ? " (subiendo)" : comandante.Herido ? " (herido)" : $" nv {comandante.Nivel}";
+                    if (GUI.Button(new Rect(xc, y, 170, 44), comandante.Nombre + nota, _boton)) _seleccion.Comandante = i;
+                    xc += 176;
+                }
+                GUI.backgroundColor = Color.white;
+                GUI.enabled = true;
+                y += 50;
+            }
             GUI.Label(new Rect(panel.x + 20, y, 250, 24), Terminos.TropasMayuscula, _textoChico);
             GUI.Label(new Rect(panel.x + 280, y, 140, 24), "Sanas", _textoChico);
             GUI.Label(new Rect(panel.x + 435, y, 170, 24), "Heridas", _textoChico);
@@ -1313,6 +1429,7 @@ namespace Altepetl
                         _seleccion.Heridos[i] = ejercito.HeridosDe(tropa.Id, r);
                     }
                 }
+                if (_seleccion.Comandante < 0) _seleccion.Comandante = Manager.SeleccionPorDefecto().Comandante;
             }
             int total = _seleccion.Total;
             GUI.enabled = total > 0;
@@ -1350,6 +1467,7 @@ namespace Altepetl
             _ajustesAbierto = false;
             _nivelArmando = -1;
             _nivelHistoria = -1;
+            _comandanteInfo = null;
             Manager.Seleccionar(null);
         }
 
@@ -1566,17 +1684,55 @@ namespace Altepetl
                 if (GUI.Button(new Rect(x, abajo.y + 10, 150, AltoBarraInferior - 20), texto, _boton))
                 {
                     batalla.Seleccionada = tropa.Id;
+                    batalla.SeleccionComandante = false;
                 }
                 GUI.backgroundColor = Color.white;
                 GUI.enabled = true;
                 x += 160f;
             }
-            GUI.Label(new Rect(x + 10, abajo.y + 20, ancho - x - 200, 70),
-                $"Toca el campo, fuera de los edificios, para desplegar {(Terminos.Nahuatl ? "al" : "la")} {Terminos.Tropa} elegid{Terminos.O}.", _texto);
+            if (batalla.Comandante != null)
+            {
+                DibujarBotonComandante(batalla, new Rect(x, abajo.y + 10, 150, AltoBarraInferior - 20));
+                x += 160f;
+            }
+            float anchoPista = ancho - x - 200;
+            string pista = batalla.SeleccionComandante ? $"Toca el campo para que salga {batalla.Comandante.Nombre}."
+                : anchoPista < 200 ? $"Toca el campo para desplegar {(Terminos.Nahuatl ? "al" : "la")} {Terminos.Tropa} elegid{Terminos.O}."
+                : $"Toca el campo, fuera de los edificios, para desplegar {(Terminos.Nahuatl ? "al" : "la")} {Terminos.Tropa} elegid{Terminos.O}.";
+            GUI.Label(new Rect(x + 10, abajo.y + 20, anchoPista, 70), pista, anchoPista < 200 ? _textoChico : _texto);
             if (GUI.Button(new Rect(ancho - 170, abajo.y + 30, 150, 50), "Retirarse", _boton))
             {
                 batalla.Terminar();
             }
+        }
+
+        /// <summary>Primero elige dónde sale el comandante; ya en el campo, el mismo botón dispara su habilidad.</summary>
+        private void DibujarBotonComandante(BattleManager batalla, Rect rect)
+        {
+            var comandante = batalla.Comandante;
+            if (batalla.ComandantePendiente)
+            {
+                GUI.backgroundColor = batalla.SeleccionComandante ? new Color(1f, 0.85f, 0.2f) : Color.white;
+                if (GUI.Button(rect, $"{comandante.Definicion.NombreBoton}\nnivel {comandante.Nivel}", _boton)) batalla.SeleccionComandante = true;
+                GUI.backgroundColor = Color.white;
+                return;
+            }
+            if (batalla.UnidadComandante == null)
+            {
+                GUI.Label(rect, $"Cayó {comandante.Nombre}.\nVolverá herido al cuauhcalli.", _textoChico);
+                return;
+            }
+            string habilidad = comandante.Definicion.NombreHabilidad;
+            string texto;
+            if (batalla.HabilidadActiva) texto = $"{habilidad}\n{Mathf.CeilToInt(batalla.SegundosHabilidad)} s";
+            else if (batalla.UsosHabilidad > 0) texto = $"{habilidad}\n({(batalla.UsosHabilidad == 1 ? "1 uso" : $"{batalla.UsosHabilidad} usos")})";
+            else if (comandante.UsosHabilidad == 0) texto = $"{habilidad}\n(desde nivel {ReglasComandante.RefuerzosDesdeNivel})";
+            else texto = $"{habilidad}\n(ya usada)";
+            GUI.enabled = batalla.PuedeUsarHabilidad;
+            GUI.backgroundColor = batalla.HabilidadActiva ? new Color(1f, 0.85f, 0.2f) : Color.white;
+            if (GUI.Button(rect, texto, _boton)) batalla.UsarHabilidad();
+            GUI.backgroundColor = Color.white;
+            GUI.enabled = true;
         }
 
         private void DibujarBarrasDeVida(BattleManager batalla)
@@ -1592,9 +1748,11 @@ namespace Altepetl
             }
             foreach (var tropa in batalla.Tropas)
             {
-                if (tropa == null || tropa.Muerta || tropa.Vida >= tropa.VidaMaxima) continue;
-                var arriba = tropa.transform.position + Vector3.up * 0.9f;
-                BarraDeVida(camara, arriba, tropa.Vida / tropa.VidaMaxima, 22f, new Color(0.3f, 0.85f, 0.3f));
+                if (tropa == null || tropa.Muerta || (tropa.Vida >= tropa.VidaMaxima && !tropa.EsComandante)) continue;
+                // El comandante siempre lleva su barra, más ancha y dorada, para encontrarlo en el campo.
+                var arriba = tropa.transform.position + Vector3.up * (tropa.EsComandante ? 1.3f : 0.9f);
+                BarraDeVida(camara, arriba, tropa.Vida / tropa.VidaMaxima, tropa.EsComandante ? 44f : 22f,
+                    tropa.EsComandante ? new Color(0.95f, 0.78f, 0.25f) : new Color(0.3f, 0.85f, 0.3f));
             }
             foreach (var defensor in batalla.Defensores)
             {
@@ -1621,7 +1779,8 @@ namespace Altepetl
         private void DibujarResultado(BattleManager batalla, float ancho, float alto)
         {
             var resultado = batalla.Resultado;
-            var panel = new Rect((ancho - 480) / 2, (alto - 440) / 2, 480, 440);
+            float altoPanel = resultado.Comandante != null ? 480 : 440;
+            var panel = new Rect((ancho - 480) / 2, (alto - altoPanel) / 2, 480, altoPanel);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
             Titulo(new Rect(panel.x + 10, panel.y + 12, panel.width - 20, 34), resultado.Victoria ? "¡Victoria!" : "Derrota");
@@ -1647,9 +1806,20 @@ namespace Altepetl
                 if (resultado.Ascensos[r] > 0) ascensos.Add($"{resultado.Ascensos[r]} a {Rangos.Nombre(Manager.Pueblo, r).ToLowerInvariant()}");
             }
             if (ascensos.Count > 0) texto += "\nAscensos: " + string.Join(", ", ascensos);
+            if (resultado.Comandante != null)
+            {
+                var comandante = resultado.Comandante;
+                if (!resultado.ComandanteSalio) texto += $"\n{comandante.Nombre} no llegó a salir.";
+                else if (resultado.ComandanteCayo) texto += $"\n{comandante.Nombre} cayó: se recupera en el cuauhcalli.";
+                else if (comandante.Herido) texto += $"\n{comandante.Nombre} regresa herido ({Mathf.RoundToInt(comandante.Vida * 100)}%); se cura solo.";
+                else texto += $"\n{comandante.Nombre} regresa sano.";
+                if (resultado.ComandanteExperiencia > 0) texto += $" Experiencia: +{resultado.ComandanteExperiencia}.";
+                if (comandante.PuedeSubir) texto += $" ¡Puede subir a nivel {comandante.Nivel + 1} en el cuauhcalli!";
+                if (resultado.AliadosCaidos > 0) texto += $"\nAliados caídos: {resultado.AliadosCaidos} (no regresan).";
+            }
             if (resultado.AvanzaHistoria) texto += "\n" + batalla.Nivel.TextoDerrota;
             else if (!resultado.Victoria) texto += $"\nPara ganar necesitas un macuahuitl: destruye el {Mathf.RoundToInt(BattleManager.VictoriaMinima * 100)}% o derriba el tecpan.";
-            GUI.Label(new Rect(panel.x + 20, panel.y + 92, panel.width - 40, 268), texto, _texto);
+            GUI.Label(new Rect(panel.x + 20, panel.y + 92, panel.width - 40, panel.height - 172), texto, _texto);
 
             if (GUI.Button(new Rect(panel.x + 100, panel.yMax - 64, panel.width - 200, 48), $"Volver {Terminos.AlAldea}", _boton))
             {

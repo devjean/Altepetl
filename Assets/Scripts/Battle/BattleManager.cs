@@ -17,6 +17,11 @@ namespace Altepetl
         public int[] Ascensos = new int[Rangos.Count]; // cuántas subieron a cada rango
         public int DefensoresDerrotados;
         public bool AvanzaHistoria; // se perdió, pero el capítulo cuenta (así pasó en la historia)
+        public Comandante Comandante;      // el que fue, o null
+        public bool ComandanteSalio;       // llegó a desplegarse
+        public bool ComandanteCayo;        // cayó en el campo: vuelve herido al cuauhcalli
+        public int ComandanteExperiencia;  // la que ganó en esta batalla
+        public int AliadosCaidos;
     }
 
     /// <summary>
@@ -156,10 +161,37 @@ namespace Altepetl
         }
         private bool _algunaDesplegada;
 
+        // ---------- Comandante ----------
+
+        /// <summary>El comandante que se trajo a esta batalla (null si ninguno).</summary>
+        public Comandante Comandante { get; private set; }
+        /// <summary>Su monito en el campo, cuando ya se desplegó y sigue en pie.</summary>
+        public TroopUnit UnidadComandante { get; private set; }
+        public bool ComandanteDesplegado { get; private set; }
+        public bool ComandanteCaido { get; private set; }
+        /// <summary>El siguiente toque en el campo suelta al comandante en vez de una tropa.</summary>
+        public bool SeleccionComandante { get; set; }
+        public int UsosHabilidad { get; private set; }
+        public float HabilidadHasta { get; private set; } = -1f;
+        public bool HabilidadActiva => Time.time < HabilidadHasta;
+        public float SegundosHabilidad => Mathf.Max(0f, HabilidadHasta - Time.time);
+        /// <summary>Se puede soltar todavía: vino, no ha salido y no ha caído.</summary>
+        public bool ComandantePendiente => Comandante != null && !ComandanteDesplegado;
+        public bool PuedeUsarHabilidad => UnidadComandante != null && !UnidadComandante.Muerta && UsosHabilidad > 0 && !HabilidadActiva && !Terminada;
+        private bool _habilidadEnCurso;
+        private int _capturasEnAura;
+        private int _aliadosCaidos;
+
         public void Empezar(GameManager manager, int indiceNivel, SeleccionEjercito seleccion)
         {
             _manager = manager;
             _ejercito = manager.Ejercito;
+            if (seleccion.Comandante >= 0 && seleccion.Comandante < manager.Comandantes.Count
+                && manager.Comandantes[seleccion.Comandante].Disponible)
+            {
+                Comandante = manager.Comandantes[seleccion.Comandante];
+                UsosHabilidad = Comandante.UsosHabilidad;
+            }
             foreach (var definicion in TroopCatalog.Todos)
             {
                 for (int r = 0; r < Rangos.Count; r++)
@@ -341,6 +373,12 @@ namespace Altepetl
         public void Desplegar(Vector3 punto)
         {
             if (Terminada || !PuedeDesplegarEn(punto)) return;
+            if (SeleccionComandante)
+            {
+                SeleccionComandante = false;
+                if (ComandantePendiente) DesplegarComandante(new Vector3(punto.x, 0f, punto.z));
+                return;
+            }
             // Salen primero los de mayor rango; dentro del mismo rango, los sanos y luego los heridos con más vida.
             int rango = -1;
             for (int r = Rangos.Count - 1; r >= 0; r--)
@@ -383,14 +421,174 @@ namespace Altepetl
             if (Disponibles(Seleccionada) == 0) Seleccionada = PrimeraTropaDisponible();
         }
 
+        /// <summary>El comandante sale una sola vez por batalla; el capitán de los aliados llega acompañado.</summary>
+        private void DesplegarComandante(Vector3 punto)
+        {
+            var unidad = new GameObject().AddComponent<TroopUnit>();
+            unidad.transform.SetParent(transform, false);
+            unidad.MarcarComandante(Comandante);
+            unidad.Inicializar(DefinicionDe(Comandante), Rangos.Joven, 1f, _manager.Pueblo, _manager.Culto, punto, this);
+            _tropas.Add(unidad);
+            UnidadComandante = unidad;
+            ComandanteDesplegado = true;
+            _algunaDesplegada = true;
+            CrearAliados(punto, Comandante.Aliados);
+        }
+
+        /// <summary>Los números del comandante como si fuera una tropa, para reutilizar el monito de batalla.</summary>
+        private static TroopDefinition DefinicionDe(Comandante comandante)
+        {
+            return new TroopDefinition
+            {
+                Id = TroopId.Macuahuitl,
+                NombreEspanol = comandante.Nombre,
+                NombreNahuatl = comandante.Nombre,
+                Vida = comandante.VidaMaxima,
+                DanoPorSegundo = ReglasComandante.DanoPorSegundo,
+                Alcance = ReglasComandante.Alcance,
+                Velocidad = ReglasComandante.Velocidad,
+                Color = comandante.Definicion.Color,
+            };
+        }
+
+        /// <summary>Guerreros aliados (acolhuas): llegan en círculo alrededor del punto. Mueren de verdad y no capturan.</summary>
+        private void CrearAliados(Vector3 centro, int cantidad)
+        {
+            for (int i = 0; i < cantidad; i++)
+            {
+                float angulo = i * Mathf.PI * 2f / Mathf.Max(1, cantidad);
+                var punto = centro + new Vector3(Mathf.Cos(angulo), 0f, Mathf.Sin(angulo)) * 0.6f;
+                var aliado = new GameObject().AddComponent<TroopUnit>();
+                aliado.transform.SetParent(transform, false);
+                aliado.MarcarAliado();
+                aliado.Inicializar(TroopCatalog.Get(TroopId.Macuahuitl), Comandante.RangoAliados, 1f, _manager.Pueblo, _manager.Culto, punto, this);
+                _tropas.Add(aliado);
+            }
+        }
+
+        /// <summary>El botón de la habilidad: una vez por batalla (dos, el llamado a nivel 5).</summary>
+        public void UsarHabilidad()
+        {
+            if (!PuedeUsarHabilidad) return;
+            UsosHabilidad--;
+            if (Comandante.Definicion.Habilidad == Habilidad.Refuerzos)
+            {
+                CrearAliados(UnidadComandante.transform.position, ReglasComandante.RefuerzosAliados);
+                return;
+            }
+            HabilidadHasta = Time.time + Comandante.DuracionHabilidad;
+            _habilidadEnCurso = true;
+        }
+
+        /// <summary>Al terminar la embestida a nivel 5, quienes estaban en el aura conservan parte del ímpetu.</summary>
+        private void AlTerminarHabilidad()
+        {
+            _habilidadEnCurso = false;
+            if (Comandante.Definicion.Habilidad != Habilidad.Embestida || !Comandante.TieneRasgo5) return;
+            foreach (var tropa in _tropas)
+            {
+                if (tropa != null && !tropa.Muerta && EnAura(tropa)) tropa.BonoResidual = Mathf.Max(tropa.BonoResidual, ReglasComandante.EmbestidaResidualNivel5);
+            }
+        }
+
+        /// <summary>¿La tropa está dentro del aura del comandante (y no es él)?</summary>
+        public bool EnAura(TroopUnit tropa)
+        {
+            if (UnidadComandante == null || UnidadComandante.Muerta || tropa == UnidadComandante) return false;
+            float radio = ReglasComandante.Radio * ReglasComandante.Radio;
+            return (UnidadComandante.transform.position - tropa.transform.position).sqrMagnitude <= radio;
+        }
+
+        private bool HabilidadActivaDe(Habilidad habilidad) =>
+            HabilidadActiva && Comandante != null && Comandante.Definicion.Habilidad == habilidad;
+
+        /// <summary>Todo lo que multiplica el ataque de una tropa: yaotequihua cerca, aura del comandante y su habilidad.</summary>
+        public float MultiplicadorAtaque(TroopUnit tropa)
+        {
+            float bono = MultiplicadorLider(tropa) - 1f;
+            bool enAura = EnAura(tropa);
+            if (enAura && Comandante.Definicion.Aura == TipoAura.Ataque) bono = Mathf.Max(bono, Comandante.Aura);
+            float mult = 1f + bono + tropa.BonoResidual;
+            if (enAura && HabilidadActivaDe(Habilidad.Embestida)) mult *= 1f + ReglasComandante.EmbestidaAtaque;
+            if (HabilidadActivaDe(Habilidad.Llamado)) mult *= 1f + ReglasComandante.LlamadoAtaque;
+            if (enAura && HabilidadActivaDe(Habilidad.OrdenAsalto))
+            {
+                mult *= 1f + ReglasComandante.OrdenAtaque;
+                if (Comandante.TieneRasgo5 && tropa.Definicion.Alcance > 1f) mult *= 1f + ReglasComandante.OrdenDistanciaNivel5;
+            }
+            return mult;
+        }
+
+        /// <summary>Cuánto del daño recibe de verdad una tropa: las auras de resistencia y Cohesión / Cerrar filas lo bajan.</summary>
+        public float MultiplicadorDanoRecibido(TroopUnit tropa)
+        {
+            if (Comandante == null || tropa == UnidadComandante) return 1f;
+            bool enAura = EnAura(tropa);
+            float reduccion = 0f;
+            if (enAura && Comandante.Definicion.Aura == TipoAura.Resistencia) reduccion += Comandante.Aura;
+            bool cohesion = HabilidadActivaDe(Habilidad.Cohesion) && (enAura || Comandante.TieneRasgo5);
+            bool cerrarFilas = HabilidadActivaDe(Habilidad.CerrarFilas) && enAura;
+            if (cohesion || cerrarFilas) reduccion += ReglasComandante.CohesionReduccion;
+            if (enAura && Comandante.Definicion.Habilidad == Habilidad.Cohesion && Comandante.TieneRasgo3 && Rangos.EsElite(tropa.Rango))
+            {
+                reduccion += ReglasComandante.CohesionEliteNivel3;
+            }
+            return Mathf.Max(ReglasComandante.MinimoDanoRecibido, 1f - reduccion);
+        }
+
+        public float MultiplicadorVelocidad(TroopUnit tropa)
+        {
+            if (Comandante == null || !HabilidadActiva || !Comandante.TieneRasgo3) return 1f;
+            bool enAura = EnAura(tropa);
+            switch (Comandante.Definicion.Habilidad)
+            {
+                case Habilidad.Embestida: return enAura ? 1f + ReglasComandante.EmbestidaVelocidadNivel3 : 1f;
+                case Habilidad.Llamado: return 1f + ReglasComandante.LlamadoVelocidadNivel3;
+                case Habilidad.OrdenAsalto: return enAura ? 1f + ReglasComandante.OrdenVelocidadNivel3 : 1f;
+                default: return 1f;
+            }
+        }
+
+        /// <summary>Con la orden de asalto, las tropas del aura van primero por las defensas.</summary>
+        public bool PrefiereDefensasAhora(TroopUnit tropa) => HabilidadActivaDe(Habilidad.OrdenAsalto) && EnAura(tropa);
+
+        public bool HayDefensasEnPie
+        {
+            get
+            {
+                foreach (var edificio in _edificios)
+                {
+                    if (!edificio.Destruido && edificio.EsDefensa) return true;
+                }
+                return false;
+            }
+        }
+
+        /// <summary>El comandante no muere para siempre: cae, y vuelve herido al cuauhcalli.</summary>
+        public void AlCaerComandante(TroopUnit unidad)
+        {
+            _tropas.Remove(unidad);
+            if (unidad == UnidadComandante) UnidadComandante = null;
+            ComandanteCaido = true;
+            HabilidadHasta = -1f;
+            _habilidadEnCurso = false;
+        }
+
+        public void AlMorirAliado(TroopUnit aliado)
+        {
+            _tropas.Remove(aliado);
+            _aliadosCaidos++;
+        }
+
         private void Update()
         {
+            if (_habilidadEnCurso && !HabilidadActiva) AlTerminarHabilidad();
             if (_zonaProhibida != null && _zonaProhibida.activeSelf && Time.time > _ocultarZonaEn) _zonaProhibida.SetActive(false);
             if (Terminada) return;
 
             TiempoRestante -= Time.deltaTime;
             bool todoDestruido = Destruccion >= 1f;
-            bool sinTropas = _algunaDesplegada && _tropas.Count == 0 && TotalDisponibles == 0;
+            bool sinTropas = _algunaDesplegada && _tropas.Count == 0 && TotalDisponibles == 0 && !ComandantePendiente;
             if (TiempoRestante <= 0f || todoDestruido || sinTropas) Terminar();
         }
 
@@ -420,9 +618,25 @@ namespace Altepetl
             // Las tropas que no se desplegaron regresan tal cual; las que sobrevivieron, con su nuevo rango
             // y con la vida que les quedó: si vienen heridas van al temazcalli.
             DevolverReserva();
+            resultado.AliadosCaidos = _aliadosCaidos;
+            if (Comandante != null)
+            {
+                // El comandante vuelve con la vida que le quedó (herido si cayó), y gana experiencia por las
+                // estrellas y por los cautivos que tomaron las tropas dentro de su aura.
+                resultado.Comandante = Comandante;
+                resultado.ComandanteSalio = ComandanteDesplegado;
+                resultado.ComandanteCayo = ComandanteCaido;
+                if (ComandanteDesplegado)
+                {
+                    Comandante.Regresar(UnidadComandante != null && !UnidadComandante.Muerta ? UnidadComandante.FraccionVida : 0.01f);
+                    resultado.ComandanteExperiencia = resultado.Estrellas * ReglasComandante.ExperienciaPorEstrella
+                                                      + _capturasEnAura / ReglasComandante.CapturasPorExperiencia;
+                    Comandante.GanarExperiencia(resultado.ComandanteExperiencia);
+                }
+            }
             foreach (var tropa in _tropas)
             {
-                if (tropa == null || tropa.Muerta) continue;
+                if (tropa == null || tropa.Muerta || tropa.EsComandante || tropa.Aliado) continue;
                 int nuevo = Rangos.AlRegresar(tropa.Rango, tropa.Capturas);
                 if (nuevo > tropa.Rango) resultado.Ascensos[nuevo]++;
                 float vida = tropa.FraccionVida;
@@ -443,9 +657,14 @@ namespace Altepetl
                 for (int r = 0; r < Rangos.Count; r++) porRango[Army.Indice((TroopId)t, r)] += _reserva[t, r];
             }
             foreach (var herido in _reservaHeridos) datos.heridos.Add(new Herido(herido.tipo, herido.rango, herido.vida));
+            // Si se cierra en plena batalla, el comandante vuelve con la vida que lleva (herido si ya cayó).
+            if (Comandante != null && ComandanteDesplegado)
+            {
+                Comandante.Regresar(UnidadComandante != null && !UnidadComandante.Muerta ? UnidadComandante.FraccionVida : 0.01f);
+            }
             foreach (var tropa in _tropas)
             {
-                if (tropa == null || tropa.Muerta) continue;
+                if (tropa == null || tropa.Muerta || tropa.EsComandante || tropa.Aliado) continue;
                 float vida = tropa.FraccionVida;
                 if (vida >= 0.999f) porRango[Army.Indice(tropa.Definicion.Id, tropa.Rango)]++;
                 else datos.heridos.Add(new Herido(tropa.Definicion.Id, tropa.Rango, vida));
@@ -513,15 +732,20 @@ namespace Altepetl
         /// <summary>Quien derriba un edificio puede hacer una captura y traer un malli (cautivo).</summary>
         public void AlDestruirEdificio(EnemyBuilding edificio, TroopUnit atacante)
         {
-            if (atacante != null && !atacante.Muerta && Random.value < Rangos.ProbabilidadCaptura(_manager.Pueblo))
+            if (PuedeCapturar(atacante) && Random.value < Rangos.ProbabilidadCaptura(_manager.Pueblo))
             {
                 atacante.Capturas++;
                 _cautivos++;
+                if (EnAura(atacante)) _capturasEnAura++;
             }
 
             // Derribar el tecpan da una estrella; la batalla sigue.
             if (edificio.Definicion.Id == BuildingId.Tecpan) TecpanDestruido = true;
         }
+
+        /// <summary>Los aliados no toman cautivos y el comandante dirige, no captura.</summary>
+        private static bool PuedeCapturar(TroopUnit atacante) =>
+            atacante != null && !atacante.Muerta && !atacante.Aliado && !atacante.EsComandante;
 
         /// <summary>Si hay un yaotequihua (élite tlaxcalteca o acolhua) cerca de la tropa, pega más.</summary>
         public float MultiplicadorLider(TroopUnit tropa)
@@ -540,10 +764,11 @@ namespace Altepetl
         {
             _defensores.Remove(defensor);
             _defensoresDerrotados++;
-            if (atacante != null && !atacante.Muerta && Random.value < Rangos.ProbabilidadCapturaGuerrero(_manager.Pueblo, atacante.Rango))
+            if (PuedeCapturar(atacante) && Random.value < Rangos.ProbabilidadCapturaGuerrero(_manager.Pueblo, atacante.Rango))
             {
                 atacante.Capturas++;
                 _cautivos++;
+                if (EnAura(atacante)) _capturasEnAura++;
             }
         }
 

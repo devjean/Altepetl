@@ -33,6 +33,7 @@ namespace Altepetl
             Aviso,
             EnCurso,
             Resultado,
+            Pendiente, // ocurrió mientras el juego estaba cerrado; falta verlo o saltarlo
         }
 
         private const float PrimerAtaqueMin = 240f, PrimerAtaqueMax = 420f;    // segundos jugando en la aldea
@@ -42,6 +43,13 @@ namespace Altepetl
         private const float PerdidaMaxima = 0.2f;         // lo que se llevan si derriban todo
         private const float SegundosEntreDisparos = 1f;
         private static readonly int[] InvasoresPorTecpan = { 3, 5, 8, 12, 16 };
+        // Ataques mientras el juego está cerrado: solo tras una ausencia larga, con probabilidad
+        // creciente, nunca más de uno por regreso y con un escudo después, como en Clash.
+        private const float AusenciaMinima = 2f * 3600f, AusenciaMedia = 6f * 3600f, AusenciaSegura = 12f * 3600f;
+        private const float ProbabilidadMinima = 0.35f, ProbabilidadMedia = 0.70f;
+        private const float EscudoHoras = 8f, EscudoHorasSaqueo = 12f;
+        private const float AvisoAusente = 5f;        // al ver el ataque, apenas un momento para ubicarlo
+        private const float PasoInstantaneo = 0.05f;  // paso de simulación al saltar el ataque
         // Guerreros con macuahuitl casi siempre; algunos arqueros y honderos.
         private static readonly TroopId[] Mezcla =
             { TroopId.Macuahuitl, TroopId.Macuahuitl, TroopId.Arquero, TroopId.Macuahuitl, TroopId.Hondero };
@@ -56,6 +64,30 @@ namespace Altepetl
         public int CuantosVienen { get; private set; }
         public bool HayVigia { get; private set; }
         public ResultadoAsalto Resultado { get; private set; }
+        /// <summary>Segundos de ataque transcurridos; es el reloj de los combatientes y las torres.</summary>
+        public float Reloj { get; private set; }
+        /// <summary>El ataque actual (o su resultado) ocurrió mientras el juego estaba cerrado.</summary>
+        public bool Ausente { get; private set; }
+        public long EscudoHastaUtcTicks { get; private set; }
+        public long UltimoAtaqueUtcTicks { get; private set; }
+        public bool UltimoAtaqueDefendido { get; private set; }
+        public float SegundosEscudo
+        {
+            get
+            {
+                long diferencia = EscudoHastaUtcTicks - System.DateTime.UtcNow.Ticks;
+                return diferencia > 0 ? (float)System.TimeSpan.FromTicks(diferencia).TotalSeconds : 0f;
+            }
+        }
+        public float SegundosDesdeUltimoAtaque
+        {
+            get
+            {
+                if (UltimoAtaqueUtcTicks <= 0) return -1f;
+                long diferencia = System.DateTime.UtcNow.Ticks - UltimoAtaqueUtcTicks;
+                return diferencia > 0 ? (float)System.TimeSpan.FromTicks(diferencia).TotalSeconds : 0f;
+            }
+        }
         public IReadOnlyList<Combatiente> Invasores => _invasores;
         public IReadOnlyList<Combatiente> Defensores => _defensores;
         public int InvasoresVivos
@@ -79,6 +111,7 @@ namespace Altepetl
         private Transform _marca;
         private int _cautivos;
         private int _vencidos;
+        private bool _instantaneo; // se está resolviendo sin dibujar (ataque saltado)
 
         private void Update()
         {
@@ -98,11 +131,96 @@ namespace Altepetl
                     if (SegundosAviso <= 0f) Empezar();
                     break;
                 case Estado.EnCurso:
-                    TiempoRestante -= Time.deltaTime;
-                    Disparar();
-                    if (InvasoresVivos == 0) Terminar(defendida: true);
-                    else if (TiempoRestante <= 0f || ObjetivoPara(Manager.Mapa.Centro, false) == null) Terminar(defendida: false);
+                    Avanzar(Time.deltaTime);
                     break;
+            }
+        }
+
+        /// <summary>
+        /// Un paso del ataque con reloj propio: los combatientes y las torres no usan Time, así el mismo
+        /// código corre en vivo cada frame y, para un ataque saltado, en bucle dentro de un solo frame.
+        /// </summary>
+        private void Avanzar(float dt)
+        {
+            Reloj += dt;
+            TiempoRestante -= dt;
+            foreach (var invasor in _invasores) invasor.Avanzar(dt);
+            foreach (var defensor in _defensores) defensor.Avanzar(dt);
+            Disparar();
+            if (InvasoresVivos == 0) Terminar(defendida: true);
+            else if (TiempoRestante <= 0f || ObjetivoPara(Manager.Mapa.Centro, false) == null) Terminar(defendida: false);
+        }
+
+        // ---------- Ataques mientras el juego estaba cerrado ----------
+
+        /// <summary>
+        /// Al cargar la partida, decide si hubo un ataque durante la ausencia. Se llama después de aplicar
+        /// la producción sin conexión, así parte de lo producido también está en juego. Con forzar, para probar.
+        /// </summary>
+        public bool PrepararAusente(float segundosFuera, bool forzar = false)
+        {
+            if (EstadoActual != Estado.Tranquilo || Manager.Pueblo == null || Manager.ModoActual != GameManager.Modo.Aldea) return false;
+            if (!forzar)
+            {
+                if (Manager.NivelTecpan < 2 || segundosFuera < AusenciaMinima || SegundosEscudo > 0f) return false;
+                float probabilidad = segundosFuera >= AusenciaSegura ? 1f
+                    : segundosFuera >= AusenciaMedia
+                        ? Mathf.Lerp(ProbabilidadMedia, 1f, (segundosFuera - AusenciaMedia) / (AusenciaSegura - AusenciaMedia))
+                        : Mathf.Lerp(ProbabilidadMinima, ProbabilidadMedia, (segundosFuera - AusenciaMinima) / (AusenciaMedia - AusenciaMinima));
+                if (Random.value >= probabilidad) return false;
+            }
+            int tecpan = Mathf.Clamp(Manager.NivelTecpan, 1, InvasoresPorTecpan.Length);
+            CuantosVienen = InvasoresPorTecpan[tecpan - 1];
+            HayVigia = TorresListas() > 0;
+            _entrada = PuntoDeEntrada();
+            Ausente = true;
+            EstadoActual = Estado.Pendiente;
+            return true;
+        }
+
+        /// <summary>Ver el ataque que ocurrió sin conexión: corre en la aldea como uno en vivo, con un aviso corto.</summary>
+        public void VerAusente()
+        {
+            if (EstadoActual != Estado.Pendiente) return;
+            Avisar(conservarEntrada: true);
+            SegundosAviso = AvisoAusente;
+        }
+
+        /// <summary>Saltar el ataque: la misma simulación, resuelta en este mismo frame sin dibujarla.</summary>
+        public void SaltarAusente()
+        {
+            if (EstadoActual != Estado.Pendiente) return;
+            _instantaneo = true;
+            Empezar();
+            // Tope por seguridad: la duración máxima más un margen.
+            int pasos = Mathf.CeilToInt(Duracion / PasoInstantaneo) + 10;
+            while (EstadoActual == Estado.EnCurso && pasos-- > 0) Avanzar(PasoInstantaneo);
+            if (EstadoActual == Estado.EnCurso) Terminar(defendida: false);
+            _instantaneo = false;
+        }
+
+        public void Exportar(SaveData datos)
+        {
+            datos.escudoHastaUtcTicks = EscudoHastaUtcTicks;
+            datos.ultimoAtaqueUtcTicks = UltimoAtaqueUtcTicks;
+            datos.ultimoAtaqueDefendido = UltimoAtaqueDefendido;
+            // Si se cierra el juego con el ataque sin resolver, al volver se vuelve a ofrecer.
+            datos.ataquePendiente = Ausente && EstadoActual != Estado.Resultado;
+            datos.invasoresPendientes = CuantosVienen;
+        }
+
+        public void Importar(SaveData datos)
+        {
+            EscudoHastaUtcTicks = datos.escudoHastaUtcTicks;
+            UltimoAtaqueUtcTicks = datos.ultimoAtaqueUtcTicks;
+            UltimoAtaqueDefendido = datos.ultimoAtaqueDefendido;
+            if (datos.ataquePendiente && Manager.Pueblo != null && EstadoActual == Estado.Tranquilo)
+            {
+                CuantosVienen = Mathf.Max(1, datos.invasoresPendientes);
+                HayVigia = TorresListas() > 0;
+                _entrada = PuntoDeEntrada();
+                Ausente = true;
+                EstadoActual = Estado.Pendiente;
             }
         }
 
@@ -113,14 +231,14 @@ namespace Altepetl
             Avisar();
         }
 
-        private void Avisar()
+        private void Avisar(bool conservarEntrada = false)
         {
             int tecpan = Mathf.Clamp(Manager.NivelTecpan, 1, InvasoresPorTecpan.Length);
             CuantosVienen = InvasoresPorTecpan[tecpan - 1];
             int torres = TorresListas();
             HayVigia = torres > 0;
             SegundosAviso = Mathf.Min(AvisoMaximo, AvisoBase + AvisoPorTorre * torres);
-            _entrada = PuntoDeEntrada();
+            if (!conservarEntrada) _entrada = PuntoDeEntrada();
             EstadoActual = Estado.Aviso;
             Manager.AlAvisarAsalto();
             // La torre de vigía marca por dónde vienen.
@@ -142,6 +260,7 @@ namespace Altepetl
             _marca = null;
             EstadoActual = Estado.EnCurso;
             TiempoRestante = Duracion;
+            Reloj = 0f;
             _cautivos = 0;
             _vencidos = 0;
             _proximoDisparo.Clear();
@@ -236,6 +355,14 @@ namespace Altepetl
                 }
             }
             Resultado = resultado;
+            UltimoAtaqueUtcTicks = System.DateTime.UtcNow.Ticks;
+            UltimoAtaqueDefendido = defendida;
+            if (Ausente)
+            {
+                // Escudo: un tiempo sin otro ataque sin conexión; más largo si arrasaron la aldea.
+                bool saqueo = edificios > 0 && resultado.Derribados * 2 >= edificios;
+                EscudoHastaUtcTicks = System.DateTime.UtcNow.AddHours(saqueo ? EscudoHorasSaqueo : EscudoHoras).Ticks;
+            }
             Limpiar();
             Manager.Guardar();
         }
@@ -247,6 +374,7 @@ namespace Altepetl
             // Los derribados se levantan poco a poco, unos después de otros.
             foreach (var edificio in Manager.Edificios) edificio.Reparar(Random.Range(0f, 4f));
             Resultado = null;
+            Ausente = false;
             EstadoActual = Estado.Tranquilo;
             _proximo = Random.Range(EntreAtaquesMin, EntreAtaquesMax);
             Manager.AlTerminarAsalto();
@@ -267,6 +395,7 @@ namespace Altepetl
         {
             Limpiar();
             Resultado = null;
+            Ausente = false;
             EstadoActual = Estado.Tranquilo;
             _proximo = -1f;
         }
@@ -357,14 +486,14 @@ namespace Altepetl
             foreach (var torre in Manager.Edificios)
             {
                 if (!torre.Definicion.EsDefensa || torre.Nivel <= 0 || torre.Derribado) continue;
-                if (_proximoDisparo.TryGetValue(torre, out float cuando) && Time.time < cuando) continue;
+                if (_proximoDisparo.TryGetValue(torre, out float cuando) && Reloj < cuando) continue;
                 var objetivo = MasCercano(torre.transform.position, invasores: true, torre.Definicion.AlcanceDefensa + torre.Radio);
                 if (objetivo == null) continue;
                 float mult = BuildingDefinition.Multiplicador(torre.Nivel);
                 if (Manager.Culto != null) mult *= Manager.Culto.DefensasPorFavor;
                 objetivo.RecibirDano(torre.Definicion.DanoDefensaPorSegundo * mult * SegundosEntreDisparos, null);
-                _proximoDisparo[torre] = Time.time + SegundosEntreDisparos;
-                Dardo(torre.transform.position + Vector3.up * torre.AlturaModelo, objetivo.transform.position + Vector3.up * 0.3f);
+                _proximoDisparo[torre] = Reloj + SegundosEntreDisparos;
+                if (!_instantaneo) Dardo(torre.transform.position + Vector3.up * torre.AlturaModelo, objetivo.transform.position + Vector3.up * 0.3f);
             }
         }
 

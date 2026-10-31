@@ -27,6 +27,8 @@ namespace Altepetl
         public Building Seleccionado { get; private set; }
         public IReadOnlyList<Building> Edificios => _edificios;
         public Army Ejercito { get; } = new Army();
+        /// <summary>Comandantes reclutados en el cuauhcalli, en el orden en que se reclutaron.</summary>
+        public List<Comandante> Comandantes { get; } = new List<Comandante>();
         /// <summary>Ofrendas en el teocalli y favor de Huitzilopochtli.</summary>
         public Culto Culto { get; private set; }
         public int NivelesCompletados { get; private set; }
@@ -657,6 +659,7 @@ namespace Altepetl
                 MostrarMensaje($"{Terminos.Un} {Terminos.Tropa} salió del calmécac como {Rangos.Nombre(Pueblo, rangoFormando).ToLowerInvariant()}", 4f);
                 Guardar();
             }
+            AvanzarComandantes(Time.deltaTime, avisar: true);
             // Los heridos empiezan a sanar ya de vuelta en la aldea, cuando llegan al temazcalli.
             bool curando = ModoActual == Modo.Aldea && !_tropasEnAldea.HeridosLlegando;
             int curados = curando ? Ejercito.Curar(Time.deltaTime, CamasCuracion) : 0;
@@ -1134,6 +1137,144 @@ namespace Altepetl
             return true;
         }
 
+        // ---------- Cuauhcalli: comandantes ----------
+
+        public int NivelCuauhcalli
+        {
+            get
+            {
+                int nivel = 0;
+                foreach (var edificio in _edificios)
+                {
+                    if (edificio.Definicion.Dirige) nivel = Mathf.Max(nivel, edificio.Nivel);
+                }
+                return nivel;
+            }
+        }
+
+        /// <summary>Un comandante con el cuauhcalli en nivel 1; el segundo, desde nivel 3.</summary>
+        public int MaximoComandantes => NivelCuauhcalli >= 3 ? 2 : NivelCuauhcalli >= 1 ? 1 : 0;
+
+        public Comandante ComandanteDe(ComandanteId id)
+        {
+            foreach (var comandante in Comandantes)
+            {
+                if (comandante.Definicion.Id == id) return comandante;
+            }
+            return null;
+        }
+
+        public Comandante ComandantePromoviendo
+        {
+            get
+            {
+                foreach (var comandante in Comandantes)
+                {
+                    if (comandante.Promoviendo) return comandante;
+                }
+                return null;
+            }
+        }
+
+        public float DuracionPromocion(Comandante comandante) =>
+            ReglasComandante.SegundosPromocion(comandante.Nivel) * Pueblo.MultiplicadorTiempoEntrenamiento;
+
+        public int CostoTerminarPromocion(Comandante comandante) =>
+            Mathf.Max(1, Mathf.CeilToInt(comandante.PromocionRestante / 10f));
+
+        public void TryReclutar(ComandanteDefinition definicion)
+        {
+            if (definicion == null || NivelCuauhcalli <= 0 || definicion.Pueblo != Pueblo.Id) return;
+            if (ComandanteDe(definicion.Id) != null) return;
+            if (Comandantes.Count >= MaximoComandantes)
+            {
+                MostrarMensaje(Comandantes.Count == 0 ? "Termina el cuauhcalli primero" : "Sube el cuauhcalli a nivel 3 para un segundo comandante");
+                return;
+            }
+            if (!Banco.TryGastar(ReglasComandante.CostoReclutar))
+            {
+                MostrarMensaje("Recursos insuficientes");
+                return;
+            }
+            Comandantes.Add(new Comandante(definicion));
+            MostrarMensaje($"{definicion.Nombre} se une a {Terminos.TuAldea}", 4f);
+            Guardar();
+        }
+
+        /// <summary>Paga y empieza la subida de nivel; el cuauhcalli debe estar por encima del nivel actual del comandante.</summary>
+        public void TryPromover(Comandante comandante)
+        {
+            if (comandante == null || !Comandantes.Contains(comandante)) return;
+            if (!comandante.PuedeSubir)
+            {
+                MostrarMensaje(comandante.EnNivelMaximo ? "Ya está en el nivel máximo" : $"Le faltan {comandante.UmbralSiguiente - comandante.Experiencia} de experiencia");
+                return;
+            }
+            if (NivelCuauhcalli <= comandante.Nivel)
+            {
+                MostrarMensaje($"Sube el cuauhcalli a nivel {comandante.Nivel + 1} primero");
+                return;
+            }
+            if (comandante.Herido)
+            {
+                MostrarMensaje("Tiene que curarse primero");
+                return;
+            }
+            if (ComandantePromoviendo != null)
+            {
+                MostrarMensaje("El cuauhcalli ya está subiendo a alguien de nivel");
+                return;
+            }
+            if (!Banco.TryGastar(ReglasComandante.CostoPromocion(comandante.Nivel)))
+            {
+                MostrarMensaje("Recursos insuficientes");
+                return;
+            }
+            comandante.EmpezarPromocion(DuracionPromocion(comandante));
+            Guardar();
+        }
+
+        public bool TryTerminarPromocion(Comandante comandante)
+        {
+            if (comandante == null || !comandante.Promoviendo) return false;
+            if (!Banco.TryGastar(ResourceInfo.Costo(plumas: CostoTerminarPromocion(comandante))))
+            {
+                MostrarMensaje("No tienes suficientes plumas de quetzal");
+                return false;
+            }
+            comandante.TerminarPromocion();
+            MostrarMensaje($"{comandante.Nombre} ya es nivel {comandante.Nivel}", 4f);
+            Guardar();
+            return true;
+        }
+
+        /// <summary>Curación y promociones de los comandantes. Devuelve lo que pasó, para el aviso de ausencia.</summary>
+        private List<string> AvanzarComandantes(float segundos, bool avisar)
+        {
+            var sucesos = new List<string>();
+            if (segundos <= 0f) return sucesos;
+            // En batalla, el que está en el campo no se cura: su vida es la de su monito.
+            var enCampo = Batalla != null && !Batalla.Terminada ? Batalla.Comandante : null;
+            foreach (var comandante in Comandantes)
+            {
+                if (comandante != enCampo && comandante.Curar(segundos)) sucesos.Add($"{comandante.Nombre} ya se curó");
+                if (comandante.AvanzarPromocion(segundos)) sucesos.Add($"{comandante.Nombre} ya es nivel {comandante.Nivel}");
+            }
+            if (avisar && sucesos.Count > 0)
+            {
+                MostrarMensaje(string.Join(". ", sucesos), 4f);
+                Guardar();
+            }
+            return sucesos;
+        }
+
+        /// <summary>Menú del editor: experiencia de prueba para ver las promociones sin jugar muchas batallas.</summary>
+        public void DarExperienciaDePrueba(int cantidad)
+        {
+            foreach (var comandante in Comandantes) comandante.GanarExperiencia(cantidad);
+            Guardar();
+        }
+
         public void TryOfrendar(Deidad deidad)
         {
             if (Banco.Get(ResourceType.Cautivos) < Culto.CostoOfrenda)
@@ -1192,6 +1333,13 @@ namespace Altepetl
             foreach (var tropa in TroopCatalog.Todos)
             {
                 for (int r = 0; r < Rangos.Count; r++) seleccion.Sanos[Army.Indice(tropa.Id, r)] = Ejercito.Get(tropa.Id, r);
+            }
+            // Y el primer comandante que pueda salir, si hay.
+            for (int i = 0; i < Comandantes.Count; i++)
+            {
+                if (!Comandantes[i].Disponible) continue;
+                seleccion.Comandante = i;
+                break;
             }
             return seleccion;
         }
@@ -1306,6 +1454,7 @@ namespace Altepetl
             datos.estrellas = new List<int>(_estrellas);
             datos.defensa = (int[])_defensa.Clone();
             Culto.Exportar(datos);
+            foreach (var comandante in Comandantes) datos.comandantes.Add(comandante.Exportar());
             SaveSystem.Guardar(datos);
         }
 
@@ -1332,6 +1481,15 @@ namespace Altepetl
                 Banco.Establecer((ResourceType)i, datos.recursos[i]);
             }
             Ejercito.Importar(datos);
+            Comandantes.Clear();
+            if (datos.comandantes != null)
+            {
+                foreach (var guardado in datos.comandantes)
+                {
+                    var comandante = Comandante.Importar(guardado, Pueblo.Id);
+                    if (comandante != null && ComandanteDe(comandante.Definicion.Id) == null) Comandantes.Add(comandante);
+                }
+            }
             NivelesCompletados = Mathf.Clamp(datos.nivelesCompletados, 0, Campana.Length);
             _estrellas.Clear();
             if (datos.estrellas != null) _estrellas.AddRange(datos.estrellas);
@@ -1370,6 +1528,7 @@ namespace Altepetl
             if (NivelTelpochcalli > 0) Ejercito.Avanzar(segundos, DuracionEntrenamiento);
             bool formada = NivelCalmecac > 0 && Ejercito.AvanzarFormacion(segundos);
             int curados = Ejercito.Curar(segundos, CamasCuracion);
+            var comandantes = AvanzarComandantes(segundos, avisar: false);
 
             var ganancias = new List<string>();
             for (int i = 0; i < ResourceInfo.Count; i++)
@@ -1383,6 +1542,7 @@ namespace Altepetl
             if (tropasNuevas > 0) ganancias.Add($"+{tropasNuevas} {Terminos.Tropas}");
             if (curados > 0) ganancias.Add($"{curados} {Terminos.Tropas} curad{Terminos.O}s");
             if (formada) ganancias.Add($"{Terminos.Un} {Terminos.Tropa} salió del calmécac");
+            ganancias.AddRange(comandantes);
             if (ganancias.Count > 0)
             {
                 MostrarMensaje("Mientras no estabas: " + string.Join(", ", ganancias), 5f);

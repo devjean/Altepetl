@@ -29,6 +29,7 @@ namespace Altepetl
         private Renderer _render;
         private Color _color;
         private float _destelloHasta;
+        private bool _destellando;
         private Transform _cuerpo;
         private Transform _acalli;   // canoa, en los campos con agua
         private float _tamano;
@@ -57,16 +58,13 @@ namespace Altepetl
             name = definicion.Nombre;
             transform.position = posicion;
 
-            var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            Destroy(cuerpo.GetComponent<Collider>());
-            cuerpo.transform.SetParent(transform, false);
             // Los de más rango se ven un poco más grandes, y la élite con su atavío.
             float tamano = 0.3f * Rangos.Tamano(rango);
+            _color = Rangos.ColorDe(pueblo, definicion.Color, rango);
+            var cuerpo = Figuras.Crear(PrimitiveType.Capsule, transform, _color);
             cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
             cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
             _render = cuerpo.GetComponent<Renderer>();
-            _color = Rangos.ColorDe(pueblo, definicion.Color, rango);
-            _render.material.color = _color;
             _cuerpo = cuerpo.transform;
             _tamano = tamano;
             _fase = Random.value * Mathf.PI * 2f;
@@ -74,12 +72,8 @@ namespace Altepetl
             if (batalla.HayAgua)
             {
                 // Llegan por el agua en acalli; la canoa se ve mientras van sobre el agua.
-                var acalli = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                acalli.name = "Acalli";
-                Destroy(acalli.GetComponent<Collider>());
-                acalli.transform.SetParent(transform, false);
+                var acalli = Figuras.Crear(PrimitiveType.Cube, transform, new Color(0.45f, 0.30f, 0.18f), "Acalli");
                 acalli.transform.localScale = new Vector3(0.2f, 0.08f, 0.6f);
-                acalli.GetComponent<Renderer>().material.color = new Color(0.45f, 0.30f, 0.18f);
                 _acalli = acalli.transform;
                 Remar(Vector3.forward);
             }
@@ -118,7 +112,12 @@ namespace Altepetl
         {
             if (Muerta || _batalla.Terminada) return;
 
-            _render.material.color = Time.time < _destelloHasta ? Color.white : _color;
+            bool destello = Time.time < _destelloHasta;
+            if (destello != _destellando)
+            {
+                _destellando = destello;
+                Figuras.Colorear(_render, destello ? Color.white : _color);
+            }
             // Con un yaotequihua cerca se pelea mejor.
             float dano = _danoPorSegundo * _batalla.MultiplicadorLider(this) * Time.deltaTime;
 

@@ -8,7 +8,7 @@ Este archivo lo leen las herramientas de IA que trabajan en el repo. Resume cóm
 - Unity 6.3 LTS (6000.3.x), Universal Render Pipeline, **Input System nuevo** (no `UnityEngine.Input`).
 - Todo el código vive en `Assets/Scripts`: `Core` (datos puros, guardado, campaña), `Gameplay` (aldea, edificios, gente, asaltos), `Battle` (batallas contra la IA), `UI` (HUD con IMGUI), `Editor` (menú del editor).
 - No hay escenas con prefabs: `GameManager` se crea solo con `RuntimeInitializeOnLoadMethod` y construye todo por código con primitivas. Los modelos y el arte finos los hace una persona aparte; el código usa placeholders simples.
-- Las figuras de relleno (monitos, canoas, piezas de paisaje) se crean con `Figuras.Crear(...)` y se colorean con `Figuras.Colorear(...)`: todas comparten el material `Resources/Materials/Figura.mat` con GPU instancing y el color va por `MaterialPropertyBlock`. No usar `renderer.material.color` en objetos que se repiten muchas veces: duplica el material y rompe el instancing.
+- Las figuras de relleno (monitos, canoas, piezas de paisaje) se crean con `Figuras.Crear(...)` y se colorean con `Figuras.Colorear(...)`: todas comparten el material `Resources/Materials/Figura.mat` con GPU instancing y el color va por `MaterialPropertyBlock`. El shader `Altepetl/FiguraInstanciada` declara `_ColorFigura` por instancia; el bloque de `Figuras.Colorear` debe contener solo esa propiedad (añadir `_BaseColor` o `_Color` rompe el agrupamiento con instancing clásico). No usar `renderer.material.color` en objetos que se repiten muchas veces: duplica el material y rompe el instancing.
 
 ## Estilo de código
 

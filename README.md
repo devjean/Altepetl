@@ -1,4 +1,4 @@
-# Altepetl
+- **Un solo material para los monitos (GPU instancing):** tropas, defensores, invasores, macehualtin, canoas, piezas del paisaje y edificios enemigos comparten `Resources/Materials/Figura.mat`, con el shader `Altepetl/FiguraInstanciada`. `Figuras.cs` envía únicamente `_ColorFigura`, declarada como propiedad por instancia; se conservan iluminación, sombras y colores de daño y rango. El agrupamiento depende de compartir malla, material y pase: comprobarlo en Frame Debugger, no solo con Stats. Los modelos definitivos requerirán validar de nuevo sus mallas y materiales. Las pruebas realizadas en aldea y combate están documentadas en [VALIDACION_GPU_INSTANCING.md](VALIDACION_GPU_INSTANCING.md).
 
 Juego móvil de estrategia y gestión de recursos con temática prehispánica. Eliges un pueblo nahua (mexicas, tlaxcaltecas o acolhuas), levantas tu altepetl y gestionas maíz, madera y obsidiana. Motor: Unity 6 LTS (URP), para Android e iOS.
 

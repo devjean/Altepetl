@@ -4,15 +4,13 @@ namespace Altepetl
 {
     /// <summary>
     /// Figuras de relleno (cápsulas, cubos, cilindros) que comparten un solo material con GPU instancing:
-    /// la tarjeta dibuja de un jalón todas las que tienen la misma malla, y el color de cada una va como
-    /// propiedad por instancia en vez de copiar el material. Cuando lleguen los modelos de Chuy, basta
-    /// con cambiar aquí la malla y el material base.
+    /// el shader FiguraInstanciada admite color por instancia sin copiar el material. Al integrar los
+    /// modelos definitivos hay que comprobar sus mallas, materiales y pases en Frame Debugger.
     /// </summary>
     public static class Figuras
     {
         private const string RutaMaterial = "Materials/Figura";
-        private static readonly int IdBaseColor = Shader.PropertyToID("_BaseColor"); // URP Lit
-        private static readonly int IdColor = Shader.PropertyToID("_Color");         // por si el shader es el estándar
+        private static readonly int IdColorFigura = Shader.PropertyToID("_ColorFigura");
         private static Material _material;
         private static MaterialPropertyBlock _bloque;
 
@@ -25,7 +23,7 @@ namespace Altepetl
                 _material = Resources.Load<Material>(RutaMaterial);
                 if (_material == null)
                 {
-                    var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+                    var shader = Shader.Find("Altepetl/FiguraInstanciada");
                     _material = new Material(shader) { name = "Figura (sin recurso)" };
                     Debug.LogWarning($"Falta Resources/{RutaMaterial}.mat; se usa un material creado al vuelo.");
                 }
@@ -52,9 +50,9 @@ namespace Altepetl
         {
             if (render == null) return;
             if (_bloque == null) _bloque = new MaterialPropertyBlock();
-            render.GetPropertyBlock(_bloque);
-            _bloque.SetColor(IdBaseColor, color);
-            _bloque.SetColor(IdColor, color);
+            // Este bloque solo contiene propiedades instanciadas; las de material romperían el lote.
+            _bloque.Clear();
+            _bloque.SetColor(IdColorFigura, color);
             render.SetPropertyBlock(_bloque);
         }
 

@@ -1707,6 +1707,7 @@ namespace Altepetl
                 $"{batalla.Nivel.Nombre}    Destrucción: {Mathf.FloorToInt(batalla.Destruccion * 100)}%    Tiempo: {segundos / 60}:{segundos % 60:00}",
                 _texto);
             DibujarEstrellas(new Rect(ancho - 110, 6, 100, 30), batalla.Estrellas, 22);
+            DibujarAvisoComandante(batalla, ancho);
 
             DibujarBarrasDeVida(batalla);
 
@@ -1755,6 +1756,45 @@ namespace Altepetl
             if (GUI.Button(new Rect(ancho - 170, abajo.y + 30, 150, 50), "Retirarse", _boton))
             {
                 batalla.Terminar();
+            }
+        }
+
+        /// <summary>Debajo de la barra: qué está haciendo el comandante ahora (aura y habilidad), para que se note.</summary>
+        private void DibujarAvisoComandante(BattleManager batalla, float ancho)
+        {
+            var comandante = batalla.Comandante;
+            if (comandante == null || batalla.UnidadComandante == null || batalla.Terminada) return;
+            string texto;
+            if (batalla.HabilidadActiva)
+            {
+                texto = $"«{comandante.Definicion.NombreHabilidad}» {Mathf.CeilToInt(batalla.SegundosHabilidad)} s: "
+                        + $"{Terminos.TropasCuenta(batalla.TropasConHabilidad)} {TextoEfectoHabilidad(comandante)}";
+            }
+            else if (comandante.Definicion.Aura != TipoAura.Ninguna)
+            {
+                int tanto = Mathf.RoundToInt(comandante.Aura * 100f);
+                string efecto = comandante.Definicion.Aura == TipoAura.Ataque ? $"atacan {tanto}% más" : $"reciben {tanto}% menos daño";
+                texto = $"Aura de {comandante.Nombre}: {Terminos.TropasCuenta(batalla.TropasEnAura)} en el anillo {efecto}";
+            }
+            else return;
+            var aviso = new Rect((ancho - 560) / 2, AltoBarraSuperior + 4, 560, 26);
+            Zona(aviso);
+            GUI.backgroundColor = batalla.HabilidadActiva ? new Color(1f, 0.85f, 0.2f) : Color.white;
+            GUI.Box(aviso, GUIContent.none, _caja);
+            GUI.backgroundColor = Color.white;
+            GUI.Label(new Rect(aviso.x + 8, aviso.y + 3, aviso.width - 16, 22), texto, _textoBarra);
+        }
+
+        private static string TextoEfectoHabilidad(Comandante comandante)
+        {
+            switch (comandante.Definicion.Habilidad)
+            {
+                case Habilidad.Cohesion:
+                case Habilidad.CerrarFilas: return $"reciben {Mathf.RoundToInt(ReglasComandante.CohesionReduccion * 100)}% menos daño";
+                case Habilidad.Embestida: return $"atacan {Mathf.RoundToInt(ReglasComandante.EmbestidaAtaque * 100)}% más" + (comandante.TieneRasgo3 ? " y corren más" : "");
+                case Habilidad.Llamado: return $"atacan {Mathf.RoundToInt(ReglasComandante.LlamadoAtaque * 100)}% más" + (comandante.TieneRasgo3 ? " y corren más" : "");
+                case Habilidad.OrdenAsalto: return $"van por las defensas con {Mathf.RoundToInt(ReglasComandante.OrdenAtaque * 100)}% más de ataque";
+                default: return "";
             }
         }
 

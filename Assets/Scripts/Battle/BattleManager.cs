@@ -491,6 +491,46 @@ namespace Altepetl
             }
         }
 
+        /// <summary>¿A esta tropa le está llegando la habilidad activa ahora mismo? (para verlo en pantalla)</summary>
+        public bool AfectadaPorHabilidad(TroopUnit tropa)
+        {
+            if (!HabilidadActiva || Comandante == null || tropa == UnidadComandante) return false;
+            switch (Comandante.Definicion.Habilidad)
+            {
+                case Habilidad.Llamado: return true;
+                case Habilidad.Cohesion: return Comandante.TieneRasgo5 || EnAura(tropa);
+                case Habilidad.Refuerzos: return false;
+                default: return EnAura(tropa);
+            }
+        }
+
+        /// <summary>Cuántas tropas tienen ahora el aura o la habilidad encima, para la barra de batalla.</summary>
+        public int TropasEnAura
+        {
+            get
+            {
+                int n = 0;
+                foreach (var tropa in _tropas)
+                {
+                    if (tropa != null && !tropa.Muerta && EnAura(tropa)) n++;
+                }
+                return n;
+            }
+        }
+
+        public int TropasConHabilidad
+        {
+            get
+            {
+                int n = 0;
+                foreach (var tropa in _tropas)
+                {
+                    if (tropa != null && !tropa.Muerta && AfectadaPorHabilidad(tropa)) n++;
+                }
+                return n;
+            }
+        }
+
         /// <summary>¿La tropa está dentro del aura del comandante (y no es él)?</summary>
         public bool EnAura(TroopUnit tropa)
         {

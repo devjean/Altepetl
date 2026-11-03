@@ -36,6 +36,8 @@ namespace Altepetl
         private Renderer _render;
         private Color _color;
         private float _destelloHasta;
+        private int _tono = -1;      // último color puesto: 0 normal, 1 en el aura, 2 y 3 con la habilidad (parpadeo), 4 destello
+        private Transform _anillo;
         private Transform _cuerpo;
         private Transform _acalli;   // canoa, en los campos con agua
         private float _tamano;
@@ -114,6 +116,7 @@ namespace Altepetl
             if (Comandante == null || Comandante.Definicion.Aura == TipoAura.Ninguna) return;
             var anillo = new GameObject("Aura");
             anillo.transform.SetParent(transform, false);
+            _anillo = anillo.transform;
             const int marcas = 16;
             for (int i = 0; i < marcas; i++)
             {
@@ -159,11 +162,40 @@ namespace Altepetl
             }
         }
 
+        /// <summary>
+        /// Para que se note lo que hace el comandante: las tropas dentro de su aura llevan un tinte de su color,
+        /// las que reciben la habilidad parpadean con él, y el anillo del comandante se agranda mientras dura.
+        /// </summary>
+        private void ActualizarColor()
+        {
+            int tono;
+            if (Time.time < _destelloHasta) tono = 4;
+            else if (_batalla.AfectadaPorHabilidad(this)) tono = Mathf.FloorToInt(Time.time * 4f) % 2 == 0 ? 2 : 3;
+            else if (_batalla.EnAura(this)) tono = 1;
+            else tono = 0;
+            if (EsComandante && _anillo != null)
+            {
+                float escala = _batalla.HabilidadActiva ? 1.25f + 0.1f * Mathf.Sin(Time.time * 6f) : 1f;
+                _anillo.localScale = new Vector3(escala, 1f, escala);
+            }
+            if (tono == _tono) return;
+            _tono = tono;
+            Color colorComandante = _batalla.Comandante != null ? _batalla.Comandante.Definicion.Color : Color.white;
+            switch (tono)
+            {
+                case 1: _render.material.color = Color.Lerp(_color, colorComandante, 0.35f); break;
+                case 2: _render.material.color = Color.Lerp(_color, colorComandante, 0.6f); break;
+                case 3: _render.material.color = Color.Lerp(_color, Color.white, 0.6f); break;
+                case 4: _render.material.color = Color.white; break;
+                default: _render.material.color = _color; break;
+            }
+        }
+
         private void Update()
         {
             if (Muerta || _batalla.Terminada) return;
 
-            _render.material.color = Time.time < _destelloHasta ? Color.white : _color;
+            ActualizarColor();
             // Con un yaotequihua o un comandante cerca se pelea mejor; su habilidad puede dar más.
             float dano = _danoPorSegundo * _batalla.MultiplicadorAtaque(this) * Time.deltaTime;
             float velocidad = _velocidad * _batalla.MultiplicadorVelocidad(this);

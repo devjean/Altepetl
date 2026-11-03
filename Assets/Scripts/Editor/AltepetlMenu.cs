@@ -37,6 +37,22 @@ namespace Altepetl.Herramientas
             manager.Asalto.ProvocarAhora();
         }
 
+        [MenuItem("Altepetl/Simular un ataque sin conexión")]
+        private static void SimularAtaqueAusente()
+        {
+            var manager = Object.FindAnyObjectByType<GameManager>();
+            if (!EditorApplication.isPlaying || manager == null || manager.Asalto == null)
+            {
+                Debug.LogWarning("Dale Play y entra a tu aldea para simular un ataque sin conexión.");
+                return;
+            }
+            // Como si hubieras vuelto tras horas fuera: aparece el panel para verlo o saltarlo.
+            if (!manager.Asalto.PrepararAusente(0f, forzar: true))
+            {
+                Debug.LogWarning("Ya hay un ataque avisado o en curso; espera a que termine.");
+            }
+        }
+
         [MenuItem("Altepetl/Abrir carpeta de guardado")]
         private static void AbrirCarpeta()
         {

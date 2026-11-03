@@ -1306,6 +1306,7 @@ namespace Altepetl
             datos.estrellas = new List<int>(_estrellas);
             datos.defensa = (int[])_defensa.Clone();
             Culto.Exportar(datos);
+            Asalto.Exportar(datos);
             SaveSystem.Guardar(datos);
         }
 
@@ -1341,7 +1342,11 @@ namespace Altepetl
                 for (int i = 0; i < _defensa.Length; i++) _defensa[i] = Mathf.Max(0, defensa[i]);
             }
 
-            AplicarTiempoAusente(SaveSystem.SegundosDesde(datos));
+            float segundosFuera = SaveSystem.SegundosDesde(datos);
+            AplicarTiempoAusente(segundosFuera);
+            // Después de la producción: lo que se produjo en la ausencia también está en juego.
+            Asalto.Importar(datos);
+            Asalto.PrepararAusente(segundosFuera);
         }
 
         /// <summary>Avanza construcciones y producción por el tiempo que el juego estuvo cerrado.</summary>

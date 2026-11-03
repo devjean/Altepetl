@@ -93,20 +93,17 @@ namespace Altepetl
             name = invasor ? $"Invasor {definicion.Nombre}" : EsComandante ? definicion.Nombre : Aliado ? "Aliado" : $"Defensor {definicion.Nombre}";
             transform.position = posicion;
 
-            var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            Destroy(cuerpo.GetComponent<Collider>());
-            cuerpo.transform.SetParent(transform, false);
-            float tamano = EsComandante ? 0.46f : 0.3f * Rangos.Tamano(rango);
-            cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
-            cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
-            _render = cuerpo.GetComponent<Renderer>();
             // Los invasores, más oscuros y rojizos, como los defensores de las aldeas enemigas.
             _color = invasor
                 ? Color.Lerp(definicion.Color, new Color(0.35f, 0.08f, 0.08f), 0.55f)
                 : EsComandante ? definicion.Color
                 : Aliado ? Color.Lerp(definicion.Color, new Color(0.55f, 0.55f, 0.50f), 0.6f)
                 : Rangos.ColorDe(pueblo, definicion.Color, rango);
-            _render.material.color = _color;
+            float tamano = EsComandante ? 0.46f : 0.3f * Rangos.Tamano(rango);
+            var cuerpo = Figuras.Crear(PrimitiveType.Capsule, transform, _color);
+            cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
+            cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
+            _render = cuerpo.GetComponent<Renderer>();
             if (EsComandante) CrearAnilloDeAura();
         }
 
@@ -121,12 +118,9 @@ namespace Altepetl
             for (int i = 0; i < marcas; i++)
             {
                 float angulo = i * Mathf.PI * 2f / marcas;
-                var marca = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                Destroy(marca.GetComponent<Collider>());
-                marca.transform.SetParent(anillo.transform, false);
+                var marca = Figuras.Crear(PrimitiveType.Cube, anillo.transform, Color.Lerp(_color, Color.white, 0.4f), "Marca");
                 marca.transform.localPosition = new Vector3(Mathf.Cos(angulo), 0.02f, Mathf.Sin(angulo)) * ReglasComandante.Radio;
                 marca.transform.localScale = new Vector3(0.12f, 0.02f, 0.12f);
-                marca.GetComponent<Renderer>().material.color = Color.Lerp(_color, Color.white, 0.4f);
             }
         }
 
@@ -151,11 +145,11 @@ namespace Altepetl
             Color colorComandante = _asalto.Comandante != null ? _asalto.Comandante.Definicion.Color : Color.white;
             switch (tono)
             {
-                case 1: _render.material.color = Color.Lerp(_color, colorComandante, 0.35f); break;
-                case 2: _render.material.color = Color.Lerp(_color, colorComandante, 0.6f); break;
-                case 3: _render.material.color = Color.Lerp(_color, Color.white, 0.6f); break;
-                case 4: _render.material.color = Color.white; break;
-                default: _render.material.color = _color; break;
+                case 1: Figuras.Colorear(_render, Color.Lerp(_color, colorComandante, 0.35f)); break;
+                case 2: Figuras.Colorear(_render, Color.Lerp(_color, colorComandante, 0.6f)); break;
+                case 3: Figuras.Colorear(_render, Color.Lerp(_color, Color.white, 0.6f)); break;
+                case 4: Figuras.Colorear(_render, Color.white); break;
+                default: Figuras.Colorear(_render, _color); break;
             }
         }
 

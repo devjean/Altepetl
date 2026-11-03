@@ -79,18 +79,15 @@ namespace Altepetl
             name = Aliado ? "Aliado" : definicion.Nombre;
             transform.position = posicion;
 
-            var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            Destroy(cuerpo.GetComponent<Collider>());
-            cuerpo.transform.SetParent(transform, false);
             // Los de más rango se ven un poco más grandes, y la élite con su atavío. El comandante, más grande que todos.
             float tamano = EsComandante ? 0.46f : 0.3f * Rangos.Tamano(rango);
-            cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
-            cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
-            _render = cuerpo.GetComponent<Renderer>();
             _color = EsComandante ? definicion.Color
                 : Aliado ? Color.Lerp(definicion.Color, new Color(0.55f, 0.55f, 0.50f), 0.6f)   // manta sencilla de contingente aliado
                 : Rangos.ColorDe(pueblo, definicion.Color, rango);
-            _render.material.color = _color;
+            var cuerpo = Figuras.Crear(PrimitiveType.Capsule, transform, _color);
+            cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
+            cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
+            _render = cuerpo.GetComponent<Renderer>();
             if (EsComandante) CrearAnilloDeAura();
             _cuerpo = cuerpo.transform;
             _tamano = tamano;
@@ -99,12 +96,8 @@ namespace Altepetl
             if (batalla.HayAgua)
             {
                 // Llegan por el agua en acalli; la canoa se ve mientras van sobre el agua.
-                var acalli = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                acalli.name = "Acalli";
-                Destroy(acalli.GetComponent<Collider>());
-                acalli.transform.SetParent(transform, false);
+                var acalli = Figuras.Crear(PrimitiveType.Cube, transform, new Color(0.45f, 0.30f, 0.18f), "Acalli");
                 acalli.transform.localScale = new Vector3(0.2f, 0.08f, 0.6f);
-                acalli.GetComponent<Renderer>().material.color = new Color(0.45f, 0.30f, 0.18f);
                 _acalli = acalli.transform;
                 Remar(Vector3.forward);
             }
@@ -121,12 +114,9 @@ namespace Altepetl
             for (int i = 0; i < marcas; i++)
             {
                 float angulo = i * Mathf.PI * 2f / marcas;
-                var marca = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                Destroy(marca.GetComponent<Collider>());
-                marca.transform.SetParent(anillo.transform, false);
+                var marca = Figuras.Crear(PrimitiveType.Cube, anillo.transform, Color.Lerp(_color, Color.white, 0.4f));
                 marca.transform.localPosition = new Vector3(Mathf.Cos(angulo), 0.02f, Mathf.Sin(angulo)) * ReglasComandante.Radio;
                 marca.transform.localScale = new Vector3(0.12f, 0.02f, 0.12f);
-                marca.GetComponent<Renderer>().material.color = Color.Lerp(_color, Color.white, 0.4f);
             }
         }
 
@@ -183,11 +173,11 @@ namespace Altepetl
             Color colorComandante = _batalla.Comandante != null ? _batalla.Comandante.Definicion.Color : Color.white;
             switch (tono)
             {
-                case 1: _render.material.color = Color.Lerp(_color, colorComandante, 0.35f); break;
-                case 2: _render.material.color = Color.Lerp(_color, colorComandante, 0.6f); break;
-                case 3: _render.material.color = Color.Lerp(_color, Color.white, 0.6f); break;
-                case 4: _render.material.color = Color.white; break;
-                default: _render.material.color = _color; break;
+                case 1: Figuras.Colorear(_render, Color.Lerp(_color, colorComandante, 0.35f)); break;
+                case 2: Figuras.Colorear(_render, Color.Lerp(_color, colorComandante, 0.6f)); break;
+                case 3: Figuras.Colorear(_render, Color.Lerp(_color, Color.white, 0.6f)); break;
+                case 4: Figuras.Colorear(_render, Color.white); break;
+                default: Figuras.Colorear(_render, _color); break;
             }
         }
 

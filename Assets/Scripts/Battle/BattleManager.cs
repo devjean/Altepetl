@@ -309,12 +309,9 @@ namespace Altepetl
 
         private void Pieza(Vector3 posicion, Vector3 escala, Color color, PrimitiveType tipo = PrimitiveType.Cube)
         {
-            var pieza = GameObject.CreatePrimitive(tipo);
-            Destroy(pieza.GetComponent<Collider>());
-            pieza.transform.SetParent(transform, false);
+            var pieza = Figuras.Crear(tipo, transform, color);
             pieza.transform.position = posicion;
             pieza.transform.localScale = escala;
-            pieza.GetComponent<Renderer>().material.color = color;
         }
 
         public TroopId PrimeraTropaDisponible()
@@ -359,12 +356,9 @@ namespace Altepetl
                 for (int y = 0; y < tamano; y++)
                 {
                     if (!_ocupado[x, y]) continue;
-                    var casilla = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    Destroy(casilla.GetComponent<Collider>());
-                    casilla.transform.SetParent(_zonaProhibida.transform, false);
+                    var casilla = Figuras.Crear(PrimitiveType.Cube, _zonaProhibida.transform, new Color(0.60f, 0.16f, 0.12f));
                     casilla.transform.localScale = new Vector3(0.98f, 0.02f, 0.98f);
                     casilla.transform.position = Origen + new Vector3(x + 0.5f, 0.01f, y + 0.5f);
-                    casilla.GetComponent<Renderer>().material.color = new Color(0.60f, 0.16f, 0.12f);
                 }
             }
             _zonaProhibida.SetActive(false);

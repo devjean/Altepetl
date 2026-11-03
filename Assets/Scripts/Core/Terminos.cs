@@ -66,7 +66,7 @@ namespace Altepetl
         {
             if (string.IsNullOrEmpty(texto) || texto.IndexOf('[') < 0) return texto;
             return texto.Replace("[tropas]", Tropas).Replace("[Tropas]", TropasMayuscula).Replace("[tropa]", Tropa)
-                .Replace("[los]", Los).Replace("[o]", O)
+                .Replace("[los]", Los).Replace("[o]", O).Replace("[tuAldea]", TuAldea)
                 .Replace("[glosa]", Nahuatl ? ", «los que salen a la guerra»" : "");
         }
     }

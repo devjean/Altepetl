@@ -16,6 +16,7 @@ namespace Altepetl
         Temazcalli,
         Calpulli,
         Calmecac,
+        Cuauhcalli,
     }
 
     /// <summary>Pestañas del menú de construcción.</summary>
@@ -54,6 +55,7 @@ namespace Altepetl
         public bool Entrena;              // entrena tropas (telpochcalli)
         public int CamasCuracion;         // heridos que cura a la vez, por nivel (temazcalli)
         public bool Forma;                // forma a la élite (calmécac)
+        public bool Dirige;               // recluta y promueve comandantes (cuauhcalli)
 
         public bool EsDefensa;            // ataca a las tropas enemigas en batalla
         public float AlcanceDefensa;
@@ -68,7 +70,10 @@ namespace Altepetl
 
         public string NombrePara(Pueblo pueblo)
         {
-            return Id == BuildingId.Granja && pueblo != null ? pueblo.NombreGranja : Nombre;
+            if (Id == BuildingId.Granja && pueblo != null) return pueblo.NombreGranja;
+            // Cuauhcalli está documentado para los mexicas; para los demás no hay nombre propio: «Casa de guerra».
+            if (Id == BuildingId.Cuauhcalli && pueblo != null && pueblo.Id != PuebloId.Mexicas) return "Casa de guerra";
+            return Nombre;
         }
 
         /// <summary>Producción, almacenamiento y vida: +50 % por cada nivel después del 1.</summary>
@@ -217,6 +222,23 @@ namespace Altepetl
                 Categoria = CategoriaEdificio.Militar,
                 VidaBase = 900,
                 MaximoPorTecpan = new[] { 0, 0, 1, 1, 1 },
+            },
+            new BuildingDefinition
+            {
+                Id = BuildingId.Cuauhcalli,
+                Nombre = "Cuauhcalli",
+                Descripcion = "Casa de las águilas: sede de los guerreros distinguidos y de los altos mandos mexicas (Sahagún). "
+                              + "Para tlaxcaltecas y acolhuas no hay un edificio así documentado y se recrea como «Casa de guerra». "
+                              + "Aquí se reclutan y suben de nivel los comandantes que dirigen a [los] [tropas]. Pide tecpan 4.",
+                Tamano = 2,
+                Altura = 1.6f,
+                Color = new Color(0.60f, 0.48f, 0.30f),
+                Costo = ResourceInfo.Costo(maiz: 300, madera: 200, obsidiana: 80),
+                SegundosConstruccion = 60f,
+                Dirige = true,
+                Categoria = CategoriaEdificio.Militar,
+                VidaBase = 1000,
+                MaximoPorTecpan = new[] { 0, 0, 0, 1, 1 },
             },
             new BuildingDefinition
             {

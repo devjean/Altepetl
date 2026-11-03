@@ -36,6 +36,7 @@ namespace Altepetl
         private Building _objetivo;
         private Building _muro;
         private Renderer _render;
+        private bool _destellando;
         private Color _color;
         private float _destelloHasta;
         private readonly Caminos.Andante _andar = new Caminos.Andante();
@@ -71,18 +72,15 @@ namespace Altepetl
             name = invasor ? $"Invasor {definicion.Nombre}" : $"Defensor {definicion.Nombre}";
             transform.position = posicion;
 
-            var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            Destroy(cuerpo.GetComponent<Collider>());
-            cuerpo.transform.SetParent(transform, false);
-            float tamano = 0.3f * Rangos.Tamano(rango);
-            cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
-            cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
-            _render = cuerpo.GetComponent<Renderer>();
             // Los invasores, más oscuros y rojizos, como los defensores de las aldeas enemigas.
             _color = invasor
                 ? Color.Lerp(definicion.Color, new Color(0.35f, 0.08f, 0.08f), 0.55f)
                 : Rangos.ColorDe(pueblo, definicion.Color, rango);
-            _render.material.color = _color;
+            float tamano = 0.3f * Rangos.Tamano(rango);
+            var cuerpo = Figuras.Crear(PrimitiveType.Capsule, transform, _color);
+            cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
+            cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
+            _render = cuerpo.GetComponent<Renderer>();
         }
 
         public void RecibirDano(float cantidad, Combatiente atacante)
@@ -104,7 +102,12 @@ namespace Altepetl
         public void Avanzar(float dt)
         {
             if (Muerto || !_asalto.EnCurso) return;
-            _render.material.color = _asalto.Reloj < _destelloHasta ? Color.white : _color;
+            bool destello = _asalto.Reloj < _destelloHasta;
+            if (destello != _destellando)
+            {
+                _destellando = destello;
+                Figuras.Colorear(_render, destello ? Color.white : _color);
+            }
 
             if (Invasor) ActuarInvasor(dt);
             else ActuarDefensor(dt);

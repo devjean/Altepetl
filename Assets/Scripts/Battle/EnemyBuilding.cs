@@ -36,9 +36,7 @@ namespace Altepetl
             name = $"Enemigo {definicion.Nombre}";
             transform.position = centro;
 
-            var cubo = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            Destroy(cubo.GetComponent<Collider>());
-            cubo.transform.SetParent(transform, false);
+            var cubo = Figuras.Crear(PrimitiveType.Cube, transform, definicion.Color);
             _modelo = cubo.transform;
             _render = cubo.GetComponent<Renderer>();
             _altura = definicion.Altura * (1f + 0.15f * (Mathf.Max(1, nivel) - 1));
@@ -48,14 +46,10 @@ namespace Altepetl
             {
                 // Sobre el lago, cada edificio va en su plataforma de piedra, como en Tenochtitlan.
                 base_ = 0.14f;
-                var piedra = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                piedra.name = "Plataforma";
-                Destroy(piedra.GetComponent<Collider>());
-                piedra.transform.SetParent(transform, false);
+                var piedra = Figuras.Crear(PrimitiveType.Cube, transform, new Color(0.62f, 0.60f, 0.55f), "Plataforma");
                 float ladoPlataforma = definicion.Tamano * 0.96f;
                 piedra.transform.localScale = new Vector3(ladoPlataforma, base_, ladoPlataforma);
                 piedra.transform.localPosition = new Vector3(0f, base_ * 0.5f, 0f);
-                piedra.GetComponent<Renderer>().material.color = new Color(0.62f, 0.60f, 0.55f);
                 _altura += base_;
             }
             _modelo.localScale = new Vector3(lado, _altura - base_, lado);
@@ -93,12 +87,12 @@ namespace Altepetl
         {
             if (Destruido)
             {
-                _render.material.color = new Color(0.25f, 0.22f, 0.2f);
+                Figuras.Colorear(_render, new Color(0.25f, 0.22f, 0.2f));
                 return;
             }
             // Se oscurece conforme pierde vida.
             float salud = Vida / VidaMaxima;
-            _render.material.color = Color.Lerp(new Color(0.3f, 0.1f, 0.1f), Definicion.Color, salud);
+            Figuras.Colorear(_render, Color.Lerp(new Color(0.3f, 0.1f, 0.1f), Definicion.Color, salud));
         }
     }
 }

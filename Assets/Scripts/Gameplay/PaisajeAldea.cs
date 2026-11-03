@@ -417,12 +417,9 @@ namespace Altepetl
 
         private static void Pieza(Transform padre, PrimitiveType tipo, Vector3 posicion, Vector3 escala, Color color)
         {
-            var pieza = GameObject.CreatePrimitive(tipo);
-            Destroy(pieza.GetComponent<Collider>());
-            pieza.transform.SetParent(padre, false);
+            var pieza = Figuras.Crear(tipo, padre, color);
             pieza.transform.localPosition = posicion;
             pieza.transform.localScale = escala;
-            pieza.GetComponent<Renderer>().material.color = color;
         }
     }
 }

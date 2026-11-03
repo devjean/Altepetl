@@ -454,24 +454,16 @@ namespace Altepetl
         private Persona Crear()
         {
             var persona = new Persona { Fase = Random.value * Mathf.PI * 2f };
-            var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            cuerpo.name = "Macehualli";
-            Destroy(cuerpo.GetComponent<Collider>()); // que no estorbe al tocar los edificios
-            cuerpo.transform.SetParent(transform, false);
-            cuerpo.transform.localScale = new Vector3(Tamano, Tamano, Tamano);
             // Ropa de manta (algodón o ixtle), con un poco de variación para que no sean todos iguales.
             float tono = Random.Range(-0.06f, 0.04f);
-            cuerpo.GetComponent<Renderer>().material.color = new Color(0.90f + tono, 0.86f + tono, 0.74f + tono);
+            var cuerpo = Figuras.Crear(PrimitiveType.Capsule, transform, new Color(0.90f + tono, 0.86f + tono, 0.74f + tono), "Macehualli");
+            cuerpo.transform.localScale = new Vector3(Tamano, Tamano, Tamano);
             persona.Cuerpo = cuerpo.transform;
 
             if (Manager.Pueblo.Id == PuebloId.Mexicas || Manager.Pueblo.Id == PuebloId.Acolhuas)
             {
-                var acalli = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                acalli.name = "Acalli";
-                Destroy(acalli.GetComponent<Collider>());
-                acalli.transform.SetParent(transform, false);
+                var acalli = Figuras.Crear(PrimitiveType.Cube, transform, new Color(0.45f, 0.30f, 0.18f), "Acalli");
                 acalli.transform.localScale = new Vector3(0.11f, 0.05f, 0.32f);
-                acalli.GetComponent<Renderer>().material.color = new Color(0.45f, 0.30f, 0.18f);
                 persona.Acalli = acalli.transform;
             }
             return persona;

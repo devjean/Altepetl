@@ -285,7 +285,7 @@ namespace Altepetl
                 if (existente == null) continue;
                 existente.Herido = deseado.Herido;
                 existente.Destino = deseado.Destino;
-                existente.Cuerpo.GetComponent<Renderer>().material.color = ColorDe(existente);
+                Figuras.Colorear(existente.Cuerpo.gameObject, ColorDe(existente));
                 nuevos.Add(existente);
                 faltan.RemoveAt(i);
             }
@@ -393,27 +393,18 @@ namespace Altepetl
         private void Crear(Monito monito, Vector3 inicio)
         {
             var tropa = TroopCatalog.Get(monito.Tipo);
-            var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            cuerpo.name = tropa.Nombre;
-            Destroy(cuerpo.GetComponent<Collider>()); // que no estorbe al tocar los edificios
-            cuerpo.transform.SetParent(transform, false);
+            var cuerpo = Figuras.Crear(PrimitiveType.Capsule, transform, ColorDe(monito), tropa.Nombre);
 
             monito.Tamano = 0.18f * Rangos.Tamano(monito.Rango);
             cuerpo.transform.localScale = new Vector3(monito.Tamano, monito.Tamano, monito.Tamano);
             cuerpo.transform.localPosition = new Vector3(inicio.x, monito.Tamano, inicio.z);
 
-            cuerpo.GetComponent<Renderer>().material.color = ColorDe(monito);
-
             monito.Cuerpo = cuerpo.transform;
             if (Manager.Pueblo.EnLago)
             {
-                var acalli = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                acalli.name = "Acalli";
-                Destroy(acalli.GetComponent<Collider>());
-                acalli.transform.SetParent(transform, false);
+                var acalli = Figuras.Crear(PrimitiveType.Cube, transform, new Color(0.45f, 0.30f, 0.18f), "Acalli");
                 acalli.transform.localScale = new Vector3(0.13f, 0.06f, 0.38f);
                 acalli.transform.localPosition = new Vector3(inicio.x, 0.03f, inicio.z);
-                acalli.GetComponent<Renderer>().material.color = new Color(0.45f, 0.30f, 0.18f);
                 monito.Acalli = acalli.transform;
             }
             monito.Fase = Random.value * Mathf.PI * 2f;

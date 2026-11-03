@@ -244,12 +244,8 @@ namespace Altepetl
             // La torre de vigía marca por dónde vienen.
             if (HayVigia)
             {
-                var marca = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                Destroy(marca.GetComponent<Collider>());
-                marca.name = "Por aquí vienen";
-                marca.transform.SetParent(transform, false);
+                var marca = Figuras.Crear(PrimitiveType.Cylinder, transform, new Color(0.85f, 0.15f, 0.1f), "Por aquí vienen");
                 marca.transform.position = _entrada + Vector3.up * 1.5f;
-                marca.GetComponent<Renderer>().material.color = new Color(0.85f, 0.15f, 0.1f);
                 _marca = marca.transform;
             }
         }
@@ -500,14 +496,10 @@ namespace Altepetl
         /// <summary>Una raya breve de la torre al invasor, para ver el disparo.</summary>
         private void Dardo(Vector3 desde, Vector3 hasta)
         {
-            var dardo = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            Destroy(dardo.GetComponent<Collider>());
-            dardo.name = "Dardo";
-            dardo.transform.SetParent(transform, false);
+            var dardo = Figuras.Crear(PrimitiveType.Cube, transform, new Color(0.15f, 0.12f, 0.1f), "Dardo");
             dardo.transform.position = (desde + hasta) * 0.5f;
             dardo.transform.LookAt(hasta);
             dardo.transform.localScale = new Vector3(0.04f, 0.04f, Vector3.Distance(desde, hasta));
-            dardo.GetComponent<Renderer>().material.color = new Color(0.15f, 0.12f, 0.1f);
             Destroy(dardo, 0.12f);
         }
 

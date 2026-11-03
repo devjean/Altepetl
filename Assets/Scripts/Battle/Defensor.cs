@@ -24,6 +24,7 @@ namespace Altepetl
         private bool _activo;
         private TroopUnit _objetivo;
         private Renderer _render;
+        private bool _destellando;
         private Color _color;
         private float _destelloHasta;
 
@@ -41,16 +42,13 @@ namespace Altepetl
             name = $"Defensor {definicion.Nombre}";
             transform.position = puesto;
 
-            var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            Destroy(cuerpo.GetComponent<Collider>());
-            cuerpo.transform.SetParent(transform, false);
+            // Más oscuros que los tuyos, con un tinte rojizo, para distinguirlos.
+            _color = Color.Lerp(definicion.Color, new Color(0.35f, 0.08f, 0.08f), 0.55f);
             float tamano = 0.3f * (1f + 0.12f * rango);
+            var cuerpo = Figuras.Crear(PrimitiveType.Capsule, transform, _color);
             cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
             cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
             _render = cuerpo.GetComponent<Renderer>();
-            // Más oscuros que los tuyos, con un tinte rojizo, para distinguirlos.
-            _color = Color.Lerp(definicion.Color, new Color(0.35f, 0.08f, 0.08f), 0.55f);
-            _render.material.color = _color;
         }
 
         /// <summary>Recibe daño de una de tus tropas; si estaba esperando, sale a pelear.</summary>
@@ -72,7 +70,12 @@ namespace Altepetl
         {
             if (Muerto || _batalla.Terminada) return;
 
-            _render.material.color = Time.time < _destelloHasta ? Color.white : _color;
+            bool destello = Time.time < _destelloHasta;
+            if (destello != _destellando)
+            {
+                _destellando = destello;
+                Figuras.Colorear(_render, destello ? Color.white : _color);
+            }
 
             if (!_activo && _batalla.TropaMasCercana(_puesto, RadioAlerta) != null) _activo = true;
             if (_objetivo == null || _objetivo.Muerta)

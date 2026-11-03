@@ -28,6 +28,13 @@ namespace Altepetl
         public bool Peleo { get; private set; }
         /// <summary>Invasores que capturó en este ataque.</summary>
         public int Capturas { get; set; }
+        /// <summary>Es el comandante que defiende la aldea: dirige, no muere para siempre y lleva su aura.</summary>
+        public bool EsComandante { get; private set; }
+        public Comandante Comandante { get; private set; }
+        /// <summary>Guerrero aliado que trajo el comandante: pelea, pero no es del ejército ni captura.</summary>
+        public bool Aliado { get; private set; }
+        /// <summary>Ataque extra que le queda el resto del asalto (embestida a nivel 5).</summary>
+        public float BonoResidual { get; set; }
 
         private Asalto _asalto;
         private float _danoPorSegundo;
@@ -38,8 +45,23 @@ namespace Altepetl
         private Renderer _render;
         private Color _color;
         private float _destelloHasta;
+        private int _tono = -1;      // último color puesto: 0 normal, 1 en el aura, 2 y 3 con la habilidad (parpadeo), 4 destello
+        private Transform _anillo;
         private readonly Caminos.Andante _andar = new Caminos.Andante();
         private float _revisarRuta;
+
+        /// <summary>Antes de Inicializar: este monito es el comandante que defiende.</summary>
+        public void MarcarComandante(Comandante comandante)
+        {
+            EsComandante = true;
+            Comandante = comandante;
+        }
+
+        /// <summary>Antes de Inicializar: este monito es un guerrero aliado del comandante.</summary>
+        public void MarcarAliado()
+        {
+            Aliado = true;
+        }
 
         /// <summary>vidaInicial: fracción de la vida máxima. Con pueblo, es tuyo y usa sus bonos y los de la ofrenda.</summary>
         public void Inicializar(TroopDefinition definicion, int rango, bool invasor, Pueblo pueblo, Culto culto,
@@ -68,26 +90,80 @@ namespace Altepetl
             }
             Vida = VidaMaxima;
 
-            name = invasor ? $"Invasor {definicion.Nombre}" : $"Defensor {definicion.Nombre}";
+            name = invasor ? $"Invasor {definicion.Nombre}" : EsComandante ? definicion.Nombre : Aliado ? "Aliado" : $"Defensor {definicion.Nombre}";
             transform.position = posicion;
 
             var cuerpo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             Destroy(cuerpo.GetComponent<Collider>());
             cuerpo.transform.SetParent(transform, false);
-            float tamano = 0.3f * Rangos.Tamano(rango);
+            float tamano = EsComandante ? 0.46f : 0.3f * Rangos.Tamano(rango);
             cuerpo.transform.localScale = new Vector3(tamano, tamano, tamano);
             cuerpo.transform.localPosition = new Vector3(0f, tamano, 0f);
             _render = cuerpo.GetComponent<Renderer>();
             // Los invasores, más oscuros y rojizos, como los defensores de las aldeas enemigas.
             _color = invasor
                 ? Color.Lerp(definicion.Color, new Color(0.35f, 0.08f, 0.08f), 0.55f)
+                : EsComandante ? definicion.Color
+                : Aliado ? Color.Lerp(definicion.Color, new Color(0.55f, 0.55f, 0.50f), 0.6f)
                 : Rangos.ColorDe(pueblo, definicion.Color, rango);
             _render.material.color = _color;
+            if (EsComandante) CrearAnilloDeAura();
+        }
+
+        /// <summary>Marcas en el suelo con el alcance del aura del comandante (placeholder hasta que haya arte).</summary>
+        private void CrearAnilloDeAura()
+        {
+            if (Comandante == null || Comandante.Definicion.Aura == TipoAura.Ninguna) return;
+            var anillo = new GameObject("Aura");
+            anillo.transform.SetParent(transform, false);
+            _anillo = anillo.transform;
+            const int marcas = 16;
+            for (int i = 0; i < marcas; i++)
+            {
+                float angulo = i * Mathf.PI * 2f / marcas;
+                var marca = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(marca.GetComponent<Collider>());
+                marca.transform.SetParent(anillo.transform, false);
+                marca.transform.localPosition = new Vector3(Mathf.Cos(angulo), 0.02f, Mathf.Sin(angulo)) * ReglasComandante.Radio;
+                marca.transform.localScale = new Vector3(0.12f, 0.02f, 0.12f);
+                marca.GetComponent<Renderer>().material.color = Color.Lerp(_color, Color.white, 0.4f);
+            }
+        }
+
+        /// <summary>
+        /// Para que se note lo que hace el comandante: los defensores en su aura llevan un tinte de su color,
+        /// los que reciben la habilidad parpadean con él, y su anillo se agranda mientras dura.
+        /// </summary>
+        private void ActualizarColor()
+        {
+            int tono;
+            if (_asalto.Reloj < _destelloHasta) tono = 4;
+            else if (!Invasor && _asalto.AfectadoPorHabilidad(this)) tono = Mathf.FloorToInt(_asalto.Reloj * 4f) % 2 == 0 ? 2 : 3;
+            else if (!Invasor && _asalto.EnAura(this)) tono = 1;
+            else tono = 0;
+            if (EsComandante && _anillo != null)
+            {
+                float escala = _asalto.HabilidadActiva ? 1.25f + 0.1f * Mathf.Sin(_asalto.Reloj * 6f) : 1f;
+                _anillo.localScale = new Vector3(escala, 1f, escala);
+            }
+            if (tono == _tono) return;
+            _tono = tono;
+            Color colorComandante = _asalto.Comandante != null ? _asalto.Comandante.Definicion.Color : Color.white;
+            switch (tono)
+            {
+                case 1: _render.material.color = Color.Lerp(_color, colorComandante, 0.35f); break;
+                case 2: _render.material.color = Color.Lerp(_color, colorComandante, 0.6f); break;
+                case 3: _render.material.color = Color.Lerp(_color, Color.white, 0.6f); break;
+                case 4: _render.material.color = Color.white; break;
+                default: _render.material.color = _color; break;
+            }
         }
 
         public void RecibirDano(float cantidad, Combatiente atacante)
         {
             if (Muerto) return;
+            // Con el comandante cerca (o su Cohesión / Cerrar filas) el golpe duele menos.
+            if (!Invasor) cantidad *= _asalto.MultiplicadorDanoRecibido(this);
             Vida -= cantidad;
             _destelloHasta = _asalto.Reloj + 0.15f;
             if (Muerto)
@@ -104,7 +180,7 @@ namespace Altepetl
         public void Avanzar(float dt)
         {
             if (Muerto || !_asalto.EnCurso) return;
-            _render.material.color = _asalto.Reloj < _destelloHasta ? Color.white : _color;
+            ActualizarColor();
 
             if (Invasor) ActuarInvasor(dt);
             else ActuarDefensor(dt);
@@ -168,7 +244,7 @@ namespace Altepetl
             }
             Peleo = true;
             float dano = _danoPorSegundo * dt;
-            if (!Invasor) dano *= _asalto.MultiplicadorLider(this); // con un yaotequihua cerca se pelea mejor
+            if (!Invasor) dano *= _asalto.MultiplicadorAtaque(this); // con un yaotequihua o el comandante cerca se pelea mejor
             rival.RecibirDano(dano, this);
         }
 
@@ -240,7 +316,8 @@ namespace Altepetl
             // Un rival se mueve: la ruta se vuelve a buscar cuando se aleja de donde estaba.
             Vector3 siguiente = Siguiente(destino.WithY0(), 0.75f);
             Vector3 rumbo = (siguiente - transform.position.WithY0()).normalized;
-            transform.position += rumbo * Mathf.Min(_velocidad * dt, distancia);
+            float velocidad = Invasor ? _velocidad : _velocidad * _asalto.MultiplicadorVelocidad(this);
+            transform.position += rumbo * Mathf.Min(velocidad * dt, distancia);
         }
     }
 }

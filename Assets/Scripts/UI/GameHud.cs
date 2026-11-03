@@ -1111,6 +1111,7 @@ namespace Altepetl
                 var comandante = Manager.ComandanteDe(def.Id);
                 GUI.Label(new Rect(panel.x + 10, y, panel.width - 80, 24), def.Nombre, _textoUnaLinea);
                 if (GUI.Button(new Rect(panel.xMax - 66, y - 2, 56, 26), "Ficha", _botonChico)) _comandanteInfo = _comandanteInfo == def ? null : def;
+                bool defiende = comandante != null && Manager.ComandanteDefensorId == (int)def.Id;
 
                 string estado;
                 if (comandante == null) estado = $"Sin reclutar. {def.Papel.Substring(0, 1).ToUpperInvariant()}{def.Papel.Substring(1)}: {def.NombreHabilidad.ToLowerInvariant()}.";
@@ -1119,11 +1120,17 @@ namespace Altepetl
                     estado = $"Nivel {comandante.Nivel}. " + (comandante.EnNivelMaximo ? "Nivel máximo." : $"Experiencia: {comandante.Experiencia} / {comandante.UmbralSiguiente}.");
                     if (comandante.Promoviendo) estado += $" Subiendo a nivel {comandante.Nivel + 1}: {Mathf.CeilToInt(comandante.PromocionRestante)} s";
                     else if (comandante.Herido) estado += $" Herido ({Mathf.RoundToInt(comandante.Vida * 100)}%), se cura solo.";
-                    else estado += " Listo para salir.";
+                    else estado += defiende ? " Defiende la aldea." : " Listo para salir.";
                 }
                 GUI.Label(new Rect(panel.x + 10, y + 24, panel.width - 20, 36), estado, _textoChico);
 
-                var boton = new Rect(panel.x + 10, y + 60, panel.width - 20, 40);
+                var boton = new Rect(panel.x + 10, y + 60, panel.width - 94, 40);
+                // Quién se queda a defender la aldea en los asaltos (el que no te llevas a la batalla).
+                GUI.enabled = comandante != null && !Manager.Asalto.EnCurso && !Manager.Asalto.Ausente;
+                GUI.backgroundColor = defiende ? new Color(1f, 0.85f, 0.2f) : Color.white;
+                if (GUI.Button(new Rect(boton.xMax + 4, boton.y, 70, 40), "Defiende", _botonChico)) Manager.ElegirDefensor(comandante);
+                GUI.backgroundColor = Color.white;
+                GUI.enabled = true;
                 if (comandante == null)
                 {
                     bool hayLugar = Manager.Comandantes.Count < Manager.MaximoComandantes;
@@ -1490,9 +1497,11 @@ namespace Altepetl
                 Zona(aviso);
                 GUI.Box(aviso, GUIContent.none, _caja);
                 int defienden = Manager.TotalDefensoresListos;
+                var defensor = Manager.ComandanteDefensor;
                 GUI.Label(new Rect(aviso.x + 10, aviso.y + 4, aviso.width - 130, 56),
                     $"¡Se acercan enemigos! Llegan en {Mathf.CeilToInt(asalto.SegundosAviso)} s."
-                    + $"\nVienen {Terminos.TropasCuenta(asalto.CuantosVienen)}. Defienden: {defienden}.", _textoChico);
+                    + $"\nVienen {Terminos.TropasCuenta(asalto.CuantosVienen)}. Defienden: {defienden}"
+                    + (defensor != null ? $" y {defensor.Nombre}." : "."), _textoChico);
                 // Si el ataque ocurrió en tu ausencia, los defensores ya están decididos.
                 if (!asalto.Ausente && GUI.Button(new Rect(aviso.xMax - 116, aviso.y + 8, 106, 46), "Defensa", _boton))
                 {
@@ -1503,12 +1512,25 @@ namespace Altepetl
             }
             if (asalto.EstadoActual != Asalto.Estado.EnCurso) return;
 
-            var barra = new Rect((ancho - 420) / 2, AltoBarraSuperior + 8, 420, 40);
+            bool conComandante = asalto.Comandante != null;
+            var barra = new Rect((ancho - 460) / 2, AltoBarraSuperior + 8, 460, conComandante ? 64 : 40);
             Zona(barra);
             GUI.Box(barra, GUIContent.none, _caja);
             int segundos = Mathf.CeilToInt(asalto.TiempoRestante);
             GUI.Label(new Rect(barra.x + 10, barra.y + 8, barra.width - 20, 26),
                 $"Atacan {Terminos.TuAldea}: quedan {asalto.InvasoresVivos} de {asalto.Invasores.Count}    {segundos / 60}:{segundos % 60:00}", _texto);
+            if (conComandante)
+            {
+                // Qué hace el comandante: su habilidad se dispara sola cuando un invasor entra en su aura.
+                var comandante = asalto.Comandante;
+                string linea = asalto.UnidadComandante == null || asalto.UnidadComandante.Muerto ? $"Cayó {comandante.Nombre}: volverá herido al cuauhcalli."
+                    : asalto.HabilidadActiva ? $"«{comandante.Definicion.NombreHabilidad}» {Mathf.CeilToInt(asalto.SegundosHabilidad)} s: {TextoEfectoHabilidad(comandante)}"
+                    : asalto.UsosHabilidad > 0 ? $"{comandante.Nombre} defiende; «{comandante.Definicion.NombreHabilidad}» se dispara al acercarse el enemigo."
+                    : $"{comandante.Nombre} defiende; ya usó «{comandante.Definicion.NombreHabilidad}».";
+                GUI.backgroundColor = asalto.HabilidadActiva ? new Color(1f, 0.85f, 0.2f) : Color.white;
+                GUI.Label(new Rect(barra.x + 10, barra.y + 36, barra.width - 20, 24), linea, _textoChico);
+                GUI.backgroundColor = Color.white;
+            }
 
             var camara = Camera.main;
             if (camara == null || Event.current.type != EventType.Repaint) return;
@@ -1524,8 +1546,10 @@ namespace Altepetl
 
         private void BarraCombatiente(Camera camara, Combatiente combatiente, Color color)
         {
-            if (combatiente == null || combatiente.Muerto || combatiente.Vida >= combatiente.VidaMaxima) return;
-            BarraDeVida(camara, combatiente.transform.position + Vector3.up * 0.9f, combatiente.FraccionVida, 22f, color);
+            if (combatiente == null || combatiente.Muerto || (combatiente.Vida >= combatiente.VidaMaxima && !combatiente.EsComandante)) return;
+            // El comandante siempre lleva su barra, más ancha y dorada, para encontrarlo.
+            if (combatiente.EsComandante) BarraDeVida(camara, combatiente.transform.position + Vector3.up * 1.3f, combatiente.FraccionVida, 44f, new Color(0.95f, 0.78f, 0.25f));
+            else BarraDeVida(camara, combatiente.transform.position + Vector3.up * 0.9f, combatiente.FraccionVida, 22f, color);
         }
 
         /// <summary>Quiénes salen a defender la aldea, por tipo y rango (solo los sanos pelean).</summary>
@@ -1590,7 +1614,16 @@ namespace Altepetl
                     ? "Todavía no han atacado " + Terminos.TuAldea + "."
                     : $"Último ataque: hace {TextoHoras(asalto.SegundosDesdeUltimoAtaque / 3600f)}, {(asalto.UltimoAtaqueDefendido ? "defendido" : "no se pudo detener")}.";
                 if (asalto.SegundosEscudo > 0f) linea += $" Escudo: {TextoHoras(asalto.SegundosEscudo / 3600f)}.";
-                GUI.Label(new Rect(panel.x + 20, panel.yMax - 96, panel.width - 40, 30), linea, _textoChico);
+                if (Manager.Comandantes.Count > 0)
+                {
+                    var defensor = Manager.ComandanteDefensor;
+                    linea += defensor != null
+                        ? $"\nDefiende {defensor.Nombre} (nivel {defensor.Nivel}) desde el cuauhcalli; se elige ahí."
+                        : Manager.ComandanteDefensorId >= 0
+                            ? "\nEl comandante que defiende está herido o subiendo de nivel: no saldrá."
+                            : "\nNingún comandante defiende; se elige en el cuauhcalli.";
+                }
+                GUI.Label(new Rect(panel.x + 20, panel.yMax - 110, panel.width - 40, 46), linea, _textoChico);
             }
 
             GUI.enabled = !enCurso;
@@ -1647,7 +1680,8 @@ namespace Altepetl
             var resultado = Manager.Asalto.Resultado;
             if (Manager.Asalto.EstadoActual != Asalto.Estado.Resultado || resultado == null) return;
 
-            var panel = new Rect((ancho - 480) / 2, (alto - 380) / 2, 480, 380);
+            float altoPanel = resultado.Comandante != null ? 430 : 380;
+            var panel = new Rect((ancho - 480) / 2, (alto - altoPanel) / 2, 480, altoPanel);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
             Titulo(new Rect(panel.x + 10, panel.y + 12, panel.width - 20, 34),
@@ -1669,9 +1703,22 @@ namespace Altepetl
                         : $"\nHerid{Terminos.O}s: {resultado.Heridos}. Construye un temazcalli para curarl{Terminos.O}s";
                 }
             }
-            else
+            else if (resultado.Comandante == null)
             {
                 texto += $"\nNadie salió a defender. Elige defensores en Defensa.";
+            }
+            if (resultado.Comandante != null)
+            {
+                var comandante = resultado.Comandante;
+                texto += resultado.ComandanteCayo
+                    ? $"\n{comandante.Nombre} cayó defendiendo: se recupera en el cuauhcalli."
+                    : comandante.Herido
+                        ? $"\n{comandante.Nombre} defendió y vuelve herido ({Mathf.RoundToInt(comandante.Vida * 100)}%)."
+                        : $"\n{comandante.Nombre} defendió y vuelve sano.";
+                if (resultado.HabilidadUsada) texto += $" Usó «{comandante.Definicion.NombreHabilidad}».";
+                if (resultado.ComandanteExperiencia > 0) texto += $" Experiencia: +{resultado.ComandanteExperiencia}.";
+                if (comandante.PuedeSubir) texto += $" ¡Puede subir a nivel {comandante.Nivel + 1}!";
+                if (resultado.AliadosCaidos > 0) texto += $"\nAliados caídos: {resultado.AliadosCaidos} (no regresan).";
             }
             var ascensos = new List<string>();
             for (int r = Rangos.Count - 1; r > 0; r--)
@@ -1686,7 +1733,7 @@ namespace Altepetl
                 float horas = Manager.Asalto.SegundosEscudo / 3600f;
                 if (horas > 0f) texto += $"\nEscudo: nadie volverá a atacar en tu ausencia durante {TextoHoras(horas)}.";
             }
-            GUI.Label(new Rect(panel.x + 20, panel.y + 56, panel.width - 40, 250), texto, _texto);
+            GUI.Label(new Rect(panel.x + 20, panel.y + 56, panel.width - 40, panel.height - 130), texto, _texto);
 
             if (GUI.Button(new Rect(panel.x + 120, panel.yMax - 64, panel.width - 240, 48), "Aceptar", _boton))
             {

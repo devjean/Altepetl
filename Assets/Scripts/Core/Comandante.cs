@@ -78,7 +78,11 @@ namespace Altepetl
         public static readonly int[] UmbralesExperiencia = { 0, 5, 12, 22, 35 };
         public const int ExperienciaPorEstrella = 1;
         public const int CapturasPorExperiencia = 3; // +1 por cada 3 cautivos que tomen las tropas en su aura
-        public const int ExperienciaPorDefensa = 2;  // asaltos defendidos (PR de defensa de la aldea)
+        public const int ExperienciaPorDefensa = 2;  // por asalto a la aldea defendido con él en el campo
+        /// <summary>Capitán de Tepeticpac a nivel 3: defendiendo la aldea, su aura protege un poco más.</summary>
+        public const float TepeticpacAuraDefensaNivel3 = 0.04f;
+        /// <summary>Consejo tlaxcalteca: con los dos capitanes sanos, murallas y torres aguantan un poco más.</summary>
+        public const float ConsejoBonoDefensas = 0.03f;
 
         public static readonly int[] CostoReclutar = ResourceInfo.Costo(maiz: 300, plumas: 5);
         /// <summary>Segundos para curarse del todo en el cuauhcalli, de 0 a toda la vida.</summary>
@@ -189,7 +193,7 @@ namespace Altepetl
                 Habilidad = Habilidad.CerrarFilas,
                 NombreHabilidad = "Cerrar filas",
                 DescripcionHabilidad = "Durante 10 s, [los] [tropas] de su aura reciben 30% menos daño.",
-                RasgoNivel3 = "Defendiendo [tuAldea], su aura protege 4% más (llega con la defensa de la aldea).",
+                RasgoNivel3 = "Defendiendo [tuAldea], su aura protege 4% más.",
                 RasgoNivel5 = "«Cerrar filas» dura 15 s.",
                 Color = new Color(0.35f, 0.55f, 0.30f),
             },
@@ -201,7 +205,7 @@ namespace Altepetl
                 NombreBoton = "Capitán de\nOcotelolco",
                 Papel = "coordinación",
                 Descripcion = "Ocotelolco, segunda cabecera de Tlaxcallan (documentado). El capitán sin nombre es recreación del juego. "
-                              + "Tener a los dos capitanes dará un extra pequeño a murallas y torres (llega con la defensa de la aldea).",
+                              + "Con los dos capitanes sanos (el consejo de las cabeceras), murallas y torres aguantan 3% más.",
                 Aura = TipoAura.Ataque,
                 Habilidad = Habilidad.Llamado,
                 NombreHabilidad = "Llamado de las cabeceras",
@@ -354,6 +358,22 @@ namespace Altepetl
             if (!Promoviendo) return;
             PromocionRestante = 0f;
             if (!EnNivelMaximo) Nivel++;
+        }
+
+        /// <summary>Los números del comandante como si fuera una tropa, para reutilizar los monitos de batalla y de asalto.</summary>
+        public TroopDefinition ComoTropa()
+        {
+            return new TroopDefinition
+            {
+                Id = TroopId.Macuahuitl,
+                NombreEspanol = Nombre,
+                NombreNahuatl = Nombre,
+                Vida = VidaMaxima,
+                DanoPorSegundo = ReglasComandante.DanoPorSegundo,
+                Alcance = ReglasComandante.Alcance,
+                Velocidad = ReglasComandante.Velocidad,
+                Color = Definicion.Color,
+            };
         }
 
         public ComandanteGuardado Exportar()

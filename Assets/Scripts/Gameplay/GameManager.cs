@@ -746,6 +746,7 @@ namespace Altepetl
         {
             var edificio = new GameObject().AddComponent<Building>();
             edificio.Culto = Culto;
+            edificio.BonoDefensasExtra = () => BonoConsejo;
             edificio.Inicializar(definicion, Pueblo, origen, Banco, Mapa, nivel, segundosRestantes, acumulado);
             Mapa.Ocupar(origen, definicion.Tamano, edificio);
             _edificios.Add(edificio);
@@ -1155,6 +1156,51 @@ namespace Altepetl
         /// <summary>Un comandante con el cuauhcalli en nivel 1; el segundo, desde nivel 3.</summary>
         public int MaximoComandantes => NivelCuauhcalli >= 3 ? 2 : NivelCuauhcalli >= 1 ? 1 : 0;
 
+        /// <summary>Quién defiende la aldea en los asaltos (ComandanteId); -1 si ninguno.</summary>
+        public int ComandanteDefensorId { get; private set; } = -1;
+
+        /// <summary>El comandante que saldría a defender ahora: el elegido, si está sano, no sube de nivel y no anda en batalla.</summary>
+        public Comandante ComandanteDefensor
+        {
+            get
+            {
+                if (ComandanteDefensorId < 0) return null;
+                var comandante = ComandanteDe((ComandanteId)ComandanteDefensorId);
+                if (comandante == null || !comandante.Disponible) return null;
+                if (Batalla != null && !Batalla.Terminada && Batalla.Comandante == comandante) return null;
+                return comandante;
+            }
+        }
+
+        /// <summary>Elige quién defiende la aldea; con el mismo otra vez (o null), nadie.</summary>
+        public void ElegirDefensor(Comandante comandante)
+        {
+            if (Asalto.EnCurso || Asalto.Ausente)
+            {
+                MostrarMensaje("Durante el ataque ya no se puede cambiar");
+                return;
+            }
+            int id = comandante != null && Comandantes.Contains(comandante) ? (int)comandante.Definicion.Id : -1;
+            ComandanteDefensorId = ComandanteDefensorId == id ? -1 : id;
+            Guardar();
+        }
+
+        /// <summary>
+        /// Consejo tlaxcalteca: con los dos capitanes reclutados y sanos, murallas y torres aguantan un poco más.
+        /// Representa el mando repartido entre cabeceras; no afirma un sistema histórico de bonos.
+        /// </summary>
+        public float BonoConsejo
+        {
+            get
+            {
+                if (Pueblo == null || Pueblo.Id != PuebloId.Tlaxcaltecas) return 0f;
+                var tepeticpac = ComandanteDe(ComandanteId.CapitanTepeticpac);
+                var ocotelolco = ComandanteDe(ComandanteId.CapitanOcotelolco);
+                if (tepeticpac == null || ocotelolco == null || tepeticpac.Herido || ocotelolco.Herido) return 0f;
+                return ReglasComandante.ConsejoBonoDefensas;
+            }
+        }
+
         public Comandante ComandanteDe(ComandanteId id)
         {
             foreach (var comandante in Comandantes)
@@ -1197,6 +1243,8 @@ namespace Altepetl
                 return;
             }
             Comandantes.Add(new Comandante(definicion));
+            // El primero que llega se queda a defender la aldea mientras no se elija otra cosa.
+            if (ComandanteDefensorId < 0) ComandanteDefensorId = (int)definicion.Id;
             MostrarMensaje($"{definicion.Nombre} se une a {Terminos.TuAldea}", 4f);
             Guardar();
         }
@@ -1253,11 +1301,12 @@ namespace Altepetl
         {
             var sucesos = new List<string>();
             if (segundos <= 0f) return sucesos;
-            // En batalla, el que está en el campo no se cura: su vida es la de su monito.
+            // En batalla o defendiendo la aldea, el que está en el campo no se cura: su vida es la de su monito.
             var enCampo = Batalla != null && !Batalla.Terminada ? Batalla.Comandante : null;
+            var defendiendo = Asalto != null && Asalto.EnCurso ? Asalto.Comandante : null;
             foreach (var comandante in Comandantes)
             {
-                if (comandante != enCampo && comandante.Curar(segundos)) sucesos.Add($"{comandante.Nombre} ya se curó");
+                if (comandante != enCampo && comandante != defendiendo && comandante.Curar(segundos)) sucesos.Add($"{comandante.Nombre} ya se curó");
                 if (comandante.AvanzarPromocion(segundos)) sucesos.Add($"{comandante.Nombre} ya es nivel {comandante.Nivel}");
             }
             if (avisar && sucesos.Count > 0)
@@ -1456,6 +1505,7 @@ namespace Altepetl
             Culto.Exportar(datos);
             Asalto.Exportar(datos);
             foreach (var comandante in Comandantes) datos.comandantes.Add(comandante.Exportar());
+            datos.comandanteDefensor = ComandanteDefensorId;
             SaveSystem.Guardar(datos);
         }
 
@@ -1491,6 +1541,9 @@ namespace Altepetl
                     if (comandante != null && ComandanteDe(comandante.Definicion.Id) == null) Comandantes.Add(comandante);
                 }
             }
+            if (datos.comandanteDefensor >= 0 && ComandanteDe((ComandanteId)datos.comandanteDefensor) != null) ComandanteDefensorId = datos.comandanteDefensor;
+            else if (datos.comandanteDefensor == -1) ComandanteDefensorId = -1;
+            else ComandanteDefensorId = Comandantes.Count > 0 ? (int)Comandantes[0].Definicion.Id : -1;
             NivelesCompletados = Mathf.Clamp(datos.nivelesCompletados, 0, Campana.Length);
             _estrellas.Clear();
             if (datos.estrellas != null) _estrellas.AddRange(datos.estrellas);

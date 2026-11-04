@@ -52,6 +52,13 @@ namespace Altepetl
 
         private readonly List<Monito> _monitos = new List<Monito>();
         private string _firma = "";
+
+        /// <summary>Descarta rutas y destinos que pertenecían a la distribución anterior.</summary>
+        public void ReubicarTrasEdicion()
+        {
+            _firma = "";
+            foreach (var monito in _monitos) monito.Andar.Olvidar();
+        }
         private bool _volviendoDeBatalla;
         private bool _colocados; // al abrir el juego aparecen ya en su lugar, sin caminar
         private bool _resguardar;

@@ -14,6 +14,7 @@ namespace Altepetl
         public float[] recursos = new float[ResourceInfo.Count];
         public List<EdificioGuardado> edificios = new List<EdificioGuardado>();
         public long guardadoUtcTicks; // momento del guardado, para calcular la producción sin conexión
+        public long editorInicioUtcTicks; // 0 fuera del editor; el diseño provisional nunca reemplaza la aldea guardada
 
         public int[] tropas = new int[TroopCatalog.Count];          // total por tipo (versión 3)
         public int[] tropasPorRango = new int[0];                    // por tipo y rango (versión 4)

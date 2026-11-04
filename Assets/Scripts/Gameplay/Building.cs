@@ -399,16 +399,31 @@ namespace Altepetl
         /// Une esta muralla con las murallas vecinas al este y al norte (como en Clash, cada tramo
         /// se pega solo al de al lado). La de al oeste y la del sur se encargan del otro lado.
         /// </summary>
-        public void UnirMuralla(GridMap mapa)
+        public void UnirMuralla(GridMap mapa, Vector2Int? origenVista = null)
         {
             if (!EsMuralla) return;
-            _uneEste = Union(_uneEste, mapa.En(Origen + new Vector2Int(1, 0)), "Muralla este");
-            _uneNorte = Union(_uneNorte, mapa.En(Origen + new Vector2Int(0, 1)), "Muralla norte");
+            var origen = origenVista ?? Origen;
+            _uneEste = Union(_uneEste, mapa.En(origen + new Vector2Int(1, 0)), "Muralla este");
+            _uneNorte = Union(_uneNorte, mapa.En(origen + new Vector2Int(0, 1)), "Muralla norte");
             // Una puerta se abre a lo largo del muro: de este a oeste si hay murallas a los lados.
-            bool ladoX = _uneEste != null || VecinaMuralla(mapa, new Vector2Int(-1, 0));
-            bool ladoZ = _uneNorte != null || VecinaMuralla(mapa, new Vector2Int(0, -1));
+            bool ladoX = _uneEste != null || mapa.En(origen + new Vector2Int(-1, 0))?.Definicion.Id == BuildingId.Muralla;
+            bool ladoZ = _uneNorte != null || mapa.En(origen + new Vector2Int(0, -1))?.Definicion.Id == BuildingId.Muralla;
             _puertaEnX = ladoX || !ladoZ;
             ActualizarVisual();
+        }
+
+        /// <summary>Mueve únicamente la vista del borrador, sin cambiar el origen guardado.</summary>
+        public void MostrarPosicionEditor(Vector2Int origen, GridMap mapa)
+        {
+            transform.position = mapa.CentroDeArea(origen, Definicion.Tamano);
+            UnirMuralla(mapa, origen);
+        }
+
+        /// <summary>Confirma una posición validada por el editor, conservando nivel, obra y producción.</summary>
+        public void AplicarPosicionEditor(Vector2Int origen, GridMap mapa)
+        {
+            Origen = origen;
+            transform.position = mapa.CentroDeArea(origen, Definicion.Tamano);
         }
 
         /// <summary>Quita el edificio del mundo (al moverlo se vuelve a crear en otro lugar).</summary>
@@ -416,12 +431,6 @@ namespace Altepetl
         {
             _banco.AgregarCapacidad(-Definicion.CapacidadExtra * Nivel);
             Destroy(gameObject);
-        }
-
-        private bool VecinaMuralla(GridMap mapa, Vector2Int desfase)
-        {
-            var vecina = mapa.En(Origen + desfase);
-            return vecina != null && vecina.EsMuralla;
         }
 
         private Transform Union(Transform actual, Building vecino, string nombre)

@@ -52,10 +52,73 @@ namespace Altepetl
         {
             Aldea,
             Batalla,
+            EditorAldea,
         }
 
         public Modo ModoActual { get; private set; } = Modo.Aldea;
         public BattleManager Batalla { get; private set; }
+        public EditorAldea Editor { get; private set; }
+        private long _editorInicioUtcTicks;
+
+        /// <summary>Abre una distribución provisional usando únicamente los edificios adquiridos.</summary>
+        public void EmpezarEditorAldea()
+        {
+            if (Pueblo == null || ModoActual != Modo.Aldea || Asalto.Activo) return;
+            CancelarColocacion();
+            Seleccionar(null);
+            _dedos.Clear();
+            Editor = new EditorAldea(this);
+            _editorInicioUtcTicks = System.DateTime.UtcNow.Ticks;
+            ModoActual = Modo.EditorAldea;
+            _macehualtin.gameObject.SetActive(false);
+            _tropasEnAldea.gameObject.SetActive(false);
+            Guardar();
+        }
+
+        /// <summary>Vuelve al diseño principal y resuelve la ausencia antes de aplicar el borrador.</summary>
+        public bool SalirEditorAldea(bool guardar)
+        {
+            if (Editor == null) return false;
+            if (guardar && !Editor.PuedeGuardar())
+            {
+                MostrarMensaje("Coloca todas las estructuras dentro del terreno y sin empalmes antes de guardar.");
+                return false;
+            }
+            var editor = Editor;
+            editor.RestaurarVista();
+            float ausencia = (float)System.TimeSpan.FromTicks(System.Math.Max(0,
+                System.DateTime.UtcNow.Ticks - _editorInicioUtcTicks)).TotalSeconds;
+            Editor = null;
+            _editorInicioUtcTicks = 0;
+            _dedos.Clear();
+            Seleccionar(null);
+            ModoActual = Modo.Aldea;
+            // El borrador no puede mejorar retroactivamente la defensa de un ataque ya ocurrido.
+            if (Asalto.PrepararAusente(ausencia)) Asalto.SaltarAusente();
+            if (guardar)
+            {
+                foreach (var pieza in editor.Piezas)
+                    Mapa.Ocupar(pieza.Edificio.Origen, pieza.Edificio.Definicion.Tamano, null);
+                foreach (var pieza in editor.Piezas)
+                {
+                    pieza.Edificio.AplicarPosicionEditor(pieza.Origen, Mapa);
+                    Mapa.Ocupar(pieza.Origen, pieza.Edificio.Definicion.Tamano, pieza.Edificio);
+                }
+                foreach (var edificio in _edificios) edificio.UnirMuralla(Mapa);
+                Caminos = new Caminos(Mapa);
+            }
+            _macehualtin.gameObject.SetActive(!Asalto.Activo);
+            _tropasEnAldea.gameObject.SetActive(!Asalto.Activo);
+            if (guardar)
+            {
+                _macehualtin.ReubicarTrasEdicion();
+                _tropasEnAldea.ReubicarTrasEdicion();
+            }
+            EnfocarCamara(Mapa.Centro, LadoCamaraAldea);
+            MostrarMensaje(guardar ? "Distribución de la aldea guardada" : "Se conservó la distribución anterior");
+            Guardar();
+            return true;
+        }
 
         public string Mensaje { get; private set; }
 
@@ -148,6 +211,7 @@ namespace Altepetl
 
         public void EmpezarColocacion(BuildingDefinition definicion, bool conPlumas = false)
         {
+            if (ModoActual == Modo.EditorAldea) return;
             Seleccionar(null);
             if (EnLimite(definicion))
             {
@@ -201,6 +265,7 @@ namespace Altepetl
 
         public void EmpezarMover(Building edificio)
         {
+            if (ModoActual == Modo.EditorAldea) return;
             if (edificio == null) return;
             if (Asalto.EnCurso)
             {
@@ -221,6 +286,7 @@ namespace Altepetl
 
         public void EmpezarMejorarMuros(Building muro, bool acelerar = false)
         {
+            if (ModoActual == Modo.EditorAldea) return;
             if (muro == null || muro.Definicion.Id != BuildingId.Muralla || Asalto.EnCurso) return;
             if (acelerar ? !muro.EnConstruccion : !MuroMejorable(muro)) return;
             CancelarColocacion();
@@ -652,6 +718,7 @@ namespace Altepetl
             ActualizarAmbiente();
 
             if (Pueblo == null) return;
+            Editor?.ActualizarGrupos();
             if (NivelTelpochcalli > 0) Ejercito.Avanzar(Time.deltaTime, DuracionEntrenamiento);
             int rangoFormando = Ejercito.FormandoRango;
             if (NivelCalmecac > 0 && Ejercito.AvanzarFormacion(Time.deltaTime))
@@ -661,16 +728,21 @@ namespace Altepetl
             }
             AvanzarComandantes(Time.deltaTime, avisar: true);
             // Los heridos empiezan a sanar ya de vuelta en la aldea, cuando llegan al temazcalli.
-            bool curando = ModoActual == Modo.Aldea && !_tropasEnAldea.HeridosLlegando;
+            bool curando = ModoActual == Modo.EditorAldea || (ModoActual == Modo.Aldea && !_tropasEnAldea.HeridosLlegando);
             int curados = curando ? Ejercito.Curar(Time.deltaTime, CamasCuracion) : 0;
             if (curados > 0) MostrarMensaje(curados == 1 ? $"{Terminos.Un} {Terminos.Tropa} sanó en el temazcalli" : $"{curados} {Terminos.Tropas} sanaron en el temazcalli");
             Culto.Avanzar(Time.deltaTime);
             Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
             if (Time.time >= _proximoAutoguardado) Guardar();
             LeerPuntero(out _, out _, out bool cancelar);
-            if (cancelar) CancelarColocacion();
+            if (cancelar)
+            {
+                if (Editor != null) Editor.CancelarArrastre();
+                else CancelarColocacion();
+            }
             // Arrastrar mueve el mapa; un toque sin arrastrar es lo que selecciona, coloca o despliega.
             if (!ManejarToques(out Vector2 posicion) || _hud.PunteroSobreHud(posicion)) return;
+            if (ModoActual == Modo.EditorAldea) return;
             if (!PunteroEnSuelo(posicion, out Vector3 punto)) return;
 
             if (ModoActual == Modo.Batalla)
@@ -771,6 +843,7 @@ namespace Altepetl
         /// <summary>Convierte una muralla en puerta, o la puerta de vuelta en muralla. Gratis.</summary>
         public void AlternarPuerta(Building edificio)
         {
+            if (ModoActual == Modo.EditorAldea) return;
             if (edificio == null || edificio.Definicion.Id != BuildingId.Muralla) return;
             if (Asalto.Activo)
             {
@@ -919,6 +992,7 @@ namespace Altepetl
 
         public void TryMejorar(Building edificio)
         {
+            if (ModoActual == Modo.EditorAldea) return;
             if (PuedeMejorar(edificio) != EstadoMejora.Disponible) return;
             if (!Banco.TryGastar(edificio.Definicion.CostoMejora(edificio.Nivel))) return;
             edificio.EmpezarMejora();
@@ -970,6 +1044,7 @@ namespace Altepetl
         /// <summary>Paga con plumas lo que falta, gasta lo que sí hay y empieza la mejora.</summary>
         public bool TryMejorarConPlumas(Building edificio)
         {
+            if (ModoActual == Modo.EditorAldea) return false;
             if (PuedeMejorar(edificio) != EstadoMejora.SinRecursos) return false;
             if (!PagarConPlumas(edificio.Definicion.CostoMejora(edificio.Nivel)))
             {
@@ -1395,7 +1470,7 @@ namespace Altepetl
 
         public void EmpezarBatalla(int indice, SeleccionEjercito seleccion)
         {
-            if (ModoActual == Modo.Batalla) return;
+            if (ModoActual != Modo.Aldea) return;
             if (indice < 0 || indice >= Campana.Length || indice > NivelesCompletados) return;
             if (Asalto.Activo)
             {
@@ -1474,7 +1549,7 @@ namespace Altepetl
             _proximoAutoguardado = Time.time + SegundosEntreAutoguardados;
             if (Pueblo == null) return;
 
-            var datos = new SaveData { pueblo = Pueblo.Id };
+            var datos = new SaveData { pueblo = Pueblo.Id, editorInicioUtcTicks = _editorInicioUtcTicks };
             for (int i = 0; i < ResourceInfo.Count; i++)
             {
                 datos.recursos[i] = Banco.GetExacto((ResourceType)i);
@@ -1557,7 +1632,18 @@ namespace Altepetl
             AplicarTiempoAusente(segundosFuera);
             // Después de la producción: lo que se produjo en la ausencia también está en juego.
             Asalto.Importar(datos);
-            Asalto.PrepararAusente(segundosFuera);
+            float ausenciaAtaque = segundosFuera;
+            if (datos.editorInicioUtcTicks > 0 && datos.editorInicioUtcTicks <= System.DateTime.UtcNow.Ticks)
+                ausenciaAtaque = Mathf.Max(ausenciaAtaque,
+                    (float)System.TimeSpan.FromTicks(System.DateTime.UtcNow.Ticks - datos.editorInicioUtcTicks).TotalSeconds);
+            Asalto.PrepararAusente(ausenciaAtaque);
+            if (datos.editorInicioUtcTicks > 0)
+            {
+                // Consume la ausencia una sola vez, incluso si se cierra antes del autoguardado.
+                // Exportar conserva el ataque pendiente para poder verlo o saltarlo al regresar.
+                _editorInicioUtcTicks = 0;
+                Guardar();
+            }
         }
 
         /// <summary>Avanza construcciones y producción por el tiempo que el juego estuvo cerrado.</summary>
@@ -1710,6 +1796,9 @@ namespace Altepetl
             public Building MuroTocado;
             public bool Recorto;        // al tocarla se quitaron las que seguían después
             public bool Agrego;
+            public EditorAldea.Pieza PiezaEditor;
+            public bool DesdeCarrusel;
+            public EditorAldea.Grupo GrupoEditor;
         }
 
         private readonly Dictionary<int, Dedo> _dedos = new Dictionary<int, Dedo>();
@@ -1726,6 +1815,11 @@ namespace Altepetl
         private bool ManejarToques(out Vector2 toque)
         {
             toque = Vector2.zero;
+            if (Editor != null)
+            {
+                ManejarToquesEditor();
+                return false;
+            }
             bool huboToque = false;
 
             LeerPuntero(out Vector2 raton, out _, out _);
@@ -1865,6 +1959,150 @@ namespace Altepetl
             return huboToque;
         }
 
+        private void ManejarToquesEditor()
+        {
+            LeerPuntero(out Vector2 raton, out _, out _);
+            float rueda = LeerRueda();
+            if (rueda != 0f && !_hud.PunteroSobreHud(raton)) Zoom(rueda > 0f ? 0.9f : 1f / 0.9f);
+            LeerDedos(_lecturaDedos);
+            float umbral = Screen.height * 0.02f;
+            bool varios = _lecturaDedos.Count > 1;
+            if (varios) Editor.CancelarArrastre();
+            foreach (var lectura in _lecturaDedos)
+            {
+                if (!_dedos.TryGetValue(lectura.Key, out var dedo))
+                {
+                    dedo = new Dedo { Id = lectura.Key, Inicio = lectura.Value, Actual = lectura.Value,
+                        Ultima = lectura.Value, EnHud = _hud.PunteroSobreHud(lectura.Value) };
+                    _dedos.Add(lectura.Key, dedo);
+                    var grupo = _hud.GrupoEditorEnPantalla(lectura.Value);
+                    if (grupo != null)
+                    {
+                        dedo.DesdeCarrusel = true;
+                        dedo.PiezaEditor = Editor.Disponible(grupo);
+                        dedo.GrupoEditor = grupo;
+                    }
+                    else if (!varios && !dedo.EnHud && PunteroEnSuelo(dedo.Actual, out Vector3 punto))
+                    {
+                        if (Editor.GrupoTrazo != null)
+                        {
+                            dedo.Pinta = true;
+                            Editor.EmpezarTrazo(Editor.GrupoTrazo, punto);
+                        }
+                        else if (Editor.GrupoColocacion != null)
+                        {
+                            dedo.PiezaEditor = Editor.Disponible(Editor.GrupoColocacion);
+                            if (dedo.PiezaEditor != null)
+                            {
+                                Editor.EmpezarArrastre(dedo.PiezaEditor);
+                                Editor.Previsualizar(punto);
+                            }
+                        }
+                        else
+                        {
+                            dedo.PiezaEditor = Editor.Tocar(_camara.ScreenPointToRay(dedo.Actual), punto);
+                            if (dedo.PiezaEditor == null && Editor.Elegida != null && !Editor.Elegida.Colocada)
+                            {
+                                dedo.PiezaEditor = Editor.Elegida;
+                                Editor.EmpezarArrastre(dedo.PiezaEditor);
+                                Editor.Previsualizar(punto);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    dedo.Ultima = dedo.Actual;
+                    dedo.Actual = lectura.Value;
+                }
+                if (varios)
+                {
+                    dedo.PiezaEditor = null;
+                    dedo.Pinta = false;
+                    dedo.Arrastra = true;
+                    continue;
+                }
+                var delta = dedo.Actual - dedo.Inicio;
+                if (delta.magnitude > umbral) dedo.Arrastra = true;
+                if (dedo.Pinta)
+                {
+                    if (!_hud.PunteroSobreHud(dedo.Actual) && PunteroEnSuelo(dedo.Actual, out Vector3 trazo))
+                        Editor.ActualizarTrazo(trazo);
+                    continue;
+                }
+                if (!dedo.Arrastra) continue;
+                if (dedo.DesdeCarrusel && !Editor.Arrastrando && _hud.PunteroSobreHud(dedo.Actual)
+                    && Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
+                {
+                    _hud.DesplazarCarruselEditor(dedo.Ultima.x - dedo.Actual.x);
+                    continue;
+                }
+                if (dedo.GrupoEditor?.Definicion.Id == BuildingId.Muralla && !_hud.PunteroSobreHud(dedo.Actual)
+                    && PunteroEnSuelo(dedo.Actual, out Vector3 inicioMuros))
+                {
+                    Editor.EmpezarTrazo(dedo.GrupoEditor, inicioMuros);
+                    dedo.Pinta = true;
+                    continue;
+                }
+                if (dedo.PiezaEditor != null)
+                {
+                    if (!Editor.Arrastrando)
+                    {
+                        if (dedo.DesdeCarrusel) Editor.ElegirGrupo(dedo.GrupoEditor);
+                        Editor.EmpezarArrastre(dedo.PiezaEditor);
+                    }
+                    if (!_hud.PunteroSobreHud(dedo.Actual) && PunteroEnSuelo(dedo.Actual, out Vector3 destino))
+                        Editor.Previsualizar(destino);
+                }
+            }
+            _dedosSoltados.Clear();
+            foreach (var par in _dedos)
+            {
+                bool sigue = false;
+                foreach (var lectura in _lecturaDedos) sigue |= lectura.Key == par.Key;
+                if (!sigue) _dedosSoltados.Add(par.Key);
+            }
+            foreach (int id in _dedosSoltados)
+            {
+                var dedo = _dedos[id];
+                _dedos.Remove(id);
+                if (dedo.Pinta)
+                {
+                    Editor.TerminarTrazo();
+                    continue;
+                }
+                if (dedo.PiezaEditor != null)
+                {
+                    if (Editor.Arrastrando)
+                    {
+                        bool mapa = !_hud.PunteroSobreHud(dedo.Actual) && PunteroEnSuelo(dedo.Actual, out _);
+                        if (!Editor.Soltar(mapa)) MostrarMensaje("Lugar ocupado o fuera del terreno. Se conservó la posición anterior.");
+                    }
+                    else if (!dedo.Arrastra)
+                    {
+                        if (dedo.DesdeCarrusel) Editor.ElegirGrupo(dedo.GrupoEditor);
+                        else Editor.Elegir(dedo.PiezaEditor);
+                    }
+                }
+                else if (!dedo.EnHud && !dedo.Arrastra && Editor.GrupoColocacion == null) Editor.Elegir(null);
+            }
+            Dedo primero = null, segundo = null;
+            foreach (var dedo in _dedos.Values)
+            {
+                if (!dedo.Arrastra || dedo.EnHud || dedo.PiezaEditor != null || dedo.Pinta) continue;
+                if (primero == null) primero = dedo;
+                else if (segundo == null) segundo = dedo;
+            }
+            if (primero != null && segundo != null)
+            {
+                float antes = Vector2.Distance(primero.Ultima, segundo.Ultima);
+                float ahora = Vector2.Distance(primero.Actual, segundo.Actual);
+                if (antes > 1f && ahora > 1f) Zoom(antes / ahora);
+            }
+            else if (primero != null && PunteroEnSuelo(primero.Ultima, out Vector3 desde)
+                && PunteroEnSuelo(primero.Actual, out Vector3 hasta)) Desplazar(desde - hasta);
+        }
+
         /// <summary>Pone murallas desde donde empezó el dedo hasta donde va, en la dirección en que arrancó.</summary>
         private void PintarMurallas(Dedo dedo)
         {
@@ -1983,7 +2221,7 @@ namespace Altepetl
         private void LateUpdate()
         {
             // El zoom es relativo al encuadre de la aldea y no depende del tamaño de pantalla.
-            bool enAldea = Pueblo != null && ModoActual == Modo.Aldea;
+            bool enAldea = Pueblo != null && (ModoActual == Modo.Aldea || ModoActual == Modo.EditorAldea);
             float acercamiento = enAldea ? Mathf.InverseLerp(0.8f, ZoomMinimo, _zoom) : 0f;
             float objetivo = Mathf.Lerp(1f, 0.45f, Mathf.SmoothStep(0f, 1f, acercamiento));
             _opacidadEdificios = enAldea ? Mathf.MoveTowards(_opacidadEdificios, objetivo, Time.unscaledDeltaTime * 2f) : 1f;
@@ -2098,6 +2336,15 @@ namespace Altepetl
                 mostrarFantasma = true;
             }
             _fantasma.gameObject.SetActive(mostrarFantasma);
+            if (Editor != null && Editor.Arrastrando)
+            {
+                var edificio = Editor.Elegida.Edificio;
+                int tamano = edificio.Definicion.Tamano;
+                _fantasma.position = edificio.transform.position + Vector3.up * (Pueblo.EnLago ? 0.2f : 0.05f);
+                _fantasma.localScale = new Vector3(tamano + 0.1f, 0.05f, tamano + 0.1f);
+                _fantasmaRender.material.color = Editor.PosicionValida ? new Color(0.3f, 0.9f, 0.3f) : new Color(0.9f, 0.25f, 0.2f);
+                _fantasma.gameObject.SetActive(true);
+            }
             if (!mostrarFantasma)
             {
                 foreach (var sombra in _sombrasGrupo) sombra.gameObject.SetActive(false);
@@ -2117,6 +2364,7 @@ namespace Altepetl
 
             // Marcas sobre las murallas elegidas para mover.
             int marcas = EligiendoMuros && ModoActual == Modo.Aldea ? _murosElegidos.Count : 0;
+            if (Editor != null) marcas = Editor.MurosElegidos.Count;
             while (_marcasMuros.Count < marcas)
             {
                 var marca = CrearMarcador("Muralla elegida", out var render);
@@ -2128,8 +2376,9 @@ namespace Altepetl
                 bool activa = i < marcas;
                 _marcasMuros[i].gameObject.SetActive(activa);
                 if (!activa) continue;
-                var origen = _murosElegidos[i].Origen;
-                _marcasMuros[i].position = new Vector3(origen.x + 0.5f, 0.6f, origen.y + 0.5f);
+                var centro = Editor != null ? Editor.MurosElegidos[i].Edificio.transform.position
+                    : Mapa.CentroDeArea(_murosElegidos[i].Origen, 1);
+                _marcasMuros[i].position = new Vector3(centro.x, 0.6f, centro.z);
                 _marcasMuros[i].localScale = new Vector3(0.7f, 0.06f, 0.7f);
             }
         }

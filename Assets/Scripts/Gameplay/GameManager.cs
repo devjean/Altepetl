@@ -1637,8 +1637,13 @@ namespace Altepetl
                 ausenciaAtaque = Mathf.Max(ausenciaAtaque,
                     (float)System.TimeSpan.FromTicks(System.DateTime.UtcNow.Ticks - datos.editorInicioUtcTicks).TotalSeconds);
             Asalto.PrepararAusente(ausenciaAtaque);
-            if (datos.editorInicioUtcTicks > 0 && Asalto.EstadoActual == Asalto.Estado.Pendiente)
-                Asalto.SaltarAusente();
+            if (datos.editorInicioUtcTicks > 0)
+            {
+                // Consume la ausencia una sola vez, incluso si se cierra antes del autoguardado.
+                // Exportar conserva el ataque pendiente para poder verlo o saltarlo al regresar.
+                _editorInicioUtcTicks = 0;
+                Guardar();
+            }
         }
 
         /// <summary>Avanza construcciones y producción por el tiempo que el juego estuvo cerrado.</summary>

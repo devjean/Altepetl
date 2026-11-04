@@ -207,7 +207,9 @@ namespace Altepetl
             Zona(instrucciones);
             GUI.Box(instrucciones, GUIContent.none, _caja);
             GUI.Label(new Rect(16, 68, ancho - 32, 44),
-                "Arrastra estructuras entre el mapa y su nueva posición. Recógelas para llevarlas al carrusel.\n"
+                (editor.GrupoColocacion != null
+                    ? "Un dedo coloca estructuras. Pulsa Listo para mover el mapa; usa dos dedos para el zoom.\n"
+                    : "Arrastra estructuras a su nueva posición. Recógelas para llevarlas al carrusel.\n")
                 + "Coloca todas antes de guardar. Tu aldea principal puede recibir ataques durante la edición.", _textoChico);
 
             bool muros = editor.GrupoTrazo != null || editor.MurosElegidos.Count > 0

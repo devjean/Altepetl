@@ -39,6 +39,14 @@ namespace Altepetl
 
         public GameManager Manager;
 
+        /// <summary>Vuelve a repartir la gente sobre la distribución confirmada.</summary>
+        public void ReubicarTrasEdicion()
+        {
+            AjustarCantidad(0);
+            _colocados = false;
+            _proximoReparto = 0f;
+        }
+
         private readonly List<Persona> _gente = new List<Persona>();
         private readonly List<Building> _obras = new List<Building>();
         private readonly Dictionary<Building, int> _asignados = new Dictionary<Building, int>();

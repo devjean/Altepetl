@@ -44,6 +44,26 @@ namespace Altepetl
         private ComandanteDefinition _comandanteInfo; // ficha abierta desde el cuauhcalli
         private CategoriaEdificio _pestana = CategoriaEdificio.Suministros;
         private BuildingDefinition _info;
+        private Rect _carruselEditor;
+        private float _desplazamientoEditor;
+        private bool _confirmarSalirEditor;
+        private const float AnchoTarjetaEditor = 164f;
+
+        public EditorAldea.Grupo GrupoEditorEnPantalla(Vector2 posicionPantalla)
+        {
+            if (Manager.Editor == null || _confirmarSalirEditor) return null;
+            var punto = new Vector2(posicionPantalla.x / _escala, (Screen.height - posicionPantalla.y) / _escala);
+            if (!_carruselEditor.Contains(punto)) return null;
+            int indice = Mathf.FloorToInt((punto.x - _carruselEditor.x + _desplazamientoEditor) / AnchoTarjetaEditor);
+            return indice >= 0 && indice < Manager.Editor.Grupos.Count ? Manager.Editor.Grupos[indice] : null;
+        }
+
+        public void DesplazarCarruselEditor(float pixeles)
+        {
+            if (Manager.Editor == null) return;
+            _desplazamientoEditor = Mathf.Clamp(_desplazamientoEditor + pixeles / _escala, 0,
+                Mathf.Max(0, Manager.Editor.Grupos.Count * AnchoTarjetaEditor - _carruselEditor.width));
+        }
 
         /// <summary>¿La posición (en píxeles de pantalla, origen abajo) está sobre algún panel?</summary>
         public bool PunteroSobreHud(Vector2 posicionPantalla)
@@ -82,6 +102,13 @@ namespace Altepetl
                 return;
             }
 
+            if (Manager.Editor != null)
+            {
+                DibujarEditorAldea(ancho, alto);
+                DibujarMensaje(ancho, alto);
+                return;
+            }
+
             if (Manager.Asalto.EstadoActual == Asalto.Estado.Pendiente)
             {
                 // Hasta decidir si se ve o se salta, no se puede construir ni mover nada: el ataque ya ocurrió.
@@ -96,6 +123,7 @@ namespace Altepetl
             DibujarInsigniaOfrenda();
             DibujarMenuConstruccion(ancho, alto);
             DibujarBotonAtacar(alto);
+            DibujarEntradaEditor(ancho, alto);
             DibujarAsalto(ancho, alto);
             DibujarPanelSeleccion(ancho);
             DibujarCampana(ancho);
@@ -110,9 +138,10 @@ namespace Altepetl
 
         private void DibujarResaltadoSeleccion()
         {
-            var edificio = Manager.Seleccionado;
+            var edificio = Manager.Editor != null ? Manager.Editor.Elegida?.Edificio : Manager.Seleccionado;
             var camara = Camera.main;
             if (edificio == null || camara == null || Manager.EnModoColocar) return;
+            if (Manager.Editor != null && !Manager.Editor.Elegida.Colocada && !Manager.Editor.Arrastrando) return;
             var limites = edificio.LimitesSeleccion();
             Vector2 minimo = new Vector2(float.PositiveInfinity, float.PositiveInfinity);
             Vector2 maximo = new Vector2(float.NegativeInfinity, float.NegativeInfinity);
@@ -140,6 +169,122 @@ namespace Altepetl
         private void Zona(Rect rect)
         {
             if (Event.current.type == EventType.Layout) _zonasHud.Add(rect);
+        }
+
+        private void DibujarEntradaEditor(float ancho, float alto)
+        {
+            if (Manager.Asalto.Activo || Manager.EnModoColocar || Manager.Seleccionado != null
+                || _menuAbierto || _campanaAbierta || _defensaAbierta || _ajustesAbierto
+                || _ofrendasAbierto || _nivelArmando >= 0 || _nivelHistoria >= 0) return;
+            var rect = new Rect(ancho - 160, alto - 120, 150, 50);
+            Zona(rect);
+            if (!GUI.Button(rect, "Editar aldea", _boton)) return;
+            _confirmarSalirEditor = false;
+            _desplazamientoEditor = 0;
+            Manager.EmpezarEditorAldea();
+        }
+
+        private void DibujarEditorAldea(float ancho, float alto)
+        {
+            var editor = Manager.Editor;
+            DibujarResaltadoSeleccion();
+            var cabecera = new Rect(0, 0, ancho, 64);
+            Zona(cabecera);
+            GUI.Box(cabecera, GUIContent.none, _caja);
+            Titulo(new Rect(16, 6, ancho - 350, 26), "Editor de aldea");
+            GUI.Label(new Rect(16, 32, ancho - 350, 24),
+                $"Por colocar: {editor.SinColocar}. Solo reorganización, sin costo.", _textoChico);
+            GUI.enabled = !_confirmarSalirEditor && editor.PuedeGuardar();
+            if (GUI.Button(new Rect(ancho - 316, 8, 148, 48), "Guardar diseño", _boton))
+            {
+                Manager.SalirEditorAldea(true);
+                return;
+            }
+            GUI.enabled = !_confirmarSalirEditor;
+            if (GUI.Button(new Rect(ancho - 158, 8, 144, 48), "Salir", _boton)) _confirmarSalirEditor = true;
+            GUI.enabled = true;
+            var instrucciones = new Rect(0, 64, ancho, 52);
+            Zona(instrucciones);
+            GUI.Box(instrucciones, GUIContent.none, _caja);
+            GUI.Label(new Rect(16, 68, ancho - 32, 44),
+                "Arrastra estructuras entre el mapa y su nueva posición. Recógelas para llevarlas al carrusel.\n"
+                + "Coloca todas antes de guardar. Tu aldea principal puede recibir ataques durante la edición.", _textoChico);
+
+            bool muros = editor.GrupoTrazo != null || editor.MurosElegidos.Count > 0
+                || editor.Elegida?.Edificio.Definicion.Id == BuildingId.Muralla;
+            bool herramienta = muros || editor.GrupoColocacion != null;
+            float extraMuros = herramienta ? 60 : 0;
+            var barra = new Rect(0, alto - 136 - extraMuros, ancho, 136 + extraMuros);
+            Zona(barra);
+            GUI.Box(barra, GUIContent.none, _caja);
+            var elegida = editor.Elegida;
+            GUI.Label(new Rect(16, barra.y + 7, ancho - 410, 38), elegida == null
+                ? "Desliza el carrusel o arrastra una estructura disponible al mapa."
+                : $"{elegida.Edificio.Nombre} · Nivel {elegida.Edificio.Nivel}"
+                    + (elegida.Edificio.EnConstruccion ? " · En obra" : ""), _textoChico);
+            GUI.enabled = !_confirmarSalirEditor && !editor.Arrastrando && !editor.Trazando
+                && ((elegida != null && elegida.Colocada) || editor.MurosElegidos.Count > 0);
+            if (GUI.Button(new Rect(ancho - 386, barra.y + 6, 178, 38),
+                editor.MurosElegidos.Count > 1 ? $"Recoger ({editor.MurosElegidos.Count})" : "Recoger elegida", _botonChico))
+            {
+                if (editor.MurosElegidos.Count > 1) editor.RecogerMurosElegidos();
+                else editor.Recoger(elegida);
+            }
+            GUI.enabled = !_confirmarSalirEditor && !editor.Arrastrando;
+            if (GUI.Button(new Rect(ancho - 198, barra.y + 6, 182, 38), "Recoger todas", _botonChico)) editor.RecogerTodo();
+            if (herramienta)
+            {
+                float y = barra.y + 48;
+                GUI.Label(new Rect(16, y, ancho - 420, 54), editor.GrupoColocacion != null
+                    ? (muros ? "Dibuja murallas en el mapa." : "Toca o arrastra al destino para colocar la siguiente.")
+                        + $" Disponibles: {editor.GrupoColocacion.Disponibles}. Listo termina la colocación."
+                    : $"Murallas elegidas: {editor.MurosElegidos.Count}. Arrastra una elegida para mover el grupo.", _textoChico);
+                float x = ancho - 396;
+                GUI.enabled = !_confirmarSalirEditor && !editor.Arrastrando && !editor.Trazando
+                    && muros && elegida != null && elegida.Colocada;
+                if (muros && GUI.Button(new Rect(x, y, 120, 46), "Línea", _boton)) editor.ElegirLinea();
+                GUI.enabled = !_confirmarSalirEditor && !editor.Arrastrando && !editor.Trazando && editor.MurosElegidos.Count > 0;
+                if (muros && GUI.Button(new Rect(x + 130, y, 120, 46), "Girar 90°", _boton)
+                    && !editor.GirarMuros()) Manager.MostrarMensaje("No cabe el giro: mueve el grupo a un espacio libre.");
+                GUI.enabled = !_confirmarSalirEditor;
+                if (GUI.Button(new Rect(x + 260, y, 120, 46), "Listo", _boton)) editor.TerminarHerramientaMuros();
+            }
+            if (GUI.Button(new Rect(8, barra.y + 54 + extraMuros, 36, 72), "‹", _boton)) DesplazarCarruselEditor(-AnchoTarjetaEditor * _escala);
+            if (GUI.Button(new Rect(ancho - 44, barra.y + 54 + extraMuros, 36, 72), "›", _boton)) DesplazarCarruselEditor(AnchoTarjetaEditor * _escala);
+            GUI.enabled = true;
+            _carruselEditor = new Rect(52, barra.y + 52 + extraMuros, ancho - 104, 76);
+            DesplazarCarruselEditor(0);
+            GUI.BeginGroup(_carruselEditor);
+            for (int i = 0; i < editor.Grupos.Count; i++)
+            {
+                var grupo = editor.Grupos[i];
+                float x = i * AnchoTarjetaEditor - _desplazamientoEditor;
+                if (x + AnchoTarjetaEditor < 0 || x > _carruselEditor.width) continue;
+                var tarjeta = new Rect(x + 2, 2, AnchoTarjetaEditor - 6, 72);
+                var color = GUI.color;
+                if (grupo == editor.GrupoColocacion || (elegida != null && grupo.Piezas.Contains(elegida))) GUI.color = new Color(1f, 0.87f, 0.5f);
+                GUI.Box(tarjeta, GUIContent.none, _caja);
+                GUI.color = color;
+                string nombre = grupo.Puerta ? "Puerta" : grupo.Definicion.NombrePara(Manager.Pueblo);
+                GUI.Label(new Rect(x + 8, 5, AnchoTarjetaEditor - 18, 38),
+                    $"{nombre}\nNivel {grupo.Nivel}" + (grupo.EnObra ? " · En obra" : ""), _textoChico);
+                GUI.Label(new Rect(x + 8, 46, AnchoTarjetaEditor - 18, 22),
+                    $"Disponibles: {grupo.Disponibles}/{grupo.Piezas.Count}", _textoChico);
+            }
+            GUI.EndGroup();
+            if (!_confirmarSalirEditor) return;
+            Zona(new Rect(0, 0, ancho, alto));
+            var panel = new Rect((ancho - 420) / 2, (alto - 180) / 2, 420, 180);
+            GUI.Box(panel, GUIContent.none, _caja);
+            Titulo(new Rect(panel.x + 16, panel.y + 12, 388, 30), "¿Salir sin guardar el diseño?");
+            GUI.Label(new Rect(panel.x + 16, panel.y + 50, 388, 52),
+                "Se conservará la distribución principal. El tiempo transcurrido y los posibles ataques sí cuentan.", _texto);
+            if (GUI.Button(new Rect(panel.x + 16, panel.y + 118, 188, 46), "Seguir editando", _boton)) _confirmarSalirEditor = false;
+            if (GUI.Button(new Rect(panel.x + 216, panel.y + 118, 188, 46), "Salir sin guardar", _boton))
+            {
+                _confirmarSalirEditor = false;
+                Manager.SalirEditorAldea(false);
+            }
         }
 
         private void DibujarEleccionTerminos(float ancho, float alto)
@@ -2024,7 +2169,7 @@ namespace Altepetl
         {
             if (string.IsNullOrEmpty(Manager.Mensaje)) return;
             // En la aldea va entre los botones Atacar y Construir, para no tapar los paneles.
-            float abajo = Manager.ModoActual == GameManager.Modo.Batalla ? AltoBarraInferior + 50 : 53;
+            float abajo = Manager.Editor != null ? 245 : Manager.ModoActual == GameManager.Modo.Batalla ? AltoBarraInferior + 50 : 53;
             var rect = new Rect((ancho - 360) / 2, alto - abajo, 360, 36);
             if (Manager.MensajeEsPista)
             {

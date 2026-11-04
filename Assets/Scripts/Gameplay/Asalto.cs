@@ -136,6 +136,7 @@ namespace Altepetl
         private void Update()
         {
             if (Manager == null || Manager.Pueblo == null) return;
+            if (Manager.ModoActual == GameManager.Modo.EditorAldea) return;
             switch (EstadoActual)
             {
                 case Estado.Tranquilo:

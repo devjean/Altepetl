@@ -101,6 +101,9 @@ namespace Altepetl
             return Definicion.SegundosParaNivel(nivel) * _pueblo.MultiplicadorTiempoConstruccion * ofrenda;
         }
 
+        /// <summary>Extra de vida para murallas y torres que pone la aldea (el consejo tlaxcalteca); lo asigna GameManager.</summary>
+        public System.Func<float> BonoDefensasExtra;
+
         /// <summary>Vida actual; crece con el nivel y las murallas dependen del pueblo.</summary>
         public int Vida
         {
@@ -108,6 +111,7 @@ namespace Altepetl
             {
                 float mult = Definicion.Id == BuildingId.Muralla ? _pueblo.MultiplicadorVidaMurallas : 1f;
                 if ((Definicion.Id == BuildingId.Muralla || Definicion.EsDefensa) && Culto != null) mult *= Culto.DefensasPorFavor;
+                if ((Definicion.Id == BuildingId.Muralla || Definicion.EsDefensa) && BonoDefensasExtra != null) mult *= 1f + BonoDefensasExtra();
                 return Mathf.RoundToInt(Definicion.VidaBase * BuildingDefinition.Multiplicador(Mathf.Max(1, Nivel)) * mult);
             }
         }

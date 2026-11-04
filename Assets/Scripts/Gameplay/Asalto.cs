@@ -16,6 +16,11 @@ namespace Altepetl
         public int Heridos;
         public int Cautivos;
         public int[] Ascensos = new int[Rangos.Count]; // cuántos subieron a cada rango
+        public Comandante Comandante;      // el que salió a defender, o null
+        public bool ComandanteCayo;        // cayó: vuelve herido al cuauhcalli
+        public bool HabilidadUsada;        // llegó a usar su habilidad
+        public int ComandanteExperiencia;
+        public int AliadosCaidos;
     }
 
     /// <summary>
@@ -113,6 +118,21 @@ namespace Altepetl
         private int _vencidos;
         private bool _instantaneo; // se está resolviendo sin dibujar (ataque saltado)
 
+        // ---------- Comandante que defiende ----------
+
+        /// <summary>El comandante que salió a defender en este ataque (null si ninguno).</summary>
+        public Comandante Comandante { get; private set; }
+        public Combatiente UnidadComandante { get; private set; }
+        public bool ComandanteCaido { get; private set; }
+        public float HabilidadHasta { get; private set; } = -1f;
+        public bool HabilidadActiva => EnCurso && Reloj < HabilidadHasta;
+        public float SegundosHabilidad => Mathf.Max(0f, HabilidadHasta - Reloj);
+        public int UsosHabilidad { get; private set; }
+        private bool _habilidadEnCurso;
+        private bool _habilidadUsada;
+        private int _capturasEnAura;
+        private int _aliadosCaidos;
+
         private void Update()
         {
             if (Manager == null || Manager.Pueblo == null) return;
@@ -146,6 +166,7 @@ namespace Altepetl
             TiempoRestante -= dt;
             foreach (var invasor in _invasores) invasor.Avanzar(dt);
             foreach (var defensor in _defensores) defensor.Avanzar(dt);
+            DirigirComandante();
             Disparar();
             if (InvasoresVivos == 0) Terminar(defendida: true);
             else if (TiempoRestante <= 0f || ObjetivoPara(Manager.Mapa.Centro, false) == null) Terminar(defendida: false);
@@ -275,6 +296,29 @@ namespace Altepetl
                 _invasores.Add(Crear(TroopCatalog.Get(tipo), rango, invasor: true, posicion));
             }
 
+            // El comandante que defiende sale del cuauhcalli (con sus aliados, si los trae); como no estás,
+            // su habilidad se dispara sola cuando el primer invasor entra en su aura.
+            Comandante = Manager.ComandanteDefensor;
+            UnidadComandante = null;
+            ComandanteCaido = false;
+            HabilidadHasta = -1f;
+            _habilidadEnCurso = false;
+            _habilidadUsada = false;
+            _capturasEnAura = 0;
+            _aliadosCaidos = 0;
+            UsosHabilidad = Comandante != null ? Comandante.UsosHabilidad : 0;
+            if (Comandante != null)
+            {
+                var salida = PuestoComandante();
+                var unidad = new GameObject().AddComponent<Combatiente>();
+                unidad.transform.SetParent(transform, false);
+                unidad.MarcarComandante(Comandante);
+                unidad.Inicializar(Comandante.ComoTropa(), Rangos.Joven, invasor: false, Manager.Pueblo, Manager.Culto, salida, this);
+                _defensores.Add(unidad);
+                UnidadComandante = unidad;
+                CrearAliados(salida, Comandante.Aliados);
+            }
+
             // Tus defensores salen del tecpan, donde se resguardó el ejército.
             var puesto = PuestoDefensores();
             foreach (var tropa in TroopCatalog.Todos)
@@ -290,6 +334,135 @@ namespace Altepetl
                 }
             }
             Manager.AlEmpezarAsalto();
+        }
+
+        /// <summary>Guerreros aliados (acolhuas) alrededor del comandante: pelean, no son del ejército y no capturan.</summary>
+        private void CrearAliados(Vector3 centro, int cantidad)
+        {
+            for (int i = 0; i < cantidad; i++)
+            {
+                float angulo = i * Mathf.PI * 2f / Mathf.Max(1, cantidad);
+                var posicion = centro + new Vector3(Mathf.Cos(angulo), 0f, Mathf.Sin(angulo)) * 0.6f;
+                var aliado = new GameObject().AddComponent<Combatiente>();
+                aliado.transform.SetParent(transform, false);
+                aliado.MarcarAliado();
+                aliado.Inicializar(TroopCatalog.Get(TroopId.Macuahuitl), Comandante.RangoAliados, invasor: false, Manager.Pueblo, Manager.Culto, posicion, this);
+                _defensores.Add(aliado);
+            }
+        }
+
+        /// <summary>La habilidad se dispara sola en cuanto un invasor entra en el aura; al terminar, la embestida deja su rastro.</summary>
+        private void DirigirComandante()
+        {
+            if (Comandante == null) return;
+            if (_habilidadEnCurso && !HabilidadActiva)
+            {
+                _habilidadEnCurso = false;
+                if (Comandante.Definicion.Habilidad == Habilidad.Embestida && Comandante.TieneRasgo5)
+                {
+                    foreach (var defensor in _defensores)
+                    {
+                        if (!defensor.Muerto && EnAura(defensor)) defensor.BonoResidual = Mathf.Max(defensor.BonoResidual, ReglasComandante.EmbestidaResidualNivel5);
+                    }
+                }
+            }
+            if (UnidadComandante == null || UnidadComandante.Muerto || UsosHabilidad <= 0 || HabilidadActiva) return;
+            if (MasCercano(UnidadComandante.transform.position, invasores: true, ReglasComandante.Radio) == null) return;
+            UsosHabilidad--;
+            _habilidadUsada = true;
+            if (Comandante.Definicion.Habilidad == Habilidad.Refuerzos)
+            {
+                CrearAliados(UnidadComandante.transform.position, ReglasComandante.RefuerzosAliados);
+                return;
+            }
+            HabilidadHasta = Reloj + Comandante.DuracionHabilidad;
+            _habilidadEnCurso = true;
+        }
+
+        /// <summary>¿El defensor está dentro del aura del comandante (y no es él)?</summary>
+        public bool EnAura(Combatiente defensor)
+        {
+            if (UnidadComandante == null || UnidadComandante.Muerto || defensor == UnidadComandante || defensor.Invasor) return false;
+            float radio = ReglasComandante.Radio * ReglasComandante.Radio;
+            return (UnidadComandante.transform.position - defensor.transform.position).sqrMagnitude <= radio;
+        }
+
+        private bool HabilidadActivaDe(Habilidad habilidad) =>
+            HabilidadActiva && Comandante != null && Comandante.Definicion.Habilidad == habilidad;
+
+        /// <summary>¿A este defensor le está llegando la habilidad ahora mismo? (para verlo en pantalla)</summary>
+        public bool AfectadoPorHabilidad(Combatiente defensor)
+        {
+            if (!HabilidadActiva || Comandante == null || defensor == UnidadComandante || defensor.Invasor) return false;
+            switch (Comandante.Definicion.Habilidad)
+            {
+                case Habilidad.Llamado: return true;
+                case Habilidad.Cohesion: return Comandante.TieneRasgo5 || EnAura(defensor);
+                case Habilidad.Refuerzos: return false;
+                default: return EnAura(defensor);
+            }
+        }
+
+        /// <summary>Todo lo que multiplica el ataque de un defensor: yaotequihua cerca, aura del comandante y su habilidad.</summary>
+        public float MultiplicadorAtaque(Combatiente defensor)
+        {
+            float bono = MultiplicadorLider(defensor) - 1f;
+            bool enAura = EnAura(defensor);
+            if (enAura && Comandante.Definicion.Aura == TipoAura.Ataque) bono = Mathf.Max(bono, Comandante.Aura);
+            float mult = 1f + bono + defensor.BonoResidual;
+            if (enAura && HabilidadActivaDe(Habilidad.Embestida)) mult *= 1f + ReglasComandante.EmbestidaAtaque;
+            if (HabilidadActivaDe(Habilidad.Llamado)) mult *= 1f + ReglasComandante.LlamadoAtaque;
+            if (enAura && HabilidadActivaDe(Habilidad.OrdenAsalto))
+            {
+                mult *= 1f + ReglasComandante.OrdenAtaque;
+                if (Comandante.TieneRasgo5 && defensor.Definicion.Alcance > 1f) mult *= 1f + ReglasComandante.OrdenDistanciaNivel5;
+            }
+            return mult;
+        }
+
+        /// <summary>Cuánto del daño recibe de verdad un defensor: las auras de resistencia y Cohesión / Cerrar filas lo bajan.</summary>
+        public float MultiplicadorDanoRecibido(Combatiente defensor)
+        {
+            if (Comandante == null || defensor == UnidadComandante) return 1f;
+            bool enAura = EnAura(defensor);
+            float reduccion = 0f;
+            if (enAura && Comandante.Definicion.Aura == TipoAura.Resistencia)
+            {
+                reduccion += Comandante.Aura;
+                // Capitán de Tepeticpac a nivel 3: en casa, su aura protege un poco más.
+                if (Comandante.Definicion.Habilidad == Habilidad.CerrarFilas && Comandante.TieneRasgo3) reduccion += ReglasComandante.TepeticpacAuraDefensaNivel3;
+            }
+            bool cohesion = HabilidadActivaDe(Habilidad.Cohesion) && (enAura || Comandante.TieneRasgo5);
+            bool cerrarFilas = HabilidadActivaDe(Habilidad.CerrarFilas) && enAura;
+            if (cohesion || cerrarFilas) reduccion += ReglasComandante.CohesionReduccion;
+            if (enAura && Comandante.Definicion.Habilidad == Habilidad.Cohesion && Comandante.TieneRasgo3 && Rangos.EsElite(defensor.Rango))
+            {
+                reduccion += ReglasComandante.CohesionEliteNivel3;
+            }
+            return Mathf.Max(ReglasComandante.MinimoDanoRecibido, 1f - reduccion);
+        }
+
+        public float MultiplicadorVelocidad(Combatiente defensor)
+        {
+            if (Comandante == null || !HabilidadActiva || !Comandante.TieneRasgo3) return 1f;
+            bool enAura = EnAura(defensor);
+            switch (Comandante.Definicion.Habilidad)
+            {
+                case Habilidad.Embestida: return enAura ? 1f + ReglasComandante.EmbestidaVelocidadNivel3 : 1f;
+                case Habilidad.Llamado: return 1f + ReglasComandante.LlamadoVelocidadNivel3;
+                case Habilidad.OrdenAsalto: return enAura ? 1f + ReglasComandante.OrdenVelocidadNivel3 : 1f;
+                default: return 1f;
+            }
+        }
+
+        /// <summary>El comandante sale del cuauhcalli; si no hay, de donde se junta el ejército.</summary>
+        private Vector3 PuestoComandante()
+        {
+            foreach (var edificio in Manager.Edificios)
+            {
+                if (edificio.Definicion.Dirige && edificio.Nivel > 0) return edificio.transform.position.WithY0();
+            }
+            return PuestoDefensores();
         }
 
         private Combatiente Crear(TroopDefinition definicion, int rango, bool invasor, Vector3 posicion)
@@ -329,10 +502,25 @@ namespace Altepetl
             }
             if (_cautivos > 0) Manager.Banco.Add(ResourceType.Cautivos, _cautivos);
 
+            // El comandante vuelve al cuauhcalli con la vida que le quedó (herido si cayó) y gana experiencia
+            // por defender; los aliados que trajo no son del ejército: los que caen no regresan.
+            if (Comandante != null)
+            {
+                resultado.Comandante = Comandante;
+                resultado.ComandanteCayo = ComandanteCaido;
+                resultado.HabilidadUsada = _habilidadUsada;
+                Comandante.Regresar(UnidadComandante != null && !UnidadComandante.Muerto ? UnidadComandante.FraccionVida : 0.01f);
+                resultado.ComandanteExperiencia = (defendida ? ReglasComandante.ExperienciaPorDefensa : 0)
+                                                  + _capturasEnAura / ReglasComandante.CapturasPorExperiencia;
+                Comandante.GanarExperiencia(resultado.ComandanteExperiencia);
+                resultado.AliadosCaidos = _aliadosCaidos;
+                resultado.Defensores -= 1 + CuantosAliados();
+            }
             // Los defensores que cayeron se pierden; los heridos van al temazcalli. Los que pelearon
             // y sobrevivieron suben de rango como al volver de batalla (tlamani si capturaron).
             foreach (var defensor in _defensores)
             {
+                if (defensor.EsComandante || defensor.Aliado) continue;
                 var id = defensor.Definicion.Id;
                 if (defensor.Muerto)
                 {
@@ -398,15 +586,38 @@ namespace Altepetl
 
         public void AlCaer(Combatiente caido, Combatiente atacante)
         {
-            if (!caido.Invasor) return;
+            if (!caido.Invasor)
+            {
+                // El comandante no muere para siempre: cae y vuelve herido. Los aliados sí se pierden.
+                if (caido.EsComandante)
+                {
+                    ComandanteCaido = true;
+                    HabilidadHasta = -1f;
+                    _habilidadEnCurso = false;
+                }
+                else if (caido.Aliado) _aliadosCaidos++;
+                return;
+            }
             _vencidos++;
-            // Como en batalla, al vencer a un invasor se puede tomar un cautivo.
-            if (atacante != null && !atacante.Invasor && !atacante.Muerto
+            // Como en batalla, al vencer a un invasor se puede tomar un cautivo. Los aliados no capturan
+            // y el comandante dirige, no captura.
+            if (atacante != null && !atacante.Invasor && !atacante.Muerto && !atacante.Aliado && !atacante.EsComandante
                 && Random.value < Rangos.ProbabilidadCapturaGuerrero(Manager.Pueblo, atacante.Rango))
             {
                 atacante.Capturas++;
                 _cautivos++;
+                if (EnAura(atacante)) _capturasEnAura++;
             }
+        }
+
+        private int CuantosAliados()
+        {
+            int n = 0;
+            foreach (var defensor in _defensores)
+            {
+                if (defensor.Aliado) n++;
+            }
+            return n;
         }
 
         /// <summary>El combatiente vivo más cercano del bando pedido, dentro del alcance; o null.</summary>

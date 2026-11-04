@@ -421,28 +421,12 @@ namespace Altepetl
             var unidad = new GameObject().AddComponent<TroopUnit>();
             unidad.transform.SetParent(transform, false);
             unidad.MarcarComandante(Comandante);
-            unidad.Inicializar(DefinicionDe(Comandante), Rangos.Joven, 1f, _manager.Pueblo, _manager.Culto, punto, this);
+            unidad.Inicializar(Comandante.ComoTropa(), Rangos.Joven, 1f, _manager.Pueblo, _manager.Culto, punto, this);
             _tropas.Add(unidad);
             UnidadComandante = unidad;
             ComandanteDesplegado = true;
             _algunaDesplegada = true;
             CrearAliados(punto, Comandante.Aliados);
-        }
-
-        /// <summary>Los números del comandante como si fuera una tropa, para reutilizar el monito de batalla.</summary>
-        private static TroopDefinition DefinicionDe(Comandante comandante)
-        {
-            return new TroopDefinition
-            {
-                Id = TroopId.Macuahuitl,
-                NombreEspanol = comandante.Nombre,
-                NombreNahuatl = comandante.Nombre,
-                Vida = comandante.VidaMaxima,
-                DanoPorSegundo = ReglasComandante.DanoPorSegundo,
-                Alcance = ReglasComandante.Alcance,
-                Velocidad = ReglasComandante.Velocidad,
-                Color = comandante.Definicion.Color,
-            };
         }
 
         /// <summary>Guerreros aliados (acolhuas): llegan en círculo alrededor del punto. Mueren de verdad y no capturan.</summary>

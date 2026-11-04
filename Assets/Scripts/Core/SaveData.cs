@@ -39,6 +39,7 @@ namespace Altepetl
         public int invasoresPendientes;
 
         public List<ComandanteGuardado> comandantes = new List<ComandanteGuardado>(); // reclutados en el cuauhcalli (versión 9)
+        public int comandanteDefensor = -2;   // ComandanteId del que defiende la aldea en los asaltos; -1 ninguno; -2 sin decidir (partidas viejas)
     }
 
     [Serializable]

@@ -37,6 +37,8 @@ namespace Altepetl
         public long ultimoAtaqueUtcTicks;      // cuándo fue el último ataque a la aldea (en vivo o sin conexión)
         public bool ultimoAtaqueDefendido;
         public bool ataquePendiente;           // se cerró el juego con un ataque sin conexión por ver o saltar
+        public long ataqueProgramadoUtcTicks;  // al cerrar el juego ya se decidió si habrá ataque y cuándo (0: ninguno)
+        public bool sinAvisos;                 // el jugador apagó los avisos en el celular (por defecto encendidos)
         public int invasoresPendientes;
 
         public List<ComandanteGuardado> comandantes = new List<ComandanteGuardado>(); // reclutados en el cuauhcalli (versión 9)

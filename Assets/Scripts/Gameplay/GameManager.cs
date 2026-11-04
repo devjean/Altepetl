@@ -1581,6 +1581,7 @@ namespace Altepetl
             Asalto.Exportar(datos);
             foreach (var comandante in Comandantes) datos.comandantes.Add(comandante.Exportar());
             datos.comandanteDefensor = ComandanteDefensorId;
+            datos.sinAvisos = !AvisosCelular;
             SaveSystem.Guardar(datos);
         }
 
@@ -1628,6 +1629,10 @@ namespace Altepetl
                 for (int i = 0; i < _defensa.Length; i++) _defensa[i] = Mathf.Max(0, defensa[i]);
             }
 
+            AvisosCelular = !datos.sinAvisos;
+            // Lo que se programó al cerrar ya no vale: el jugador está de vuelta.
+            Notificaciones.CancelarTodas();
+
             float segundosFuera = SaveSystem.SegundosDesde(datos);
             AplicarTiempoAusente(segundosFuera);
             // Después de la producción: lo que se produjo en la ausencia también está en juego.
@@ -1644,6 +1649,7 @@ namespace Altepetl
                 _editorInicioUtcTicks = 0;
                 Guardar();
             }
+            PedirPermisoAvisos();
         }
 
         /// <summary>Avanza construcciones y producción por el tiempo que el juego estuvo cerrado.</summary>
@@ -1696,12 +1702,83 @@ namespace Altepetl
         private void OnApplicationPause(bool pausado)
         {
             // En el móvil, el sistema puede cerrar la app mientras está en segundo plano.
-            if (pausado) Guardar();
+            if (pausado) AlIrseAlFondo();
+            else AlVolverDelFondo();
         }
 
         private void OnApplicationQuit()
         {
+            AlIrseAlFondo();
+        }
+
+        // ---------- Avisos en el celular ----------
+
+        /// <summary>Si el jugador quiere avisos en el celular (ataques y fin del escudo). Se guarda con la partida.</summary>
+        public bool AvisosCelular { get; set; } = true;
+        private long _pausaUtcTicks;
+
+        /// <summary>
+        /// Al minimizar o cerrar: se decide ya si habrá un ataque en la ausencia y a qué hora, se guarda, y se
+        /// programan los avisos del celular con esa misma hora, para que digan la verdad.
+        /// </summary>
+        private void AlIrseAlFondo()
+        {
+            if (Pueblo != null) Asalto.ProgramarAusencia();
+            _pausaUtcTicks = System.DateTime.UtcNow.Ticks;
             Guardar();
+            ProgramarAvisos();
+        }
+
+        /// <summary>
+        /// Al volver de segundo plano sin que la app se haya cerrado: Unity no corrió Update mientras tanto,
+        /// así que se aplica la producción de ese rato y, si ya llegó la hora del ataque sorteado, se ofrece.
+        /// </summary>
+        private void AlVolverDelFondo()
+        {
+            Notificaciones.CancelarTodas();
+            if (Pueblo == null || _pausaUtcTicks == 0) return;
+            float segundos = (float)System.TimeSpan.FromTicks(System.Math.Max(0, System.DateTime.UtcNow.Ticks - _pausaUtcTicks)).TotalSeconds;
+            _pausaUtcTicks = 0;
+            if (segundos >= 1f) AplicarTiempoAusente(segundos);
+            Asalto.PrepararAusente(segundos);
+            Guardar();
+        }
+
+        private void ProgramarAvisos()
+        {
+            Notificaciones.CancelarTodas();
+            if (Pueblo == null || !AvisosCelular || !Notificaciones.Disponibles) return;
+            long ahora = System.DateTime.UtcNow.Ticks;
+            long ataque = Asalto.AtaqueProgramadoUtcTicks;
+            if (ataque > ahora)
+            {
+                // Unos segundos después de la hora sorteada, para que al abrir el juego el ataque ya cuente.
+                Notificaciones.Programar($"¡Atacaron {Terminos.TuAldea}!",
+                    $"Entra para ver cómo se defendieron tus {Terminos.Tropas}.", Segundos(ataque - ahora) + 5);
+            }
+            long escudo = Asalto.EscudoHastaUtcTicks;
+            bool ataqueJuntoAlEscudo = ataque > 0 && ataque - escudo < System.TimeSpan.FromMinutes(15).Ticks;
+            if (escudo > ahora && !ataqueJuntoAlEscudo)
+            {
+                Notificaciones.Programar("Se acabó el escudo",
+                    $"Ya pueden volver a asaltar {Terminos.TuAldea} mientras no juegas.", Segundos(escudo - ahora));
+            }
+        }
+
+        private static double Segundos(long ticks) => System.TimeSpan.FromTicks(ticks).TotalSeconds;
+
+        /// <summary>Pide el permiso del sistema cuando los avisos ya pueden servir (desde el tecpan 2).</summary>
+        public void PedirPermisoAvisos()
+        {
+            if (Pueblo == null || !AvisosCelular || NivelTecpan < 2 || !Notificaciones.Disponibles) return;
+            StartCoroutine(Notificaciones.PedirPermiso());
+        }
+
+        /// <summary>Para probar en el celular (solo en builds de desarrollo): un aviso dentro de 10 segundos.</summary>
+        public void ProbarAviso()
+        {
+            Notificaciones.Programar($"¡Atacaron {Terminos.TuAldea}!",
+                $"Es una prueba: entra para ver cómo se defendieron tus {Terminos.Tropas}.", 10);
         }
 
         // ---------- Entrada (ratón en el editor, toque en el móvil) ----------

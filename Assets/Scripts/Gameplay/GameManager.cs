@@ -1966,7 +1966,16 @@ namespace Altepetl
                 }
                 dedo.Ultima = dedo.Actual;
                 dedo.Actual = lectura.Value;
-                if (dedo.EnHud || dedo.Soltando) continue;
+                if (dedo.EnHud)
+                {
+                    // Sobre las tarjetas del menú Construir, deslizar de lado corre la franja.
+                    if (_hud.PunteroSobreTiraMenu(dedo.Inicio) && Mathf.Abs(dedo.Actual.x - dedo.Inicio.x) > umbral)
+                    {
+                        _hud.DesplazarMenuConstruccion(dedo.Ultima.x - dedo.Actual.x);
+                    }
+                    continue;
+                }
+                if (dedo.Soltando) continue;
                 if (dedo.Pinta)
                 {
                     PintarMurallas(dedo);

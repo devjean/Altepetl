@@ -951,7 +951,7 @@ namespace Altepetl
                 return;
             }
 
-            var panel = new Rect((ancho - 460) / 2, AltoBarraSuperior + 10, 460, 356);
+            var panel = new Rect((ancho - 460) / 2, AltoBarraSuperior + 10, 460, 438);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
             Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), "Ajustes");
@@ -985,6 +985,22 @@ namespace Altepetl
             y += 40;
             GUI.Label(new Rect(panel.x + 20, y, 140, 30), "Sonido", _texto);
             GUI.Label(new Rect(panel.x + 160, y, 270, 30), "Próximamente", _textoChico);
+            y += 40;
+            GUI.Label(new Rect(panel.x + 20, y, 140, 30), "Avisos", _texto);
+            bool avisos = Manager.AvisosCelular;
+            GUI.enabled = !avisos;
+            if (GUI.Button(new Rect(panel.x + 160, y - 4, 130, 36), "Sí", _boton))
+            {
+                Manager.AvisosCelular = true;
+                Manager.PedirPermisoAvisos();
+            }
+            GUI.enabled = avisos;
+            if (GUI.Button(new Rect(panel.x + 300, y - 4, 130, 36), "No", _boton)) Manager.AvisosCelular = false;
+            GUI.enabled = true;
+            y += 36;
+            GUI.Label(new Rect(panel.x + 20, y, Debug.isDebugBuild ? 290 : panel.width - 40, 44),
+                "Un aviso en el celular cuando atacan tu aldea mientras no juegas o cuando se acaba el escudo.", _textoChico);
+            if (Debug.isDebugBuild && GUI.Button(new Rect(panel.x + 320, y, 110, 36), "Probar (10 s)", _botonChico)) Manager.ProbarAviso();
         }
 
         private void DibujarOfrendas(float ancho)

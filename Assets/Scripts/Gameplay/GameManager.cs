@@ -1793,6 +1793,7 @@ namespace Altepetl
             public int PintaEje;        // 0 aún sin dirección, 1 a lo largo de x, 2 a lo largo de y
             public int PintaMin, PintaMax;
             public bool EligeMuros;     // empezó sobre una muralla elegida: al arrastrar elige las que va tocando
+            public bool Coloca;         // con un edificio en la mano: arrastra la sombra y al soltar lo coloca ahí
             public Building MuroTocado;
             public bool Recorto;        // al tocarla se quitaron las que seguían después
             public bool Agrego;
@@ -1858,6 +1859,21 @@ namespace Altepetl
                         dedo.PintaInicio = Mapa.MundoACasilla(inicio);
                         ColocarMurallaEn(dedo.PintaInicio);
                     }
+                    else if (!batalla && !dedo.EnHud && (Colocando != null || Moviendo != null) && PunteroEnSuelo(dedo.Inicio, out _))
+                    {
+                        // Un dedo con el edificio en la mano no mueve el mapa: va llevando la sombra y
+                        // al levantarse coloca ahí. Si llega un segundo dedo, los dos pasan a hacer zoom.
+                        bool otroColocando = false;
+                        foreach (var otro in _dedos.Values)
+                        {
+                            if (otro == dedo || !otro.Coloca) continue;
+                            otro.Coloca = false;
+                            otro.Arrastra = true;
+                            otroColocando = true;
+                        }
+                        if (otroColocando) dedo.Arrastra = true;
+                        else dedo.Coloca = true;
+                    }
                     else if (!batalla && !dedo.EnHud && EligiendoMuros && !MejorandoMuros && PunteroEnSuelo(dedo.Inicio, out Vector3 sobre))
                     {
                         var muro = Mapa.En(Mapa.MundoACasilla(sobre));
@@ -1884,6 +1900,7 @@ namespace Altepetl
                     if (PunteroEnSuelo(dedo.Actual, out Vector3 tocando)) dedo.Agrego |= TryAgregarMuro(Mapa.MundoACasilla(tocando));
                     continue;
                 }
+                if (dedo.Coloca) continue;
                 if (dedo.Despliega)
                 {
                     // Quieto un momento o deslizándose: suelta tropas seguidas.
@@ -2228,6 +2245,47 @@ namespace Altepetl
             // Después de las obras y del daño, para que su color no borre la transparencia.
             foreach (var edificio in _edificios)
                 if (edificio != null) edificio.FijarOpacidadVista(_opacidadEdificios);
+            DibujarContorno();
+        }
+
+        private Material _materialContorno;
+        private readonly List<MeshFilter> _piezasContorno = new List<MeshFilter>();
+
+        /// <summary>Edificio que lleva el contorno amarillo: el seleccionado, o la pieza elegida en el editor.</summary>
+        private Building EdificioResaltado()
+        {
+            if (Editor != null)
+            {
+                var pieza = Editor.Elegida;
+                if (pieza == null || (!pieza.Colocada && !Editor.Arrastrando)) return null;
+                return pieza.Edificio;
+            }
+            if (ModoActual != Modo.Aldea || EnModoColocar) return null;
+            return Seleccionado;
+        }
+
+        /// <summary>
+        /// Contorno con la forma del edificio en vez de un rectángulo en pantalla: cada pieza visible se
+        /// vuelve a dibujar un poco inflada con el shader Altepetl/Contorno (solo caras traseras), así
+        /// nada más asoma el borde alrededor de la silueta.
+        /// </summary>
+        private void DibujarContorno()
+        {
+            var edificio = EdificioResaltado();
+            if (edificio == null) return;
+            if (_materialContorno == null)
+            {
+                var shader = Shader.Find("Altepetl/Contorno");
+                if (shader == null) return;
+                _materialContorno = new Material(shader);
+            }
+            edificio.GetComponentsInChildren(false, _piezasContorno);
+            foreach (var pieza in _piezasContorno)
+            {
+                var render = pieza.GetComponent<Renderer>();
+                if (render == null || !render.enabled || pieza.sharedMesh == null) continue;
+                Graphics.DrawMesh(pieza.sharedMesh, pieza.transform.localToWorldMatrix, _materialContorno, 0);
+            }
         }
 
         /// <summary>El cielo y la luz cambian poco a poco con el dios cuya ofrenda está activa.</summary>

@@ -242,9 +242,8 @@ namespace Altepetl
         private void CrearTerreno(int tamano)
         {
             float lado = tamano + MargenDespliegue * 2;
-            var suelo = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            var suelo = Figuras.Primitiva(PrimitiveType.Plane);
             suelo.name = "Suelo enemigo";
-            Destroy(suelo.GetComponent<Collider>());
             suelo.transform.SetParent(transform, false);
             suelo.transform.localScale = new Vector3(lado / 10f, 1f, lado / 10f);
             suelo.transform.position = Centro + new Vector3(0f, Nivel.Escenario == Escenario.Lago ? -0.05f : 0f, 0f);

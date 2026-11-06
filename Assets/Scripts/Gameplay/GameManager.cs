@@ -2411,26 +2411,23 @@ namespace Altepetl
 
         private void CrearSuelo()
         {
-            var suelo = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            var suelo = Figuras.Primitiva(PrimitiveType.Plane);
             suelo.name = "Suelo";
-            Destroy(suelo.GetComponent<Collider>());
             // Un Plane de Unity mide 10x10 unidades.
             suelo.transform.localScale = new Vector3(TamanoMapa / 10f, 1f, TamanoMapa / 10f);
             suelo.transform.position = Mapa.Centro;
             _suelo = suelo.GetComponent<Renderer>();
 
-            var zona = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var zona = Figuras.Primitiva(PrimitiveType.Cube);
             zona.name = "Zona construible";
-            Destroy(zona.GetComponent<Collider>());
             _zona = zona.GetComponent<Renderer>();
             ActualizarSuelo();
         }
 
         private static Transform CrearMarcador(string nombre, out Renderer render)
         {
-            var marcador = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var marcador = Figuras.Primitiva(PrimitiveType.Cube);
             marcador.name = nombre;
-            Destroy(marcador.GetComponent<Collider>());
             render = marcador.GetComponent<Renderer>();
             marcador.SetActive(false);
             return marcador.transform;

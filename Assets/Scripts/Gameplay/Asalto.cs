@@ -74,6 +74,8 @@ namespace Altepetl
         /// <summary>El ataque actual (o su resultado) ocurrió mientras el juego estaba cerrado.</summary>
         public bool Ausente { get; private set; }
         public long EscudoHastaUtcTicks { get; private set; }
+        /// <summary>Momento en que ocurrirá el ataque decidido al cerrar el juego (0: no habrá); así el aviso del celular dice la verdad.</summary>
+        public long AtaqueProgramadoUtcTicks { get; private set; }
         public long UltimoAtaqueUtcTicks { get; private set; }
         public bool UltimoAtaqueDefendido { get; private set; }
         public float SegundosEscudo
@@ -181,15 +183,23 @@ namespace Altepetl
         /// </summary>
         public bool PrepararAusente(float segundosFuera, bool forzar = false)
         {
+            // Lo decidido al cerrar el juego se consume aquí, pase lo que pase.
+            long programado = AtaqueProgramadoUtcTicks;
+            AtaqueProgramadoUtcTicks = 0;
             if (EstadoActual != Estado.Tranquilo || Manager.Pueblo == null || Manager.ModoActual != GameManager.Modo.Aldea) return false;
             if (!forzar)
             {
-                if (Manager.NivelTecpan < 2 || segundosFuera < AusenciaMinima || SegundosEscudo > 0f) return false;
-                float probabilidad = segundosFuera >= AusenciaSegura ? 1f
-                    : segundosFuera >= AusenciaMedia
-                        ? Mathf.Lerp(ProbabilidadMedia, 1f, (segundosFuera - AusenciaMedia) / (AusenciaSegura - AusenciaMedia))
-                        : Mathf.Lerp(ProbabilidadMinima, ProbabilidadMedia, (segundosFuera - AusenciaMinima) / (AusenciaMedia - AusenciaMinima));
-                if (Random.value >= probabilidad) return false;
+                if (Manager.NivelTecpan < 2 || SegundosEscudo > 0f) return false;
+                if (programado > 0)
+                {
+                    // Ya se sorteó al cerrar (y se avisó en el celular): solo cuenta si ya llegó la hora.
+                    if (System.DateTime.UtcNow.Ticks < programado) return false;
+                }
+                else
+                {
+                    // Sin sorteo previo (partidas viejas, o la ausencia del editor de aldea): se decide ahora.
+                    if (segundosFuera < AusenciaMinima || Random.value >= ProbabilidadDeAtaque(segundosFuera)) return false;
+                }
             }
             int tecpan = Mathf.Clamp(Manager.NivelTecpan, 1, InvasoresPorTecpan.Length);
             CuantosVienen = InvasoresPorTecpan[tecpan - 1];
@@ -221,8 +231,45 @@ namespace Altepetl
             _instantaneo = false;
         }
 
+        /// <summary>Probabilidad de que haya habido un ataque tras esa ausencia: 35% a las 2 h, 70% a las 6 h, seguro a las 12 h.</summary>
+        private static float ProbabilidadDeAtaque(float segundosFuera)
+        {
+            if (segundosFuera < AusenciaMinima) return 0f;
+            return segundosFuera >= AusenciaSegura ? 1f
+                : segundosFuera >= AusenciaMedia
+                    ? Mathf.Lerp(ProbabilidadMedia, 1f, (segundosFuera - AusenciaMedia) / (AusenciaSegura - AusenciaMedia))
+                    : Mathf.Lerp(ProbabilidadMinima, ProbabilidadMedia, (segundosFuera - AusenciaMinima) / (AusenciaMedia - AusenciaMinima));
+        }
+
+        /// <summary>
+        /// La misma curva, al revés: dado un número al azar, cuántos segundos de ausencia hacen falta para que
+        /// el ataque ocurra. Así la decisión se puede tomar al cerrar el juego (y avisar en el celular a esa hora)
+        /// con exactamente las mismas probabilidades que decidirla al volver.
+        /// </summary>
+        private static float SegundosHastaAtaque(float azar)
+        {
+            if (azar < ProbabilidadMinima) return AusenciaMinima;
+            if (azar < ProbabilidadMedia)
+                return Mathf.Lerp(AusenciaMinima, AusenciaMedia, (azar - ProbabilidadMinima) / (ProbabilidadMedia - ProbabilidadMinima));
+            return Mathf.Lerp(AusenciaMedia, AusenciaSegura, (azar - ProbabilidadMedia) / (1f - ProbabilidadMedia));
+        }
+
+        /// <summary>
+        /// Al cerrar o minimizar el juego: decide ya si habrá un ataque durante la ausencia y a qué hora
+        /// (nunca antes de que termine el escudo). Al volver, PrepararAusente lo aplica si ya llegó la hora.
+        /// </summary>
+        public void ProgramarAusencia()
+        {
+            AtaqueProgramadoUtcTicks = 0;
+            if (EstadoActual != Estado.Tranquilo || Manager.Pueblo == null || Manager.ModoActual != GameManager.Modo.Aldea) return;
+            if (Manager.NivelTecpan < 2) return;
+            long momento = System.DateTime.UtcNow.Ticks + System.TimeSpan.FromSeconds(SegundosHastaAtaque(Random.value)).Ticks;
+            AtaqueProgramadoUtcTicks = System.Math.Max(momento, EscudoHastaUtcTicks);
+        }
+
         public void Exportar(SaveData datos)
         {
+            datos.ataqueProgramadoUtcTicks = AtaqueProgramadoUtcTicks;
             datos.escudoHastaUtcTicks = EscudoHastaUtcTicks;
             datos.ultimoAtaqueUtcTicks = UltimoAtaqueUtcTicks;
             datos.ultimoAtaqueDefendido = UltimoAtaqueDefendido;
@@ -234,6 +281,7 @@ namespace Altepetl
         public void Importar(SaveData datos)
         {
             EscudoHastaUtcTicks = datos.escudoHastaUtcTicks;
+            AtaqueProgramadoUtcTicks = datos.ataqueProgramadoUtcTicks;
             UltimoAtaqueUtcTicks = datos.ultimoAtaqueUtcTicks;
             UltimoAtaqueDefendido = datos.ultimoAtaqueDefendido;
             if (datos.ataquePendiente && Manager.Pueblo != null && EstadoActual == Estado.Tranquilo)
@@ -581,6 +629,7 @@ namespace Altepetl
             Limpiar();
             Resultado = null;
             Ausente = false;
+            AtaqueProgramadoUtcTicks = 0;
             EstadoActual = Estado.Tranquilo;
             _proximo = -1f;
         }

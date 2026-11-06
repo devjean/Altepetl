@@ -46,6 +46,10 @@ namespace Altepetl
         private BuildingDefinition _info;
         private Rect _carruselEditor;
         private float _desplazamientoEditor;
+        private Rect _tiraMenu;                 // franja de tarjetas del menú Construir
+        private float _desplazamientoMenu;      // cuánto se corrió la franja (en unidades del HUD)
+        private float _anchoTiraMenu;           // ancho total de todas las tarjetas de la pestaña
+        private const int TarjetasPorVista = 4;
         private bool _confirmarSalirEditor;
         private const float AnchoTarjetaEditor = 164f;
 
@@ -63,6 +67,20 @@ namespace Altepetl
             if (Manager.Editor == null) return;
             _desplazamientoEditor = Mathf.Clamp(_desplazamientoEditor + pixeles / _escala, 0,
                 Mathf.Max(0, Manager.Editor.Grupos.Count * AnchoTarjetaEditor - _carruselEditor.width));
+        }
+
+        /// <summary>¿El dedo empezó sobre la franja de tarjetas del menú Construir? (píxeles de pantalla, origen abajo)</summary>
+        public bool PunteroSobreTiraMenu(Vector2 posicionPantalla)
+        {
+            if (!_menuAbierto || _info != null) return false;
+            var punto = new Vector2(posicionPantalla.x / _escala, (Screen.height - posicionPantalla.y) / _escala);
+            return _tiraMenu.Contains(punto);
+        }
+
+        /// <summary>Corre la franja de tarjetas del menú Construir (deslizando o con las flechas).</summary>
+        public void DesplazarMenuConstruccion(float pixeles)
+        {
+            _desplazamientoMenu = Mathf.Clamp(_desplazamientoMenu + pixeles / _escala, 0, Mathf.Max(0, _anchoTiraMenu - _tiraMenu.width));
         }
 
         /// <summary>¿La posición (en píxeles de pantalla, origen abajo) está sobre algún panel?</summary>
@@ -499,6 +517,7 @@ namespace Altepetl
             {
                 _menuAbierto = !_menuAbierto;
                 _info = null;
+                _desplazamientoMenu = 0;
                 if (_menuAbierto)
                 {
                     _campanaAbierta = false;
@@ -540,24 +559,45 @@ namespace Altepetl
                 if (GUI.Button(new Rect(panel.x + 10 + i * anchoPestana, panel.y + 44, anchoPestana - 6, 36),
                         NombreCategoria(categorias[i]), _boton))
                 {
+                    if (_pestana != categorias[i]) _desplazamientoMenu = 0;
                     _pestana = categorias[i];
                 }
             }
             GUI.backgroundColor = Color.white;
 
-            // Tarjetas de la pestaña elegida
-            const int PorFila = 4;
-            float anchoTarjeta = (panel.width - 20f) / PorFila;
-            int indice = 0;
+            // Tarjetas de la pestaña elegida, en una sola franja: caben cuatro a la vista y, si hay
+            // más, se desliza con el dedo o con las flechas (como el carrusel del editor).
+            _tarjetasMenu.Clear();
             foreach (var def in BuildingCatalog.Todos)
             {
-                if (def.Id == BuildingId.Tecpan || def.Categoria != _pestana) continue;
-                var tarjeta = new Rect(panel.x + 10 + (indice % PorFila) * anchoTarjeta, panel.y + 92 + (indice / PorFila) * 150,
-                    anchoTarjeta - 8, 296);
-                DibujarTarjeta(tarjeta, def);
-                indice++;
+                if (def.Id != BuildingId.Tecpan && def.Categoria == _pestana) _tarjetasMenu.Add(def);
             }
+            bool sobran = _tarjetasMenu.Count > TarjetasPorVista;
+            float margen = sobran ? 44f : 10f;
+            _tiraMenu = new Rect(panel.x + margen, panel.y + 92, panel.width - margen * 2, 296);
+            float anchoTarjeta = _tiraMenu.width / TarjetasPorVista;
+            _anchoTiraMenu = _tarjetasMenu.Count * anchoTarjeta;
+            DesplazarMenuConstruccion(0);
+            if (sobran)
+            {
+                float yFlecha = _tiraMenu.y + (_tiraMenu.height - 72) / 2;
+                GUI.enabled = _desplazamientoMenu > 0;
+                if (GUI.Button(new Rect(panel.x + 6, yFlecha, 34, 72), "‹", _boton)) DesplazarMenuConstruccion(-anchoTarjeta * _escala);
+                GUI.enabled = _desplazamientoMenu < _anchoTiraMenu - _tiraMenu.width - 0.5f;
+                if (GUI.Button(new Rect(panel.xMax - 40, yFlecha, 34, 72), "›", _boton)) DesplazarMenuConstruccion(anchoTarjeta * _escala);
+                GUI.enabled = true;
+            }
+            GUI.BeginGroup(_tiraMenu);
+            for (int i = 0; i < _tarjetasMenu.Count; i++)
+            {
+                float x = i * anchoTarjeta - _desplazamientoMenu;
+                if (x + anchoTarjeta < 0 || x > _tiraMenu.width) continue;
+                DibujarTarjeta(new Rect(x + 4, 0, anchoTarjeta - 8, _tiraMenu.height), _tarjetasMenu[i]);
+            }
+            GUI.EndGroup();
         }
+
+        private readonly List<BuildingDefinition> _tarjetasMenu = new List<BuildingDefinition>();
 
         private void DibujarTarjeta(Rect tarjeta, BuildingDefinition def)
         {

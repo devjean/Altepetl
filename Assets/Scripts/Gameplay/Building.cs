@@ -80,8 +80,7 @@ namespace Altepetl
             name = Nombre;
             transform.position = mapa.CentroDeArea(origen, definicion.Tamano);
 
-            var cubo = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            Destroy(cubo.GetComponent<Collider>());
+            var cubo = Figuras.Primitiva(PrimitiveType.Cube);
             cubo.transform.SetParent(transform, false);
             _modelo = cubo.transform;
             _render = cubo.GetComponent<Renderer>();
@@ -205,8 +204,7 @@ namespace Altepetl
         {
             var pivote = new GameObject(nombre).transform;
             pivote.SetParent(transform, false);
-            var cubo = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            Destroy(cubo.GetComponent<Collider>());
+            var cubo = Figuras.Primitiva(PrimitiveType.Cube);
             cubo.transform.SetParent(pivote, false);
             return pivote;
         }
@@ -289,9 +287,8 @@ namespace Altepetl
             _base = chinampa ? 0.08f : 0.14f;
             float lado = Definicion.Tamano * (chinampa ? 0.98f : 0.96f);
 
-            var plataforma = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var plataforma = Figuras.Primitiva(PrimitiveType.Cube);
             plataforma.name = chinampa ? "Chinampa" : "Plataforma";
-            Destroy(plataforma.GetComponent<Collider>());
             plataforma.transform.SetParent(transform, false);
             plataforma.transform.localScale = new Vector3(lado, _base, lado);
             plataforma.transform.localPosition = new Vector3(0f, _base * 0.5f, 0f);
@@ -312,9 +309,8 @@ namespace Altepetl
         /// </summary>
         private void CrearChinampaEnLaOrilla()
         {
-            var canal = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var canal = Figuras.Primitiva(PrimitiveType.Cube);
             canal.name = "Canal";
-            Destroy(canal.GetComponent<Collider>());
             canal.transform.SetParent(transform, false);
             canal.transform.localScale = new Vector3(0.98f, 0.03f, 0.98f);
             canal.transform.localPosition = new Vector3(0f, 0.015f, 0f);
@@ -323,9 +319,8 @@ namespace Altepetl
             _base = 0.07f;
             _chinampaEnOrilla = true;
             float lado = Definicion.Tamano * 0.74f;
-            var parcela = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var parcela = Figuras.Primitiva(PrimitiveType.Cube);
             parcela.name = "Chinampa";
-            Destroy(parcela.GetComponent<Collider>());
             parcela.transform.SetParent(transform, false);
             parcela.transform.localScale = new Vector3(lado, _base, lado);
             parcela.transform.localPosition = new Vector3(0f, _base * 0.5f, 0f);
@@ -338,9 +333,8 @@ namespace Altepetl
 
         private void CrearAhuejote(Vector3 posicion)
         {
-            var arbol = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            var arbol = Figuras.Primitiva(PrimitiveType.Cylinder);
             arbol.name = "Ahuejote";
-            Destroy(arbol.GetComponent<Collider>());
             arbol.transform.SetParent(transform, false);
             arbol.transform.localScale = new Vector3(0.12f, 0.45f, 0.12f); // un Cylinder mide 2 de alto
             arbol.transform.localPosition = posicion + new Vector3(0f, 0.45f, 0f);
@@ -442,9 +436,8 @@ namespace Altepetl
                 return null;
             }
             if (actual != null) return actual;
-            var tramo = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var tramo = Figuras.Primitiva(PrimitiveType.Cube);
             tramo.name = nombre;
-            Destroy(tramo.GetComponent<Collider>());
             tramo.transform.SetParent(transform, false);
             return tramo.transform;
         }

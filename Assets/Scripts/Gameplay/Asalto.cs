@@ -73,6 +73,9 @@ namespace Altepetl
         public float Reloj { get; private set; }
         /// <summary>El ataque actual (o su resultado) ocurrió mientras el juego estaba cerrado.</summary>
         public bool Ausente { get; private set; }
+        /// <summary>Al ver un ataque ocurrido sin conexión se puede correr a 1x, 2x o 4x.</summary>
+        public int Velocidad { get; private set; } = 1;
+        private static readonly int[] Velocidades = { 1, 2, 4 };
         public long EscudoHastaUtcTicks { get; private set; }
         /// <summary>Momento en que ocurrirá el ataque decidido al cerrar el juego (0: no habrá); así el aviso del celular dice la verdad.</summary>
         public long AtaqueProgramadoUtcTicks { get; private set; }
@@ -154,7 +157,15 @@ namespace Altepetl
                     if (SegundosAviso <= 0f) Empezar();
                     break;
                 case Estado.EnCurso:
-                    Avanzar(Time.deltaTime);
+                    // A más velocidad, el mismo tiempo se reparte en pasos cortos para que la
+                    // simulación no cambie: ningún paso dura más que el del ataque saltado.
+                    float pendiente = Time.deltaTime * Velocidad;
+                    while (pendiente > 0f && EstadoActual == Estado.EnCurso)
+                    {
+                        float paso = Mathf.Min(pendiente, PasoInstantaneo);
+                        Avanzar(paso);
+                        pendiente -= paso;
+                    }
                     break;
             }
         }
@@ -225,6 +236,25 @@ namespace Altepetl
             _instantaneo = true;
             Empezar();
             // Tope por seguridad: la duración máxima más un margen.
+            int pasos = Mathf.CeilToInt(Duracion / PasoInstantaneo) + 10;
+            while (EstadoActual == Estado.EnCurso && pasos-- > 0) Avanzar(PasoInstantaneo);
+            if (EstadoActual == Estado.EnCurso) Terminar(defendida: false);
+            _instantaneo = false;
+        }
+
+        /// <summary>Viendo un ataque sin conexión: pasa a la siguiente velocidad (1x, 2x, 4x y vuelve a 1x).</summary>
+        public void CambiarVelocidad()
+        {
+            if (!EnCurso || !Ausente) return;
+            int i = System.Array.IndexOf(Velocidades, Velocidad);
+            Velocidad = Velocidades[(i + 1) % Velocidades.Length];
+        }
+
+        /// <summary>Viendo un ataque sin conexión: lo que falta se resuelve de una vez, como al saltarlo.</summary>
+        public void SaltarRestante()
+        {
+            if (!EnCurso || !Ausente) return;
+            _instantaneo = true;
             int pasos = Mathf.CeilToInt(Duracion / PasoInstantaneo) + 10;
             while (EstadoActual == Estado.EnCurso && pasos-- > 0) Avanzar(PasoInstantaneo);
             if (EstadoActual == Estado.EnCurso) Terminar(defendida: false);
@@ -325,6 +355,7 @@ namespace Altepetl
             if (_marca != null) Destroy(_marca.gameObject);
             _marca = null;
             EstadoActual = Estado.EnCurso;
+            Velocidad = 1;
             TiempoRestante = Duracion;
             Reloj = 0f;
             _cautivos = 0;

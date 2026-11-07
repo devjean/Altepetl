@@ -209,9 +209,16 @@ namespace Altepetl
         /// <summary>Se está colocando un edificio cuyos recursos faltantes se pagarán con plumas.</summary>
         public bool ColocandoConPlumas { get; private set; }
 
+        public const string MensajeDuranteAtaque = "Durante el ataque no se puede construir, mejorar ni mover";
+
         public void EmpezarColocacion(BuildingDefinition definicion, bool conPlumas = false)
         {
             if (ModoActual == Modo.EditorAldea) return;
+            if (Asalto.EnCurso)
+            {
+                MostrarMensaje(MensajeDuranteAtaque);
+                return;
+            }
             Seleccionar(null);
             if (EnLimite(definicion))
             {
@@ -269,7 +276,7 @@ namespace Altepetl
             if (edificio == null) return;
             if (Asalto.EnCurso)
             {
-                MostrarMensaje("No se puede mover nada durante un ataque");
+                MostrarMensaje(MensajeDuranteAtaque);
                 return;
             }
             CancelarColocacion();
@@ -993,6 +1000,11 @@ namespace Altepetl
         public void TryMejorar(Building edificio)
         {
             if (ModoActual == Modo.EditorAldea) return;
+            if (Asalto.EnCurso)
+            {
+                MostrarMensaje(MensajeDuranteAtaque);
+                return;
+            }
             if (PuedeMejorar(edificio) != EstadoMejora.Disponible) return;
             if (!Banco.TryGastar(edificio.Definicion.CostoMejora(edificio.Nivel))) return;
             edificio.EmpezarMejora();
@@ -1045,6 +1057,11 @@ namespace Altepetl
         public bool TryMejorarConPlumas(Building edificio)
         {
             if (ModoActual == Modo.EditorAldea) return false;
+            if (Asalto.EnCurso)
+            {
+                MostrarMensaje(MensajeDuranteAtaque);
+                return false;
+            }
             if (PuedeMejorar(edificio) != EstadoMejora.SinRecursos) return false;
             if (!PagarConPlumas(edificio.Definicion.CostoMejora(edificio.Nivel)))
             {

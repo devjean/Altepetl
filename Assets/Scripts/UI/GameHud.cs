@@ -511,6 +511,12 @@ namespace Altepetl
                 return;
             }
 
+            if (Manager.Asalto.EnCurso)
+            {
+                // Mientras atacan (en vivo o viendo el ataque sin conexión) no se construye.
+                _menuAbierto = false;
+                return;
+            }
             var boton = new Rect(ancho - 160, alto - 60, 150, 50);
             Zona(boton);
             if (GUI.Button(boton, Terminos.BotonConstruir, _boton))
@@ -799,12 +805,13 @@ namespace Altepetl
                 Manager.Seleccionar(null);
                 return;
             }
-            if (GUI.Button(new Rect(panel.xMax - 106, panel.y + 6, 64, 28), "Mover", _boton))
+            bool atacan = Manager.Asalto.EnCurso;
+            if (!atacan && GUI.Button(new Rect(panel.xMax - 106, panel.y + 6, 64, 28), "Mover", _boton))
             {
                 Manager.EmpezarMover(edificio);
                 return;
             }
-            if (def.Id == BuildingId.Muralla)
+            if (def.Id == BuildingId.Muralla && !atacan)
             {
                 // Varias murallas a la vez: mejorar un grupo, o terminar varias obras con plumas.
                 bool enObra = edificio.EnConstruccion;
@@ -889,11 +896,17 @@ namespace Altepetl
                 if (veteranos.Length > 0) info += "\nCon rango: " + veteranos;
             }
             GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, entrena || forma || dirige ? 120 : panel.height - (def.Id == BuildingId.Muralla ? 150 : 100)), info, _texto);
+            var botonRect = new Rect(panel.x + 10, panel.yMax - 54, panel.width - 20, 44);
+            if (atacan)
+            {
+                // Solo información: nada se construye, mejora, entrena ni ofrenda mientras atacan.
+                GUI.Label(botonRect, GameManager.MensajeDuranteAtaque, _textoChico);
+                return;
+            }
             if (entrena) DibujarEntrenamiento(panel);
             if (forma) DibujarFormacion(panel);
             if (dirige) DibujarComandantes(panel);
 
-            var botonRect = new Rect(panel.x + 10, panel.yMax - 54, panel.width - 20, 44);
             if (edificio.EnConstruccion)
             {
                 int costo = edificio.CostoAcelerar;
@@ -1684,12 +1697,20 @@ namespace Altepetl
             if (asalto.EstadoActual != Asalto.Estado.EnCurso) return;
 
             bool conComandante = asalto.Comandante != null;
-            var barra = new Rect((ancho - 460) / 2, AltoBarraSuperior + 8, 460, conComandante ? 64 : 40);
+            // Viendo un ataque sin conexión: botones para correrlo más rápido o saltar lo que falta.
+            float anchoBarra = asalto.Ausente ? 600 : 460;
+            var barra = new Rect((ancho - anchoBarra) / 2, AltoBarraSuperior + 8, anchoBarra, conComandante ? 64 : 40);
             Zona(barra);
             GUI.Box(barra, GUIContent.none, _caja);
             int segundos = Mathf.CeilToInt(asalto.TiempoRestante);
-            GUI.Label(new Rect(barra.x + 10, barra.y + 8, barra.width - 20, 26),
+            float anchoTexto = asalto.Ausente ? barra.width - 170 : barra.width - 20;
+            GUI.Label(new Rect(barra.x + 10, barra.y + 8, anchoTexto, 26),
                 $"Atacan {Terminos.TuAldea}: quedan {asalto.InvasoresVivos} de {asalto.Invasores.Count}    {segundos / 60}:{segundos % 60:00}", _texto);
+            if (asalto.Ausente)
+            {
+                if (GUI.Button(new Rect(barra.xMax - 156, barra.y + 5, 56, 30), $"x{asalto.Velocidad}", _boton)) asalto.CambiarVelocidad();
+                if (GUI.Button(new Rect(barra.xMax - 94, barra.y + 5, 84, 30), "Saltar", _boton)) asalto.SaltarRestante();
+            }
             if (conComandante)
             {
                 // Qué hace el comandante: su habilidad se dispara sola cuando un invasor entra en su aura.

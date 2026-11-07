@@ -791,51 +791,6 @@ namespace Altepetl
             var faltan = def.Id == BuildingId.Tecpan && !edificio.EnConstruccion
                 ? Manager.RequisitosFaltantesTecpan(edificio.Nivel + 1)
                 : new List<RequisitoTecpan>();
-            float altoPanel = entrena ? 410 : forma ? 450 : dirige ? 480 : def.CamasCuracion > 0 ? 310 : 250;
-            if (faltan.Count > 0) altoPanel += 22 + 19 * faltan.Count;
-            if (def.Id == BuildingId.Muralla) altoPanel += edificio.EnConstruccion ? 50 : 100; // puerta y "varias"
-            // A la izquierda de la columna de recursos, para no taparla.
-            var panel = new Rect(ancho - 60 - AnchoColumnaRecursos - 280, AltoBarraSuperior + 10, 280, altoPanel);
-            Zona(panel);
-            GUI.Box(panel, GUIContent.none, _caja);
-
-            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 120, 28), edificio.Nombre);
-            if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
-            {
-                Manager.Seleccionar(null);
-                return;
-            }
-            bool atacan = Manager.Asalto.EnCurso;
-            if (!atacan && GUI.Button(new Rect(panel.xMax - 106, panel.y + 6, 64, 28), "Mover", _boton))
-            {
-                Manager.EmpezarMover(edificio);
-                return;
-            }
-            if (def.Id == BuildingId.Muralla && !atacan)
-            {
-                // Varias murallas a la vez: mejorar un grupo, o terminar varias obras con plumas.
-                bool enObra = edificio.EnConstruccion;
-                var estadoMuro = enObra ? GameManager.EstadoMejora.Disponible : Manager.PuedeMejorar(edificio);
-                GUI.enabled = !Manager.Asalto.EnCurso
-                              && (estadoMuro == GameManager.EstadoMejora.Disponible || estadoMuro == GameManager.EstadoMejora.SinRecursos);
-                if (GUI.Button(new Rect(panel.x + 10, panel.yMax - (enObra ? 104 : 154), panel.width - 20, 40),
-                        enObra ? "Terminar varias obras…" : "Mejorar varias murallas…", _boton))
-                {
-                    Manager.EmpezarMejorarMuros(edificio, enObra);
-                    return;
-                }
-                GUI.enabled = true;
-                if (!enObra)
-                {
-                    // Puerta: tu gente cruza el muro por ahí; para los enemigos sigue siendo muralla.
-                    if (GUI.Button(new Rect(panel.x + 10, panel.yMax - 104, panel.width - 20, 40),
-                            edificio.EsPuerta ? "Cerrar el hueco (volver a muralla)" : "Hacer puerta", _boton))
-                    {
-                        Manager.AlternarPuerta(edificio);
-                    }
-                }
-            }
-
             string info = (edificio.Nivel > 0 ? $"Nivel {edificio.Nivel}. " : "") + Terminos.Aplicar(def.Descripcion) + "\n";
             if (edificio.Mejorando)
             {
@@ -895,7 +850,62 @@ namespace Altepetl
                 string veteranos = TextoRangos(Manager.Ejercito);
                 if (veteranos.Length > 0) info += "\nCon rango: " + veteranos;
             }
-            GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, entrena || forma || dirige ? 120 : panel.height - (def.Id == BuildingId.Muralla ? 150 : 100)), info, _texto);
+            float altoPanel = entrena ? 410 : forma ? 450 : dirige ? 480 : def.CamasCuracion > 0 ? 310 : 250;
+            if (faltan.Count > 0) altoPanel += 22 + 19 * faltan.Count;
+            if (def.Id == BuildingId.Muralla) altoPanel += edificio.EnConstruccion ? 50 : 100; // puerta y "varias"
+            // El texto se mide con la fuente real: si no cabe en el hueco previsto, el panel crece y lo
+            // de abajo se corre, para que nunca se encime con el ejército ni con los botones.
+            float altoInfo = _texto.CalcHeight(new GUIContent(info), 280 - 20);
+            float huecoInfo = entrena || forma || dirige ? 120 : altoPanel - (def.Id == BuildingId.Muralla ? 150 : 100);
+            float sobra = Mathf.Max(0f, altoInfo - huecoInfo);
+            altoPanel += sobra;
+            altoInfo = Mathf.Max(altoInfo, huecoInfo);
+            // A la izquierda de la columna de recursos, para no taparla.
+            var panel = new Rect(ancho - 60 - AnchoColumnaRecursos - 280, AltoBarraSuperior + 10, 280, altoPanel);
+            Zona(panel);
+            GUI.Box(panel, GUIContent.none, _caja);
+
+            Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 120, 28), edificio.Nombre);
+            if (GUI.Button(new Rect(panel.xMax - 38, panel.y + 6, 32, 28), "X", _boton))
+            {
+                Manager.Seleccionar(null);
+                return;
+            }
+            bool atacan = Manager.Asalto.EnCurso;
+            if (!atacan && GUI.Button(new Rect(panel.xMax - 106, panel.y + 6, 64, 28), "Mover", _boton))
+            {
+                Manager.EmpezarMover(edificio);
+                return;
+            }
+            if (def.Id == BuildingId.Muralla && !atacan)
+            {
+                // Varias murallas a la vez: mejorar un grupo, o terminar varias obras con plumas.
+                bool enObra = edificio.EnConstruccion;
+                var estadoMuro = enObra ? GameManager.EstadoMejora.Disponible : Manager.PuedeMejorar(edificio);
+                GUI.enabled = !Manager.Asalto.EnCurso
+                              && (estadoMuro == GameManager.EstadoMejora.Disponible || estadoMuro == GameManager.EstadoMejora.SinRecursos);
+                if (GUI.Button(new Rect(panel.x + 10, panel.yMax - (enObra ? 104 : 154), panel.width - 20, 40),
+                        enObra ? "Terminar varias obras…" : "Mejorar varias murallas…", _boton))
+                {
+                    Manager.EmpezarMejorarMuros(edificio, enObra);
+                    return;
+                }
+                GUI.enabled = true;
+                if (!enObra)
+                {
+                    // Puerta: tu gente cruza el muro por ahí; para los enemigos sigue siendo muralla.
+                    if (GUI.Button(new Rect(panel.x + 10, panel.yMax - 104, panel.width - 20, 40),
+                            edificio.EsPuerta ? "Cerrar el hueco (volver a muralla)" : "Hacer puerta", _boton))
+                    {
+                        Manager.AlternarPuerta(edificio);
+                    }
+                }
+            }
+
+            GUI.Label(new Rect(panel.x + 10, panel.y + 42, panel.width - 20, altoInfo), info, _texto);
+            // Las secciones de abajo tienen posiciones fijas desde el borde superior del panel:
+            // se les pasa el panel corrido lo que el texto creció.
+            var cuerpo = new Rect(panel.x, panel.y + sobra, panel.width, panel.height - sobra);
             var botonRect = new Rect(panel.x + 10, panel.yMax - 54, panel.width - 20, 44);
             if (atacan)
             {
@@ -903,9 +913,9 @@ namespace Altepetl
                 GUI.Label(botonRect, GameManager.MensajeDuranteAtaque, _textoChico);
                 return;
             }
-            if (entrena) DibujarEntrenamiento(panel);
-            if (forma) DibujarFormacion(panel);
-            if (dirige) DibujarComandantes(panel);
+            if (entrena) DibujarEntrenamiento(cuerpo);
+            if (forma) DibujarFormacion(cuerpo);
+            if (dirige) DibujarComandantes(cuerpo);
 
             if (edificio.EnConstruccion)
             {

@@ -741,6 +741,9 @@ namespace Altepetl
             Culto.Avanzar(Time.deltaTime);
             Banco.BonoCapacidad = Culto.Bono(TipoBono.Almacen);
             if (Time.time >= _proximoAutoguardado) Guardar();
+            // Mientras atacan (en vivo o viendo el ataque sin conexión) no hay edificio elegido:
+            // se cierra el panel que estuviera abierto y los toques en los edificios no eligen nada.
+            if (Asalto.EnCurso && Seleccionado != null) Seleccionar(null);
             LeerPuntero(out _, out _, out bool cancelar);
             if (cancelar)
             {
@@ -780,7 +783,7 @@ namespace Altepetl
             }
             else
             {
-                SeleccionarEnPantalla(posicion, casilla);
+                if (!Asalto.EnCurso) SeleccionarEnPantalla(posicion, casilla);
             }
         }
 

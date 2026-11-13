@@ -208,6 +208,24 @@ namespace Altepetl
 
         /// <summary>Se está colocando un edificio cuyos recursos faltantes se pagarán con plumas.</summary>
         public bool ColocandoConPlumas { get; private set; }
+        private Vector3 _centroColocacion;
+        private Transform _vistaConstruccion;
+        private Material _materialVistaConstruccion;
+        /// <summary>Casilla preparada, sin limitarla para poder mostrar en rojo el terreno cerrado.</summary>
+        public Vector2Int OrigenColocacion => Colocando == null ? Vector2Int.zero
+            : Mapa.MundoACasilla(_centroColocacion - Vector3.one * (Colocando.Tamano * 0.5f - 0.5f));
+        /// <summary>La huella completa cabe en el terreno y no ocupa otra estructura.</summary>
+        public bool LugarConstruccionValido => Colocando != null
+            && Mapa.PuedeConstruir(OrigenColocacion, Colocando.Tamano);
+
+        /// <summary>Construye en la posición preparada; soltar el dedo nunca cobra recursos.</summary>
+        public void ConfirmarConstruccion()
+        {
+            if (Colocando == null || ModoActual != Modo.Aldea) return;
+            if (Asalto.Activo) { MostrarMensaje(MensajeDuranteAtaque); return; }
+            if (EnLimite(Colocando)) { MostrarMensaje("Mejora el tecpan para construir más"); return; }
+            TryColocar(Colocando, OrigenColocacion);
+        }
 
         public const string MensajeDuranteAtaque = "Durante el ataque no se puede construir, mejorar ni mover";
 
@@ -236,13 +254,28 @@ namespace Altepetl
                 MostrarMensaje(conPlumas ? "No tienes suficientes plumas de quetzal" : "Recursos insuficientes");
                 return;
             }
+            CancelarColocacion();
             Colocando = definicion;
             ColocandoConPlumas = !alcanza;
+            _centroColocacion = PunteroEnSuelo(new Vector2(Screen.width * 0.5f, Screen.height * 0.5f), out var centro)
+                ? centro : Mapa.Centro;
+            var vista = Figuras.Primitiva(PrimitiveType.Cube, "Vista previa de construcción");
+            vista.transform.SetParent(transform, false);
+            _vistaConstruccion = vista.transform;
+            var plantilla = Resources.Load<Material>("Materials/EdificioTransparente");
+            if (plantilla != null)
+            {
+                _materialVistaConstruccion = new Material(plantilla);
+                vista.GetComponent<Renderer>().sharedMaterial = _materialVistaConstruccion;
+            }
+            else Debug.LogError("Falta Materials/EdificioTransparente para la vista previa de construcción.");
         }
 
         public void CancelarColocacion()
         {
+            LimpiarVistaConstruccion();
             Colocando = null;
+            ColocandoConPlumas = false;
             Moviendo = null;
             EligiendoMuros = false;
             MejorandoMuros = false;
@@ -250,6 +283,23 @@ namespace Altepetl
             _murosElegidos.Clear();
             _grupo.Clear();
             _desfases.Clear();
+        }
+
+        private void LimpiarVistaConstruccion()
+        {
+            if (_vistaConstruccion != null)
+            {
+                _vistaConstruccion.gameObject.SetActive(false);
+                Destroy(_vistaConstruccion.gameObject);
+            }
+            if (_materialVistaConstruccion != null) Destroy(_materialVistaConstruccion);
+            _vistaConstruccion = null;
+            _materialVistaConstruccion = null;
+        }
+
+        private void OnDestroy()
+        {
+            if (_materialVistaConstruccion != null) Destroy(_materialVistaConstruccion);
         }
 
         // ---------- Mover edificios ----------
@@ -779,7 +829,7 @@ namespace Altepetl
             }
             else if (Colocando != null)
             {
-                TryColocar(Colocando, Mapa.AjustarOrigen(casilla, Colocando.Tamano));
+                // La posición se prepara al arrastrar y solo la palomita confirma la construcción.
             }
             else
             {
@@ -819,7 +869,11 @@ namespace Altepetl
             // Las murallas se siguen colocando una tras otra mientras alcancen los recursos.
             bool otraMuralla = definicion.Id == BuildingId.Muralla && !EnLimite(definicion)
                 && Banco.PuedePagar(definicion.Costo);
-            if (!otraMuralla) Colocando = null;
+            if (!otraMuralla)
+            {
+                Colocando = null;
+                LimpiarVistaConstruccion();
+            }
             Guardar();
         }
 
@@ -1884,13 +1938,10 @@ namespace Altepetl
             public bool Soltando;       // se quedó quieto en batalla: suelta tropas seguidas
             public float SiguienteTropa;
             public bool EnHud;
-            // Murallas: el dedo que empieza en el mapa las va poniendo en línea recta.
+            // Trazo de murallas adquiridas dentro del editor de aldea.
             public bool Pinta;
-            public Vector2Int PintaInicio;
-            public int PintaEje;        // 0 aún sin dirección, 1 a lo largo de x, 2 a lo largo de y
-            public int PintaMin, PintaMax;
             public bool EligeMuros;     // empezó sobre una muralla elegida: al arrastrar elige las que va tocando
-            public bool Coloca;         // con un edificio en la mano: arrastra la sombra y al soltar lo coloca ahí
+            public bool Coloca;         // arrastra la vista previa; al mover un edificio existente, soltar lo coloca
             public Building MuroTocado;
             public bool Recorto;        // al tocarla se quitaron las que seguían después
             public bool Agrego;
@@ -1949,17 +2000,9 @@ namespace Altepetl
                         dedo.Despliega = sePuede && !dedo.SinTropas;
                         if (!sePuede) Batalla.MostrarZonaProhibida();
                     }
-                    else if (!batalla && !dedo.EnHud && Colocando != null && Colocando.Id == BuildingId.Muralla
-                             && PunteroEnSuelo(dedo.Inicio, out Vector3 inicio))
-                    {
-                        dedo.Pinta = true;
-                        dedo.PintaInicio = Mapa.MundoACasilla(inicio);
-                        ColocarMurallaEn(dedo.PintaInicio);
-                    }
                     else if (!batalla && !dedo.EnHud && (Colocando != null || Moviendo != null) && PunteroEnSuelo(dedo.Inicio, out _))
                     {
-                        // Un dedo con el edificio en la mano no mueve el mapa: va llevando la sombra y
-                        // al levantarse coloca ahí. Si llega un segundo dedo, los dos pasan a hacer zoom.
+                        // Un dedo lleva la vista previa. Dos dedos suspenden la colocación y hacen zoom.
                         bool otroColocando = false;
                         foreach (var otro in _dedos.Values)
                         {
@@ -1996,17 +2039,20 @@ namespace Altepetl
                     continue;
                 }
                 if (dedo.Soltando) continue;
-                if (dedo.Pinta)
-                {
-                    PintarMurallas(dedo);
-                    continue;
-                }
                 if (dedo.EligeMuros)
                 {
                     if (PunteroEnSuelo(dedo.Actual, out Vector3 tocando)) dedo.Agrego |= TryAgregarMuro(Mapa.MundoACasilla(tocando));
                     continue;
                 }
-                if (dedo.Coloca) continue;
+                if (dedo.Coloca)
+                {
+                    if (Colocando != null && _lecturaDedos.Count == 1
+                        && !_hud.PunteroSobreHud(dedo.Actual)
+                        && PunteroEnSuelo(dedo.Ultima, out var anterior)
+                        && PunteroEnSuelo(dedo.Actual, out var actual))
+                        _centroColocacion += actual - anterior;
+                    continue;
+                }
                 if (dedo.Despliega)
                 {
                     // Quieto un momento o deslizándose: suelta tropas seguidas.
@@ -2226,39 +2272,6 @@ namespace Altepetl
                 && PunteroEnSuelo(primero.Actual, out Vector3 hasta)) Desplazar(desde - hasta);
         }
 
-        /// <summary>Pone murallas desde donde empezó el dedo hasta donde va, en la dirección en que arrancó.</summary>
-        private void PintarMurallas(Dedo dedo)
-        {
-            if (Colocando == null || Colocando.Id != BuildingId.Muralla) return;
-            if (!PunteroEnSuelo(dedo.Actual, out Vector3 punto)) return;
-            var delta = Mapa.MundoACasilla(punto) - dedo.PintaInicio;
-            if (dedo.PintaEje == 0)
-            {
-                if (delta.x == 0 && delta.y == 0) return;
-                dedo.PintaEje = Mathf.Abs(delta.x) >= Mathf.Abs(delta.y) ? 1 : 2;
-            }
-            var paso = dedo.PintaEje == 1 ? new Vector2Int(1, 0) : new Vector2Int(0, 1);
-            int hasta = dedo.PintaEje == 1 ? delta.x : delta.y;
-            // Si el dedo va rápido se rellenan las casillas que se saltó.
-            for (int k = dedo.PintaMax + 1; k <= hasta && Colocando != null; k++)
-            {
-                ColocarMurallaEn(dedo.PintaInicio + new Vector2Int(paso.x * k, paso.y * k));
-                dedo.PintaMax = k;
-            }
-            for (int k = dedo.PintaMin - 1; k >= hasta && Colocando != null; k--)
-            {
-                ColocarMurallaEn(dedo.PintaInicio + new Vector2Int(paso.x * k, paso.y * k));
-                dedo.PintaMin = k;
-            }
-        }
-
-        private void ColocarMurallaEn(Vector2Int casilla)
-        {
-            // Las casillas ocupadas o fuera del terreno se saltan sin aviso, para no llenar la pantalla de mensajes.
-            if (Colocando == null || !Mapa.PuedeConstruir(casilla, 1)) return;
-            TryColocar(Colocando, casilla);
-        }
-
         private void Zoom(float factor)
         {
             _zoom = Mathf.Clamp(_zoom * factor, ZoomMinimo, ZoomMaximo);
@@ -2464,9 +2477,27 @@ namespace Altepetl
 
         private void ActualizarMarcadores()
         {
+            if (_vistaConstruccion != null)
+            {
+                bool visible = Colocando != null && ModoActual == Modo.Aldea;
+                _vistaConstruccion.gameObject.SetActive(visible);
+                if (visible)
+                {
+                    float altura = Colocando.Altura;
+                    float baseLago = Pueblo.EnLago ? 0.14f : 0f;
+                    _vistaConstruccion.position = Mapa.CentroDeArea(OrigenColocacion, Colocando.Tamano)
+                        + Vector3.up * (baseLago + altura * 0.5f);
+                    float lado = Colocando.Id == BuildingId.Muralla ? 0.55f : Colocando.Tamano * 0.9f;
+                    _vistaConstruccion.localScale = new Vector3(lado, altura, lado);
+                    if (_materialVistaConstruccion != null)
+                        _materialVistaConstruccion.color = LugarConstruccionValido
+                            ? new Color(0.25f, 0.95f, 0.35f, 0.55f) : new Color(1f, 0.2f, 0.15f, 0.55f);
+                }
+                else LimpiarVistaConstruccion();
+            }
             // Vista previa de dónde se colocará el edificio.
             bool mostrarFantasma = false;
-            var enMano = Moviendo != null ? Moviendo.Definicion : Colocando;
+            var enMano = Moviendo != null ? Moviendo.Definicion : null;
             if (ModoActual == Modo.Aldea && enMano != null && LeerPuntero(out Vector2 posicion, out _, out _)
                 && !_hud.PunteroSobreHud(posicion) && PunteroEnSuelo(posicion, out Vector3 punto))
             {

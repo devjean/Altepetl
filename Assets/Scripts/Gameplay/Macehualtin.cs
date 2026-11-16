@@ -48,6 +48,23 @@ namespace Altepetl
         }
 
         private readonly List<Persona> _gente = new List<Persona>();
+
+        internal void ActualizarEntradas(IReadOnlyList<Vector3> entradas)
+        {
+            if (entradas.Count == 0) return;
+            foreach (var persona in _gente)
+            {
+                if (!persona.CasaDeAfuera) continue;
+                var anterior = persona.Puerta;
+                var nueva = entradas[0];
+                for (int i = 1; i < entradas.Count; i++)
+                    if ((entradas[i] - anterior).sqrMagnitude < (nueva - anterior).sqrMagnitude)
+                        nueva = entradas[i];
+                persona.Puerta = nueva;
+                persona.Destino = nueva;
+                persona.Andar.Olvidar();
+            }
+        }
         private readonly List<Building> _obras = new List<Building>();
         private readonly Dictionary<Building, int> _asignados = new Dictionary<Building, int>();
         private float _proximoReparto;

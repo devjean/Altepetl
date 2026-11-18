@@ -712,6 +712,11 @@ namespace Altepetl
         private TropasEnAldea _tropasEnAldea;
         private Macehualtin _macehualtin;
 
+        internal void ActualizarEntradasDelPaisaje(IReadOnlyList<Vector3> entradas)
+        {
+            _macehualtin.ActualizarEntradas(entradas);
+        }
+
         // ---------- Ataques a la aldea ----------
 
         public Asalto Asalto { get; private set; }

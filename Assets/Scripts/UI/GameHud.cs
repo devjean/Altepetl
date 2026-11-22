@@ -48,6 +48,9 @@ namespace Altepetl
         private float _desplazamientoEditor;
         private Rect _tiraMenu;                 // franja de tarjetas del menú Construir
         private float _desplazamientoMenu;      // cuánto se corrió la franja (en unidades del HUD)
+        private Rect _listaCampana;             // lista de episodios del panel de campaña
+        private float _desplazamientoCampana;   // cuánto se corrió la lista hacia abajo (en unidades del HUD)
+        private float _altoListaCampana;        // alto de todas las tarjetas juntas
         private float _anchoTiraMenu;           // ancho total de todas las tarjetas de la pestaña
         private const int TarjetasPorVista = 4;
         private bool _confirmarSalirEditor;
@@ -81,6 +84,21 @@ namespace Altepetl
         public void DesplazarMenuConstruccion(float pixeles)
         {
             _desplazamientoMenu = Mathf.Clamp(_desplazamientoMenu + pixeles / _escala, 0, Mathf.Max(0, _anchoTiraMenu - _tiraMenu.width));
+        }
+
+        /// <summary>¿El dedo empezó sobre la lista de episodios de la campaña? (píxeles de pantalla, origen abajo)</summary>
+        public bool PunteroSobreListaCampana(Vector2 posicionPantalla)
+        {
+            if (!_campanaAbierta) return false;
+            var punto = new Vector2(posicionPantalla.x / _escala, (Screen.height - posicionPantalla.y) / _escala);
+            return _listaCampana.Contains(punto);
+        }
+
+        /// <summary>Corre la lista de episodios de la campaña (deslizando, con la rueda o con las flechas).</summary>
+        public void DesplazarCampana(float pixeles)
+        {
+            _desplazamientoCampana = Mathf.Clamp(_desplazamientoCampana + pixeles / _escala, 0,
+                Mathf.Max(0, _altoListaCampana - _listaCampana.height));
         }
 
         /// <summary>¿La posición (en píxeles de pantalla, origen abajo) está sobre algún panel?</summary>
@@ -1411,6 +1429,7 @@ namespace Altepetl
                 _nivelHistoria = -1;
                 if (_campanaAbierta)
                 {
+                    _desplazamientoCampana = 0;
                     _menuAbierto = false;
                     _ofrendasAbierto = false;
                     _defensaAbierta = false;
@@ -1429,9 +1448,38 @@ namespace Altepetl
             }
 
             var campana = Manager.Campana;
-            const float altoFila = 66f;
-            float altoPanel = Mathf.Min(470f, 96f + campana.Length * (altoFila + 6f) + 4f);
-            var panel = new Rect((ancho - 560) / 2, AltoBarraSuperior + 10, 560, altoPanel);
+            // Cada tarjeta mide lo que ocupa su texto (la descripción puede tomar una o dos líneas).
+            const float anchoPanel = 560f;
+            const float anchoFlechas = 34f;
+            const float altoMinimoFila = 66f;
+            const float altoMaximoLista = 470f - 96f - 10f;
+            var textos = new string[campana.Length];
+            var altos = new float[campana.Length];
+            for (int i = 0; i < campana.Length; i++)
+            {
+                string premioFila = Manager.EstrellasDe(i) > 0
+                    ? "Completado"
+                    : $"Primera victoria: {campana[i].PlumasPrimeraVez} plumas de quetzal";
+                textos[i] = $"{campana[i].Descripcion}\n{premioFila}";
+            }
+            // Si no caben todas, la lista se queda del alto disponible y se desliza. Las flechas le quitan
+            // ancho al texto, así que en ese caso se vuelve a medir con el ancho que de verdad queda.
+            float altoTotal = 0f;
+            bool conDesplazamiento = false;
+            for (int pasada = 0; pasada < 2; pasada++)
+            {
+                float anchoTexto = anchoPanel - 20f - 230f - (conDesplazamiento ? anchoFlechas : 0f);
+                altoTotal = -6f;
+                for (int i = 0; i < campana.Length; i++)
+                {
+                    altos[i] = Mathf.Max(altoMinimoFila, 26f + _textoChico.CalcHeight(new GUIContent(textos[i]), anchoTexto) + 6f);
+                    altoTotal += altos[i] + 6f;
+                }
+                if (conDesplazamiento || altoTotal <= altoMaximoLista + 0.5f) break;
+                conDesplazamiento = true;
+            }
+            float altoVisible = Mathf.Min(altoTotal, altoMaximoLista);
+            var panel = new Rect((ancho - anchoPanel) / 2, AltoBarraSuperior + 10, anchoPanel, 96f + altoVisible + 10f);
             Zona(panel);
             GUI.Box(panel, GUIContent.none, _caja);
             Titulo(new Rect(panel.x + 10, panel.y + 8, panel.width - 50, 28), Altepetl.Campana.Titulo(Manager.Pueblo));
@@ -1453,24 +1501,38 @@ namespace Altepetl
                 "Tu ejército: " + string.Join(", ", partes) + heridosCampana
                 + (veteranosCampana.Length > 0 ? "\nCon rango: " + veteranosCampana : ""), _texto);
 
-            float y = panel.y + 96;
+            _listaCampana = new Rect(panel.x + 10, panel.y + 96, panel.width - 20, altoVisible);
+            _altoListaCampana = altoTotal;
+            DesplazarCampana(0);
+            if (conDesplazamiento && Event.current.type == EventType.ScrollWheel
+                && _listaCampana.Contains(Event.current.mousePosition))
+            {
+                DesplazarCampana(Event.current.delta.y * 12f * _escala);
+                Event.current.Use();
+            }
+
+            // Con desplazamiento, las tarjetas dejan libre una franja a la derecha para las flechas.
+            float anchoFila = _listaCampana.width - (conDesplazamiento ? anchoFlechas : 0f);
+            GUI.BeginGroup(_listaCampana);
+            float y = -_desplazamientoCampana;
             for (int i = 0; i < campana.Length; i++)
             {
                 var nivel = campana[i];
+                var fila = new Rect(0, y, anchoFila, altos[i]);
+                y += altos[i] + 6f;
+                if (fila.yMax < 0 || fila.y > _listaCampana.height) continue;
+
                 bool ganado = i < Manager.NivelesCompletados;
                 bool disponible = i <= Manager.NivelesCompletados;
-                var fila = new Rect(panel.x + 10, y, panel.width - 20, altoFila);
                 GUI.Box(fila, GUIContent.none, _caja);
 
-                int estrellas = Manager.EstrellasDe(i);
-                string premio = estrellas > 0 ? "Completado" : $"Primera victoria: {nivel.PlumasPrimeraVez} plumas de quetzal";
-                if (ganado) DibujarEstrellas(new Rect(fila.xMax - 220, fila.y + 18, 90, 30), estrellas, 22);
-                GUI.Label(new Rect(fila.x + 8, fila.y + 2, fila.width - 230, 24), $"{i + 1}. {nivel.Nombre}", _texto);
-                GUI.Label(new Rect(fila.x + 8, fila.y + 24, fila.width - 230, altoFila - 24),
-                    $"{nivel.Descripcion}\n{premio}", _textoChico);
+                float anchoTextoFila = fila.width - 230f;
+                if (ganado) DibujarEstrellas(new Rect(fila.xMax - 220, fila.y + (fila.height - 30) / 2, 90, 30), Manager.EstrellasDe(i), 22);
+                GUI.Label(new Rect(fila.x + 8, fila.y + 2, anchoTextoFila, 24), $"{i + 1}. {nivel.Nombre}", _texto);
+                GUI.Label(new Rect(fila.x + 8, fila.y + 24, anchoTextoFila, fila.height - 24), textos[i], _textoChico);
 
                 GUI.enabled = disponible && ejercito.Total > 0;
-                if (GUI.Button(new Rect(fila.xMax - 120, fila.y + 11, 110, 44), disponible ? Terminos.AtacarCorto : "Bloqueado", _boton))
+                if (GUI.Button(new Rect(fila.xMax - 120, fila.y + (fila.height - 44) / 2, 110, 44), disponible ? Terminos.AtacarCorto : "Bloqueado", _boton))
                 {
                     _campanaAbierta = false;
                     if (string.IsNullOrEmpty(nivel.Historia))
@@ -1484,7 +1546,17 @@ namespace Altepetl
                     }
                 }
                 GUI.enabled = true;
-                y += altoFila + 6f;
+            }
+            GUI.EndGroup();
+
+            if (conDesplazamiento)
+            {
+                float xFlecha = _listaCampana.xMax - 30;
+                GUI.enabled = _desplazamientoCampana > 0;
+                if (GUI.Button(new Rect(xFlecha, _listaCampana.y, 30, 44), "▲", _boton)) DesplazarCampana(-80f * _escala);
+                GUI.enabled = _desplazamientoCampana < _altoListaCampana - _listaCampana.height - 0.5f;
+                if (GUI.Button(new Rect(xFlecha, _listaCampana.yMax - 44, 30, 44), "▼", _boton)) DesplazarCampana(80f * _escala);
+                GUI.enabled = true;
             }
         }
 

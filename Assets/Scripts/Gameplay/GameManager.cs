@@ -2036,6 +2036,11 @@ namespace Altepetl
                     {
                         _hud.DesplazarMenuConstruccion(dedo.Ultima.x - dedo.Actual.x);
                     }
+                    // Sobre la lista de episodios de la campaña, deslizar hacia arriba o abajo la corre.
+                    else if (_hud.PunteroSobreListaCampana(dedo.Inicio) && Mathf.Abs(dedo.Actual.y - dedo.Inicio.y) > umbral)
+                    {
+                        _hud.DesplazarCampana(dedo.Actual.y - dedo.Ultima.y);
+                    }
                     continue;
                 }
                 if (dedo.Soltando) continue;

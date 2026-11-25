@@ -64,7 +64,9 @@ namespace Altepetl
         private int _nivelPalacio;
         private Material[] _materialesPalacio;
         private Material[] _originalesPalacio;
-        private Material[] _transparenciasPalacio;
+        private Material[] _materialesPalacioAtenuado;
+        private static Material _plantillaPalacioAtenuado;
+        private bool _faltaPlantillaPalacio;
         private Material _materialModelo;
         private Material _materialTransparente;
         private bool _vistaTransparente;
@@ -364,6 +366,11 @@ namespace Altepetl
                 _vistaTransparente = false;
                 return;
             }
+            if (_renderPalacio != null)
+            {
+                AtenuarPalacio(opacidad);
+                return;
+            }
             if (_materialTransparente == null)
             {
                 if (_faltaPlantillaTransparente) return;
@@ -390,22 +397,44 @@ namespace Altepetl
                 _colorTransparenteAsignado = true;
             }
             if (!_vistaTransparente) _render.sharedMaterial = _materialTransparente;
-            if (_renderPalacio != null)
+            _vistaTransparente = true;
+        }
+
+        private void AtenuarPalacio(float opacidad)
+        {
+            if (_materialesPalacioAtenuado == null)
             {
-                if (_transparenciasPalacio == null)
+                if (_faltaPlantillaPalacio) return;
+                if (_plantillaPalacioAtenuado == null)
+                    _plantillaPalacioAtenuado = Resources.Load<Material>("Materials/PalacioAtenuado");
+                if (_plantillaPalacioAtenuado == null)
                 {
-                    _transparenciasPalacio = new Material[_materialesPalacio.Length];
-                    for (int i = 0; i < _materialesPalacio.Length; i++)
-                        _transparenciasPalacio[i] = new Material(_materialTransparente);
+                    _faltaPlantillaPalacio = true;
+                    Debug.LogError("Falta Materials/PalacioAtenuado para atenuar el tecpan.", this);
+                    return;
                 }
+                _materialesPalacioAtenuado = new Material[_materialesPalacio.Length];
                 for (int i = 0; i < _materialesPalacio.Length; i++)
                 {
-                    var tinte = _materialesPalacio[i].color;
-                    tinte.a *= Mathf.Clamp01(opacidad);
-                    if (_transparenciasPalacio[i].color != tinte) _transparenciasPalacio[i].color = tinte;
+                    var material = new Material(_plantillaPalacioAtenuado);
+                    material.CopyPropertiesFromMaterial(_materialesPalacio[i]);
+                    material.EnableKeyword("_ATENUAR_EDIFICIO");
+                    material.SetColor("_ColorFigura", Color.white);
+                    _materialesPalacioAtenuado[i] = material;
                 }
-                if (!_vistaTransparente) _renderPalacio.sharedMaterials = _transparenciasPalacio;
             }
+            for (int i = 0; i < _materialesPalacio.Length; i++)
+            {
+                var material = _materialesPalacioAtenuado[i];
+                var original = _materialesPalacio[i];
+                if (material.color != original.color) material.color = original.color;
+                // El volumen oscuro representa el interior de una puerta, no parte de la silueta.
+                bool interior = _originalesPalacio[i].name.StartsWith("Sombra interior", System.StringComparison.Ordinal);
+                float cobertura = interior ? 0f : Mathf.Clamp01(opacidad);
+                if (material.GetFloat("_OpacidadVista") != cobertura)
+                    material.SetFloat("_OpacidadVista", cobertura);
+            }
+            if (!_vistaTransparente) _renderPalacio.sharedMaterials = _materialesPalacioAtenuado;
             _vistaTransparente = true;
         }
 
@@ -420,11 +449,11 @@ namespace Altepetl
         {
             if (_materialesPalacio != null)
                 foreach (var material in _materialesPalacio) Destroy(material);
-            if (_transparenciasPalacio != null)
-                foreach (var material in _transparenciasPalacio) Destroy(material);
+            if (_materialesPalacioAtenuado != null)
+                foreach (var material in _materialesPalacioAtenuado) Destroy(material);
             _materialesPalacio = null;
             _originalesPalacio = null;
-            _transparenciasPalacio = null;
+            _materialesPalacioAtenuado = null;
         }
 
         private void ActualizarPalacio(float avance)

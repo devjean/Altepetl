@@ -5,6 +5,7 @@ Shader "Altepetl/FiguraInstanciada"
     Properties
     {
         [PerRendererData] _ColorFigura("Color por figura", Color) = (1,1,1,1)
+        [HideInInspector] _OpacidadVista("Opacidad de vista", Range(0, 1)) = 1
         // Specular vs Metallic workflow
         _WorkflowMode("WorkflowMode", Float) = 1.0
 
@@ -177,6 +178,8 @@ Shader "Altepetl/FiguraInstanciada"
             #pragma instancing_options renderinglayer
 
             #include "FiguraInput.hlsl"
+            #pragma shader_feature_local_fragment _ATENUAR_EDIFICIO
+            #include "AtenuarEdificio.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitForwardPass.hlsl"
             ENDHLSL
         }
@@ -313,6 +316,8 @@ Shader "Altepetl/FiguraInstanciada"
             // -------------------------------------
             // Includes
             #include "FiguraInput.hlsl"
+            #pragma shader_feature_local_fragment _ATENUAR_EDIFICIO
+            #include "AtenuarEdificio.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitGBufferPass.hlsl"
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/GBufferOutputFormat.hlsl"
             ENDHLSL
@@ -356,6 +361,8 @@ Shader "Altepetl/FiguraInstanciada"
             // -------------------------------------
             // Includes
             #include "FiguraInput.hlsl"
+            #pragma shader_feature_local_fragment _ATENUAR_EDIFICIO
+            #include "AtenuarEdificio.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
             ENDHLSL
         }
@@ -405,6 +412,8 @@ Shader "Altepetl/FiguraInstanciada"
             // -------------------------------------
             // Includes
             #include "FiguraInput.hlsl"
+            #pragma shader_feature_local_fragment _ATENUAR_EDIFICIO
+            #include "AtenuarEdificio.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitDepthNormalsPass.hlsl"
             ENDHLSL
         }

@@ -2350,8 +2350,8 @@ namespace Altepetl
         {
             // El zoom es relativo al encuadre de la aldea y no depende del tamaño de pantalla.
             bool enAldea = Pueblo != null && (ModoActual == Modo.Aldea || ModoActual == Modo.EditorAldea);
-            float acercamiento = enAldea ? Mathf.InverseLerp(0.8f, ZoomMinimo, _zoom) : 0f;
-            float objetivo = Mathf.Lerp(1f, 0.45f, Mathf.SmoothStep(0f, 1f, acercamiento));
+            float acercamiento = enAldea ? Mathf.InverseLerp(0.5f, ZoomMinimo, _zoom) : 0f;
+            float objetivo = Mathf.Lerp(1f, 0.7f, Mathf.SmoothStep(0f, 1f, acercamiento));
             _opacidadEdificios = enAldea ? Mathf.MoveTowards(_opacidadEdificios, objetivo, Time.unscaledDeltaTime * 2f) : 1f;
             // Después de las obras y del daño, para que su color no borre la transparencia.
             foreach (var edificio in _edificios)

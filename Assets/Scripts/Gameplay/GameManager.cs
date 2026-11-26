@@ -2408,7 +2408,9 @@ namespace Altepetl
             {
                 var render = pieza.GetComponent<Renderer>();
                 if (render == null || !render.enabled || pieza.sharedMesh == null) continue;
-                Graphics.DrawMesh(pieza.sharedMesh, pieza.transform.localToWorldMatrix, _materialContorno, 0);
+                // Los modelos importados traen una submalla por material: el contorno las recorre todas.
+                for (int submalla = 0; submalla < pieza.sharedMesh.subMeshCount; submalla++)
+                    Graphics.DrawMesh(pieza.sharedMesh, pieza.transform.localToWorldMatrix, _materialContorno, 0, null, submalla);
             }
         }
 

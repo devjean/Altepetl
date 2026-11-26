@@ -518,11 +518,18 @@ namespace Altepetl
                 var barra = new Rect(0, alto - 64, ancho, 64);
                 Zona(barra);
                 GUI.Box(barra, GUIContent.none, _caja);
-                GUI.Label(new Rect(20, barra.y + 6, ancho - 380, 52),
-                    $"{Manager.Colocando.NombrePara(Manager.Pueblo)} · Arrastra para ubicar."
-                    + (Manager.ColocandoConPlumas ? $" (con {Plumas(Manager.PlumasParaCompletar(Manager.Colocando.Costo))})" : ""), _texto);
+                int enFila = Manager.LargoFilaMuros;
+                string ayuda = Manager.PuedeTrazarFilaMuros
+                    ? (enFila > 1
+                        ? $"{Manager.Colocando.NombrePara(Manager.Pueblo)} × {enFila} · {TextoCosto(Manager.CostoFilaMuros())}"
+                            + (enFila >= Manager.MaximoFilaMuros ? " (máximo)" : "")
+                        : $"{Manager.Colocando.NombrePara(Manager.Pueblo)} · Arrastra para ubicar.")
+                      + "\nJala la marca amarilla para trazar una fila."
+                    : $"{Manager.Colocando.NombrePara(Manager.Pueblo)} · Arrastra para ubicar."
+                      + (Manager.ColocandoConPlumas ? $" (con {Plumas(Manager.PlumasParaCompletar(Manager.Colocando.Costo))})" : "");
+                GUI.Label(new Rect(20, barra.y + 6, ancho - 380, 52), ayuda, _texto);
                 GUI.enabled = Manager.LugarConstruccionValido && !Manager.Asalto.Activo;
-                if (GUI.Button(new Rect(ancho - 350, barra.y + 8, 170, 48), "✓ Construir", _boton))
+                if (GUI.Button(new Rect(ancho - 350, barra.y + 8, 170, 48), enFila > 1 ? $"✓ Construir ({enFila})" : "✓ Construir", _boton))
                     Manager.ConfirmarConstruccion();
                 GUI.enabled = true;
                 if (GUI.Button(new Rect(ancho - 170, barra.y + 8, 150, 48), "X Cancelar", _boton))

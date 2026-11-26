@@ -214,9 +214,130 @@ namespace Altepetl
         /// <summary>Casilla preparada, sin limitarla para poder mostrar en rojo el terreno cerrado.</summary>
         public Vector2Int OrigenColocacion => Colocando == null ? Vector2Int.zero
             : Mapa.MundoACasilla(_centroColocacion - Vector3.one * (Colocando.Tamano * 0.5f - 0.5f));
-        /// <summary>La huella completa cabe en el terreno y no ocupa otra estructura.</summary>
-        public bool LugarConstruccionValido => Colocando != null
-            && Mapa.PuedeConstruir(OrigenColocacion, Colocando.Tamano);
+        /// <summary>La huella completa cabe en el terreno y no ocupa otra estructura (con murallas, toda la fila).</summary>
+        public bool LugarConstruccionValido
+        {
+            get
+            {
+                if (Colocando == null) return false;
+                for (int i = 0; i < LargoFilaMuros; i++)
+                {
+                    if (!Mapa.PuedeConstruir(OrigenColocacion + _ejeFilaMuros * i, Colocando.Tamano)) return false;
+                }
+                return true;
+            }
+        }
+
+        // ---------- Fila de murallas (como en Clash of Clans) ----------
+        // Al colocar murallas, una marca amarilla junto a la vista previa se puede jalar para trazar una
+        // fila recta; la palomita construye toda la fila y la siguiente muralla queda lista a continuación.
+
+        private int _largoFilaMuros = 1;
+        private Vector2Int _ejeFilaMuros = new Vector2Int(1, 0);
+        private readonly List<Transform> _vistasFilaMuros = new List<Transform>();
+        private Transform _asaFilaMuros;
+
+        public bool ColocandoMuralla => Colocando != null && Colocando.Id == BuildingId.Muralla;
+        /// <summary>Cuántas murallas se construirán al confirmar (1 si no se trazó una fila).</summary>
+        public int LargoFilaMuros => ColocandoMuralla ? _largoFilaMuros : 1;
+        /// <summary>La fila se puede trazar cuando se paga con recursos (con plumas, de una en una).</summary>
+        public bool PuedeTrazarFilaMuros => ColocandoMuralla && !ColocandoConPlumas;
+
+        private static int[] CostoPorCantidad(int[] costo, int cantidad)
+        {
+            var total = new int[costo.Length];
+            for (int i = 0; i < costo.Length; i++) total[i] = costo[i] * cantidad;
+            return total;
+        }
+
+        public int[] CostoFilaMuros() => Colocando == null ? ResourceInfo.Costo() : CostoPorCantidad(Colocando.Costo, LargoFilaMuros);
+
+        /// <summary>Hasta cuántas murallas alcanza la fila: las que faltan para el límite del tecpan y las que se pueden pagar.</summary>
+        public int MaximoFilaMuros
+        {
+            get
+            {
+                if (!PuedeTrazarFilaMuros) return 1;
+                int restantes = Maximo(Colocando) - Cantidad(Colocando.Id);
+                int cabe = 1;
+                while (cabe < restantes && Banco.PuedePagar(CostoPorCantidad(Colocando.Costo, cabe + 1))) cabe++;
+                return cabe;
+            }
+        }
+
+        /// <summary>Casilla de la marca que se jala: la que sigue después de la última muralla de la fila.</summary>
+        private Vector2Int CasillaAsaMuros => OrigenColocacion + _ejeFilaMuros * LargoFilaMuros;
+
+        private bool PuntoSobreAsaMuros(Vector3 punto)
+        {
+            if (!PuedeTrazarFilaMuros) return false;
+            var centro = Mapa.CentroDeArea(CasillaAsaMuros, 1);
+            float dx = punto.x - centro.x, dz = punto.z - centro.z;
+            return dx * dx + dz * dz <= 0.8f * 0.8f;
+        }
+
+        /// <summary>El dedo jala la marca: la fila va de la primera muralla hasta la casilla anterior al dedo, en línea recta.</summary>
+        private void EstirarFilaMuros(Vector2Int casilla)
+        {
+            if (!PuedeTrazarFilaMuros) return;
+            var d = casilla - OrigenColocacion;
+            if (d == Vector2Int.zero) return;
+            _ejeFilaMuros = Mathf.Abs(d.x) >= Mathf.Abs(d.y)
+                ? new Vector2Int(d.x > 0 ? 1 : -1, 0)
+                : new Vector2Int(0, d.y > 0 ? 1 : -1);
+            int largo = Mathf.Max(Mathf.Abs(d.x), Mathf.Abs(d.y));
+            _largoFilaMuros = Mathf.Clamp(largo, 1, MaximoFilaMuros);
+        }
+
+        /// <summary>Construye la fila preparada y deja la siguiente muralla lista a continuación, en la misma dirección.</summary>
+        private void ColocarFilaMuros()
+        {
+            var definicion = Colocando;
+            var origen = OrigenColocacion;
+            var eje = _ejeFilaMuros;
+            int largo = Mathf.Min(LargoFilaMuros, MaximoFilaMuros);
+            if (largo <= 1)
+            {
+                bool libre = Mapa.PuedeConstruir(origen, 1);
+                TryColocar(definicion, origen);
+                if (libre && Mapa.En(origen) != null && Colocando != null) PrepararSiguienteMuro(origen + eje);
+                return;
+            }
+            for (int i = 0; i < largo; i++)
+            {
+                var casilla = origen + eje * i;
+                if (!Mapa.EnArea(casilla, 1))
+                {
+                    MostrarMensaje("Mejora el tecpan para abrir más terreno");
+                    return;
+                }
+                if (!Mapa.EstaLibre(casilla, 1))
+                {
+                    MostrarMensaje("Ese lugar está ocupado");
+                    return;
+                }
+            }
+            if (!Banco.TryGastar(CostoPorCantidad(definicion.Costo, largo)))
+            {
+                MostrarMensaje("Recursos insuficientes");
+                return;
+            }
+            for (int i = 0; i < largo; i++) Construir(definicion, origen + eje * i, 0, SegundosConstruccion(definicion));
+            _largoFilaMuros = 1;
+            if (!EnLimite(definicion) && Banco.PuedePagar(definicion.Costo)) PrepararSiguienteMuro(origen + eje * largo);
+            else
+            {
+                Colocando = null;
+                LimpiarVistaConstruccion();
+            }
+            Guardar();
+        }
+
+        private void PrepararSiguienteMuro(Vector2Int casilla)
+        {
+            _largoFilaMuros = 1;
+            _centroColocacion = Mapa.CentroDeArea(casilla, 1);
+        }
 
         /// <summary>Construye en la posición preparada; soltar el dedo nunca cobra recursos.</summary>
         public void ConfirmarConstruccion()
@@ -224,7 +345,8 @@ namespace Altepetl
             if (Colocando == null || ModoActual != Modo.Aldea) return;
             if (Asalto.Activo) { MostrarMensaje(MensajeDuranteAtaque); return; }
             if (EnLimite(Colocando)) { MostrarMensaje("Mejora el tecpan para construir más"); return; }
-            TryColocar(Colocando, OrigenColocacion);
+            if (ColocandoMuralla) ColocarFilaMuros();
+            else TryColocar(Colocando, OrigenColocacion);
         }
 
         public const string MensajeDuranteAtaque = "Durante el ataque no se puede construir, mejorar ni mover";
@@ -257,6 +379,7 @@ namespace Altepetl
             CancelarColocacion();
             Colocando = definicion;
             ColocandoConPlumas = !alcanza;
+            _largoFilaMuros = 1;
             _centroColocacion = PunteroEnSuelo(new Vector2(Screen.width * 0.5f, Screen.height * 0.5f), out var centro)
                 ? centro : Mapa.Centro;
             var vista = Figuras.Primitiva(PrimitiveType.Cube, "Vista previa de construcción");
@@ -283,6 +406,7 @@ namespace Altepetl
             _murosElegidos.Clear();
             _grupo.Clear();
             _desfases.Clear();
+            _largoFilaMuros = 1;
         }
 
         private void LimpiarVistaConstruccion()
@@ -871,7 +995,7 @@ namespace Altepetl
             }
             ColocandoConPlumas = false;
             Construir(definicion, origen, 0, SegundosConstruccion(definicion));
-            // Las murallas se siguen colocando una tras otra mientras alcancen los recursos.
+            // Las murallas se siguen colocando una tras otra mientras alcancen los recursos (ver ColocarFilaMuros).
             bool otraMuralla = definicion.Id == BuildingId.Muralla && !EnLimite(definicion)
                 && Banco.PuedePagar(definicion.Costo);
             if (!otraMuralla)
@@ -1947,6 +2071,7 @@ namespace Altepetl
             public bool Pinta;
             public bool EligeMuros;     // empezó sobre una muralla elegida: al arrastrar elige las que va tocando
             public bool Coloca;         // arrastra la vista previa; al mover un edificio existente, soltar lo coloca
+            public bool EstiraMuros;    // empezó sobre la marca amarilla: al arrastrar traza la fila de murallas
             public Building MuroTocado;
             public bool Recorto;        // al tocarla se quitaron las que seguían después
             public bool Agrego;
@@ -2005,6 +2130,11 @@ namespace Altepetl
                         dedo.Despliega = sePuede && !dedo.SinTropas;
                         if (!sePuede) Batalla.MostrarZonaProhibida();
                     }
+                    else if (!batalla && !dedo.EnHud && _lecturaDedos.Count == 1
+                        && PunteroEnSuelo(dedo.Inicio, out Vector3 enAsa) && PuntoSobreAsaMuros(enAsa))
+                    {
+                        dedo.EstiraMuros = true;
+                    }
                     else if (!batalla && !dedo.EnHud && (Colocando != null || Moviendo != null) && PunteroEnSuelo(dedo.Inicio, out _))
                     {
                         // Un dedo lleva la vista previa. Dos dedos suspenden la colocación y hacen zoom.
@@ -2054,6 +2184,13 @@ namespace Altepetl
                     if (PunteroEnSuelo(dedo.Actual, out Vector3 tocando)) dedo.Agrego |= TryAgregarMuro(Mapa.MundoACasilla(tocando));
                     continue;
                 }
+                if (dedo.EstiraMuros)
+                {
+                    if (_lecturaDedos.Count == 1 && !_hud.PunteroSobreHud(dedo.Actual)
+                        && PunteroEnSuelo(dedo.Actual, out Vector3 jalando))
+                        EstirarFilaMuros(Mapa.MundoACasilla(jalando));
+                    continue;
+                }
                 if (dedo.Coloca)
                 {
                     if (Colocando != null && _lecturaDedos.Count == 1
@@ -2095,7 +2232,7 @@ namespace Altepetl
                     _murosElegidos.Remove(dedo.MuroTocado);
                 }
                 // En batalla solo cuenta el toque de un dedo que podía desplegar.
-                bool quieto = !dedo.Arrastra && !dedo.Soltando && !dedo.EnHud && !dedo.Pinta && !dedo.EligeMuros;
+                bool quieto = !dedo.Arrastra && !dedo.Soltando && !dedo.EnHud && !dedo.Pinta && !dedo.EligeMuros && !dedo.EstiraMuros;
                 if (quieto && batalla && dedo.SinTropas && Time.time - dedo.Desde < SegundosParaSoltarSeguido)
                 {
                     MostrarMensaje($"No te quedan {Terminos.Tropas} de ese tipo");
@@ -2487,6 +2624,47 @@ namespace Altepetl
             return marcador.transform;
         }
 
+        /// <summary>Las demás murallas de la fila que se está trazando (cada una verde o roja) y la marca que se jala.</summary>
+        private void ActualizarVistaFilaMuros()
+        {
+            bool muralla = ColocandoMuralla && ModoActual == Modo.Aldea && _vistaConstruccion != null;
+            float baseLago = Pueblo != null && Pueblo.EnLago ? 0.14f : 0f;
+            int extras = muralla ? LargoFilaMuros - 1 : 0;
+            while (_vistasFilaMuros.Count < extras)
+            {
+                var vista = CrearMarcador("Vista previa de muralla", out var render);
+                vista.SetParent(transform, false);
+                // Cada una con su propio material, para pintarla verde o roja sin tocar el de las demás figuras.
+                render.sharedMaterial = new Material(_materialVistaConstruccion != null ? _materialVistaConstruccion : render.sharedMaterial);
+                _vistasFilaMuros.Add(vista);
+            }
+            for (int i = 0; i < _vistasFilaMuros.Count; i++)
+            {
+                bool activa = i < extras;
+                _vistasFilaMuros[i].gameObject.SetActive(activa);
+                if (!activa) continue;
+                var casilla = OrigenColocacion + _ejeFilaMuros * (i + 1);
+                float altura = Colocando.Altura;
+                _vistasFilaMuros[i].position = Mapa.CentroDeArea(casilla, 1) + Vector3.up * (baseLago + altura * 0.5f);
+                _vistasFilaMuros[i].localScale = new Vector3(0.55f, altura, 0.55f);
+                _vistasFilaMuros[i].GetComponent<Renderer>().sharedMaterial.color = Mapa.PuedeConstruir(casilla, 1)
+                    ? new Color(0.25f, 0.95f, 0.35f, 0.55f) : new Color(1f, 0.2f, 0.15f, 0.55f);
+            }
+
+            bool asa = muralla && PuedeTrazarFilaMuros;
+            if (asa && _asaFilaMuros == null)
+            {
+                _asaFilaMuros = CrearMarcador("Marca para trazar la fila", out var renderAsa);
+                _asaFilaMuros.SetParent(transform, false);
+                renderAsa.material.color = new Color(1f, 0.85f, 0.15f);
+            }
+            if (_asaFilaMuros == null) return;
+            _asaFilaMuros.gameObject.SetActive(asa);
+            if (!asa) return;
+            _asaFilaMuros.position = Mapa.CentroDeArea(CasillaAsaMuros, 1) + Vector3.up * (baseLago + 0.08f);
+            _asaFilaMuros.localScale = new Vector3(0.6f, 0.16f, 0.6f);
+        }
+
         private void ActualizarMarcadores()
         {
             if (_vistaConstruccion != null)
@@ -2502,11 +2680,12 @@ namespace Altepetl
                     float lado = Colocando.Id == BuildingId.Muralla ? 0.55f : Colocando.Tamano * 0.9f;
                     _vistaConstruccion.localScale = new Vector3(lado, altura, lado);
                     if (_materialVistaConstruccion != null)
-                        _materialVistaConstruccion.color = LugarConstruccionValido
+                        _materialVistaConstruccion.color = Mapa.PuedeConstruir(OrigenColocacion, Colocando.Tamano)
                             ? new Color(0.25f, 0.95f, 0.35f, 0.55f) : new Color(1f, 0.2f, 0.15f, 0.55f);
                 }
                 else LimpiarVistaConstruccion();
             }
+            ActualizarVistaFilaMuros();
             // Vista previa de dónde se colocará el edificio.
             bool mostrarFantasma = false;
             var enMano = Moviendo != null ? Moviendo.Definicion : null;

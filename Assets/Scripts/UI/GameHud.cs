@@ -500,10 +500,14 @@ namespace Altepetl
                 var barra = new Rect(0, alto - 64, ancho, 64);
                 Zona(barra);
                 GUI.Box(barra, GUIContent.none, _caja);
-                GUI.Label(new Rect(20, barra.y + 18, ancho - 200, 30),
-                    $"Toca el mapa para colocar: {Manager.Colocando.NombrePara(Manager.Pueblo)}"
+                GUI.Label(new Rect(20, barra.y + 6, ancho - 380, 52),
+                    $"{Manager.Colocando.NombrePara(Manager.Pueblo)} · Arrastra para ubicar."
                     + (Manager.ColocandoConPlumas ? $" (con {Plumas(Manager.PlumasParaCompletar(Manager.Colocando.Costo))})" : ""), _texto);
-                if (GUI.Button(new Rect(ancho - 170, barra.y + 8, 150, 48), "Cancelar", _boton))
+                GUI.enabled = Manager.LugarConstruccionValido && !Manager.Asalto.Activo;
+                if (GUI.Button(new Rect(ancho - 350, barra.y + 8, 170, 48), "✓ Construir", _boton))
+                    Manager.ConfirmarConstruccion();
+                GUI.enabled = true;
+                if (GUI.Button(new Rect(ancho - 170, barra.y + 8, 150, 48), "X Cancelar", _boton))
                 {
                     Manager.CancelarColocacion();
                 }

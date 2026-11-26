@@ -1,0 +1,10 @@
+fileFormatVersion: 2
+guid: 26bd59da29e140ac90919f643203dafb
+ModelImporter:
+  serializedVersion: 22200
+  materials:
+    materialImportMode: 2
+    materialLocation: 1
+  meshes:
+    addColliders: 0
+  importAnimation: 0

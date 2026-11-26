@@ -35,6 +35,9 @@ namespace Altepetl
         private Transform _ciudad;  // lo que crece con el tecpan
         private Pueblo _pueblo;
         private int _nivel = -1;
+        private GameObject _modeloCasa;
+        private Bounds? _limitesCasa;
+        private readonly List<Bounds> _parcelasMexicas = new List<Bounds>();
         private readonly List<Vector3> _casasAfuera = new List<Vector3>();
 
         /// <summary>Casas de los alrededores a ras de suelo (o sobre islotes), adonde también va la gente del pueblo.</summary>
@@ -59,6 +62,7 @@ namespace Altepetl
         public float AlturaSuelo(Vector3 p)
         {
             float altura = 0f;
+            if (_pueblo?.Id == PuebloId.Mexicas) return AlturaParcelaMexica(p);
             foreach (var cerro in _cerros)
             {
                 float d = new Vector2(p.x - cerro.Centro.x, p.z - cerro.Centro.z).magnitude;
@@ -78,7 +82,7 @@ namespace Altepetl
             if (_pueblo == null) return false;
             switch (_pueblo.Id)
             {
-                case PuebloId.Mexicas: return true;
+                case PuebloId.Mexicas: return AlturaParcelaMexica(p) <= 0f;
                 // El lago de Texcoco queda al oeste de la aldea (ver FijoAcolhua).
                 case PuebloId.Acolhuas: return p.x < -1f && Mathf.Abs(p.z - Lado * 0.5f) < 45f;
                 default: return false;
@@ -108,12 +112,23 @@ namespace Altepetl
             if (nivel != _nivel)
             {
                 _nivel = nivel;
+                _modeloCasa = _pueblo.Id switch
+                {
+                    PuebloId.Tlaxcaltecas => Resources.Load<GameObject>($"ModelosCasas/Tlaxcaltecas/Casa_Tlaxcalteca_{nivel}")
+                        ?? Resources.Load<GameObject>("ModelosCasas/Casa_Tlaxcaltecas"),
+                    PuebloId.Acolhuas => Resources.Load<GameObject>($"ModelosCasas/Acolhuas/Casa_Acolhua_{nivel}")
+                        ?? Resources.Load<GameObject>("ModelosCasas/Casa_Acolhuas"),
+                    _ => null,
+                };
+                _limitesCasa = null;
                 if (_ciudad != null) Destroy(_ciudad.gameObject);
                 _casasAfuera.Clear();
+                _parcelasMexicas.Clear();
                 _chinampas.Clear();
                 _cerros.Clear();
                 _ciudad = Grupo("Ciudad");
                 CrearCiudad(nivel);
+                Manager.ActualizarEntradasDelPaisaje(_casasAfuera);
             }
         }
 
@@ -140,8 +155,10 @@ namespace Altepetl
         // ---------- Mexicas: Tenochtitlan sobre el lago ----------
 
         private static readonly int[] ChinampasMexica = { 4, 10, 18, 28, 40 };
-        private static readonly int[] IslotesMexica = { 0, 1, 2, 3, 4 };
         private static readonly int[] CalzadasMexica = { 0, 0, 1, 2, 3 };
+        private const float AnchoViviendaBarrio = 1.35f;
+        private const float AnchoCultivoMexica = 0.55f;
+        private const string RecursosMexicas = "ModelosCasas/Mexicas/";
 
         private void FijoMexica()
         {
@@ -154,29 +171,138 @@ namespace Altepetl
         private void CiudadMexica(int nivel)
         {
             var azar = new System.Random(1325);
-            var islotes = new List<Vector3>
+            var piramide = new Vector3(-8f, 0f, Lado * 0.75f + 5f);
+            var casa = Resources.Load<GameObject>(RecursosMexicas + $"Casa_Mexica_{nivel}");
+            var cultivo = Resources.Load<GameObject>(RecursosMexicas + "Chinampa_Maiz");
+            float escalaCasa = 0f;
+            float escalaCultivo = 0f;
+            var islotesOriginales = new[]
             {
                 new Vector3(-6f, 0f, Lado * 0.6f),
                 new Vector3(Lado * 0.55f, 0f, Lado + 6f),
                 new Vector3(Lado + 6f, 0f, Lado * 0.35f),
                 new Vector3(Lado + 7f, 0f, Lado + 7f),
             };
-            var chinampas = Lugares(1325, ChinampasMexica[NivelesTecpan - 1], -12f, Lado + 12f, -6f, Lado + 14f, 2.2f,
-                p => SobreCalzadaMexica(p) || Cerca(p, islotes, 4.5f));
+            int cantidadMaxima = ChinampasMexica[NivelesTecpan - 1];
+            int cantidad = ChinampasMexica[nivel - 1];
+            var huertos = Lugares(1325, cantidadMaxima, -12f, Lado + 12f, -6f, Lado + 14f, 2.2f,
+                p => SobreCalzadaMexica(p) || Cerca(p, islotesOriginales, 4.5f));
+            for (int i = 0; i < cantidad && i < huertos.Count; i++) Chinampa(huertos[i], i % 2 == 0);
 
-            for (int i = 0; i < ChinampasMexica[nivel - 1] && i < chinampas.Count; i++) Chinampa(chinampas[i], i % 2 == 0);
-            for (int i = 0; i < IslotesMexica[nivel - 1]; i++)
+            var barrios = Barrios(nivel, cantidad,
+                p => SobreCalzadaMexica(p) || Cerca(p, huertos, 3f) || (p - piramide).sqrMagnitude < 9f);
+            foreach (var barrio in barrios)
+            foreach (var centroPar in barrio)
             {
-                Pieza(_ciudad, PrimitiveType.Cube, islotes[i] + new Vector3(0f, 0.05f, 0f), new Vector3(7f, 0.1f, 7f), Piedra);
-                Casas(islotes[i], 2.8f, 4 + nivel * 2, azar, Cal, null);
-                if (nivel == NivelesTecpan && i == 0) Piramide(islotes[i], 2.6f, 4, Cal);
+                // Los FBX importados tienen el frente en +Z. Estos giros lo dejan hacia -Z o -X.
+                int vueltas = 2 + azar.Next(2);
+                var giro = Quaternion.Euler(0f, vueltas * 90f, 0f);
+                var pCasa = centroPar + giro * new Vector3(-0.73f, -0.04f, 0f);
+                var pCultivo = centroPar + giro * new Vector3(0.73f, -0.04f, 0f);
+                if (casa != null)
+                {
+                    var vivienda = ColocarParcelaMexica(casa, pCasa, AnchoViviendaBarrio, ref escalaCasa);
+                    vivienda.localRotation = giro * vivienda.localRotation;
+                    var entrada = vivienda.Find("Entrada");
+                    var llegada = entrada != null ? entrada.position : pCasa;
+                    _casasAfuera.Add(new Vector3(llegada.x, 0f, llegada.z));
+                    if (entrada != null && vivienda.Find("Base de tierra") is Transform tierra)
+                    {
+                        var limites = tierra.GetComponent<MeshRenderer>().bounds;
+                        limites.center = new Vector3(limites.center.x, entrada.position.y, limites.center.z);
+                        _parcelasMexicas.Add(limites);
+                    }
+                }
+                else Casa(pCasa + Vector3.up * 0.04f, azar, Cal, null, giroCasa: giro);
+
+                if (cultivo != null)
+                {
+                    var chinampa = ColocarParcelaMexica(cultivo, pCultivo, AnchoCultivoMexica, ref escalaCultivo);
+                    chinampa.localRotation = giro * chinampa.localRotation;
+                }
+                else Chinampa(pCultivo, vueltas % 2 != 0, 0.24f, registrar: false);
             }
+            if (nivel == NivelesTecpan) Piramide(piramide, 2.6f, 4, Cal);
 
             // Calzadas hacia tierra firme, como las de Tepeyac, Tlacopan e Iztapalapa.
             var centro = CentroMapa;
             if (CalzadasMexica[nivel - 1] >= 1) Calzada(new Vector3(centro.x, 0f, Lado), new Vector3(centro.x, 0f, Lado + 30f));
             if (CalzadasMexica[nivel - 1] >= 2) Calzada(new Vector3(Lado, 0f, centro.z), new Vector3(Lado + 30f, 0f, centro.z));
             if (CalzadasMexica[nivel - 1] >= 3) Calzada(new Vector3(0f, 0f, centro.z), new Vector3(-30f, 0f, centro.z));
+        }
+
+        private List<Vector3[]> Barrios(int nivel, int cantidad, System.Predicate<Vector3> fueraDelBarrio)
+        {
+            int ladoClaro = GameManager.LadoConstruible[nivel - 1];
+            float borde = ladoClaro * 0.5f;
+            float altoVista = (ladoClaro + 4f) * Mathf.Sqrt(2f) * 0.5f + 3f;
+            float semialto = altoVista * 0.65f;
+            var barrios = new List<Vector3[]>();
+            var ocupadas = new List<Vector3>(cantidad);
+            var azar = new System.Random(2718);
+            int restantes = cantidad;
+            while (restantes > 0)
+            {
+                int tamano = restantes == 2 || restantes == 4 ? 2 : 3;
+                var barrio = new Vector3[tamano];
+                bool encontrado = false;
+                for (int intento = 0; intento < 1200 && !encontrado; intento++)
+                {
+                    int lado = (barrios.Count + intento) % 4;
+                    var normal = Quaternion.Euler(0f, lado * 90f, 0f) * Vector3.right;
+                    var eje = new Vector3(-normal.z, 0f, normal.x);
+                    float distancia = borde + Rango(azar, 1.7f, intento < 400 ? 5f : 9f);
+                    var centro = CentroMapa + normal * distancia + eje * Rango(azar, -borde - 2f, borde + 2f);
+                    encontrado = true;
+                    for (int i = 0; i < tamano; i++)
+                    {
+                        var p = centro + eje * ((i - (tamano - 1) * 0.5f) * 2.9f);
+                        var relativo = p - CentroMapa;
+                        // Reserva espacio en las esquinas del encuadre horizontal inicial para los controles.
+                        float x = (relativo.x - relativo.z) * 0.7071f / (semialto * (16f / 9f));
+                        float y = (relativo.x + relativo.z) * 0.3536f / semialto;
+                        bool bajoHud = (y > 0.35f && Mathf.Abs(x) > 0.45f) || (y < -0.5f && Mathf.Abs(x) > 0.32f);
+                        if ((intento < 800 && bajoHud) || fueraDelBarrio(p) || Cerca(p, ocupadas, 3.2f))
+                        {
+                            encontrado = false;
+                            break;
+                        }
+                        barrio[i] = p;
+                    }
+                }
+                if (!encontrado) break;
+                barrios.Add(barrio);
+                ocupadas.AddRange(barrio);
+                restantes -= tamano;
+            }
+            return barrios;
+        }
+
+        private Transform ColocarParcelaMexica(GameObject prefab, Vector3 punto, float ancho, ref float escala)
+        {
+            var parcela = Instantiate(prefab, _ciudad).transform;
+            parcela.localPosition = punto;
+            // Mide la geometría ya importada una vez por modelo. El factor de unidades del FBX
+            // puede cambiar, pero la huella debe caber en el espacio reservado por el paisaje.
+            if (escala <= 0f)
+            {
+                var dibujos = parcela.GetComponentsInChildren<MeshRenderer>();
+                var limites = new Bounds(punto, Vector3.zero);
+                foreach (var dibujo in dibujos) limites.Encapsulate(dibujo.bounds);
+                float lado = Mathf.Max(limites.size.x, limites.size.z);
+                escala = lado > 0f ? ancho / lado : 1f;
+            }
+            parcela.localScale *= escala;
+            return parcela;
+        }
+
+        private float AlturaParcelaMexica(Vector3 p)
+        {
+            foreach (var parcela in _parcelasMexicas)
+                if (Mathf.Abs(p.x - parcela.center.x) <= parcela.extents.x
+                    && Mathf.Abs(p.z - parcela.center.z) <= parcela.extents.z)
+                    return parcela.center.y;
+            return 0f;
         }
 
         private bool SobreCalzadaMexica(Vector3 p)
@@ -211,9 +337,9 @@ namespace Altepetl
             // Casas en tierra firme, alrededor de la aldea.
             var tetzcotzinco = new Vector3(Lado + 10f, 0f, Lado + 10f);
             var templo = new Vector3(Lado + 6f, 0f, Lado * 0.3f);
-            var casas = Lugares(1520, CasasAcolhua[NivelesTecpan - 1], 0f, Lado + 12f, -6f, Lado + 12f, 1.4f,
-                p => (p - tetzcotzinco).sqrMagnitude < 64f || (p - templo).sqrMagnitude < 9f);
-            for (int i = 0; i < CasasAcolhua[nivel - 1] && i < casas.Count; i++) Casa(casas[i], azar, Cal, null);
+            var barrios = Barrios(nivel, CasasAcolhua[nivel - 1],
+                p => p.x < 0f || (p - tetzcotzinco).sqrMagnitude < 64f || (p - templo).sqrMagnitude < 9f);
+            ColocarCasasDeBarrio(barrios, azar, null);
 
             // Embarcadero con acalli.
             if (nivel >= 3)
@@ -258,9 +384,8 @@ namespace Altepetl
         {
             var azar = new System.Random(1250);
             var cabeceras = Cabeceras;
-            var casas = Lugares(1250, CasasTlaxcalteca[NivelesTecpan - 1], -6f, Lado + 6f, -5f, Lado + 6f, 1.4f,
-                p => Cerca(p, cabeceras, 6f));
-            for (int i = 0; i < CasasTlaxcalteca[nivel - 1] && i < casas.Count; i++) Casa(casas[i], azar, Cal, Paja);
+            var barrios = Barrios(nivel, CasasTlaxcalteca[nivel - 1], p => Cerca(p, cabeceras, 7.1f));
+            ColocarCasasDeBarrio(barrios, azar, Paja);
 
             for (int i = 0; i < nivel - 1 && i < cabeceras.Length; i++)
             {
@@ -286,6 +411,16 @@ namespace Altepetl
 
         // ---------- Piezas comunes ----------
 
+        private void ColocarCasasDeBarrio(List<Vector3[]> barrios, System.Random azar, Color? techo)
+        {
+            foreach (var barrio in barrios)
+            foreach (var posicion in barrio)
+            {
+                var giro = Quaternion.Euler(0f, 180f + azar.Next(2) * 90f, 0f);
+                Casa(posicion, azar, Cal, techo, AnchoViviendaBarrio, giro);
+            }
+        }
+
         private void Volcanes(Vector3 centro)
         {
             // La cámara mira hacia +x +z: lo de ese lado queda al fondo.
@@ -295,10 +430,10 @@ namespace Altepetl
         }
 
         /// <summary>Parcela de lodo con siembra y un ahuejote en la esquina.</summary>
-        private void Chinampa(Vector3 p, bool larga)
+        private void Chinampa(Vector3 p, bool larga, float escala = 1f, bool registrar = true)
         {
-            var tam = larga ? new Vector3(1.2f, 0.08f, 2.4f) : new Vector3(2.4f, 0.08f, 1.2f);
-            _chinampas.Add(new Vector3(p.x, 0f, p.z));
+            var tam = (larga ? new Vector3(1.2f, 0.08f, 2.4f) : new Vector3(2.4f, 0.08f, 1.2f)) * escala;
+            if (registrar) _chinampas.Add(new Vector3(p.x, 0f, p.z));
             Pieza(_ciudad, PrimitiveType.Cube, p + new Vector3(0f, 0.04f, 0f), tam, Lodo);
             Pieza(_ciudad, PrimitiveType.Cube, p + new Vector3(0f, 0.1f, 0f), new Vector3(tam.x * 0.8f, 0.04f, tam.z * 0.8f), Siembra);
             var esquina = new Vector3(tam.x * 0.45f, 0f, tam.z * 0.45f);
@@ -314,27 +449,50 @@ namespace Altepetl
             Pieza(_ciudad, PrimitiveType.Cube, (desde + hasta) * 0.5f + new Vector3(0f, 0.06f, 0f), tam, Piedra);
         }
 
-        /// <summary>Una casa: muros y, si se da, un techo de paja.</summary>
-        private void Casa(Vector3 p, System.Random azar, Color muro, Color? techo)
+        /// <summary>Coloca una casa del pueblo y registra su punto de llegada.</summary>
+        private void Casa(Vector3 p, System.Random azar, Color muro, Color? techo,
+            float? anchoFijo = null, Quaternion? giroCasa = null)
         {
-            float ancho = Rango(azar, 0.5f, 0.9f);
+            float ancho = anchoFijo ?? Rango(azar, 0.5f, 0.9f);
             float alto = Rango(azar, 0.3f, 0.5f);
+            var giro = giroCasa ?? Quaternion.identity;
+            if (_modeloCasa != null)
+            {
+                var casa = Instantiate(_modeloCasa, _ciudad);
+                casa.transform.localPosition = Vector3.zero;
+                if (!_limitesCasa.HasValue)
+                {
+                    var dibujos = casa.GetComponentsInChildren<MeshRenderer>();
+                    if (dibujos.Length > 0)
+                    {
+                        var limites = dibujos[0].bounds;
+                        for (int i = 1; i < dibujos.Length; i++) limites.Encapsulate(dibujos[i].bounds);
+                        limites.center -= _ciudad.position;
+                        if (Mathf.Max(limites.size.x, limites.size.z) > 0f) _limitesCasa = limites;
+                    }
+                    if (!_limitesCasa.HasValue) _modeloCasa = null;
+                }
+                if (_limitesCasa.HasValue)
+                {
+                    // Normaliza la huella y apoya la base en el terreno, aunque el FBX tenga otro pivote.
+                    var limites = _limitesCasa.Value;
+                    float escala = ancho / Mathf.Max(limites.size.x, limites.size.z);
+                    casa.transform.localScale *= escala;
+                    casa.transform.localRotation = giro * casa.transform.localRotation;
+                    casa.transform.position = p - giro * new Vector3(limites.center.x, limites.min.y, limites.center.z) * escala;
+                    _casasAfuera.Add(new Vector3(p.x, 0f, p.z)
+                        + giro * (Vector3.forward * (limites.extents.z * escala + 0.15f)));
+                    return;
+                }
+                Destroy(casa);
+            }
             // La puerta, a ras de suelo; en los cerros la gente sube por las terrazas (ver AlturaSuelo).
-            _casasAfuera.Add(new Vector3(p.x, 0f, p.z) + new Vector3(0f, 0f, -ancho * 0.5f - 0.15f));
+            _casasAfuera.Add(new Vector3(p.x, 0f, p.z) + giro * (Vector3.forward * (ancho * 0.5f + 0.15f)));
             Pieza(_ciudad, PrimitiveType.Cube, p + new Vector3(0f, alto * 0.5f, 0f), new Vector3(ancho, alto, ancho), muro);
             if (techo.HasValue)
             {
                 Pieza(_ciudad, PrimitiveType.Cube, p + new Vector3(0f, alto + 0.08f, 0f),
                     new Vector3(ancho * 1.15f, 0.16f, ancho * 1.15f), techo.Value);
-            }
-        }
-
-        private void Casas(Vector3 centro, float radio, int cantidad, System.Random azar, Color muro, Color? techo)
-        {
-            for (int i = 0; i < cantidad; i++)
-            {
-                var p = centro + new Vector3(Rango(azar, -radio, radio), 0.1f, Rango(azar, -radio, radio));
-                Casa(p, azar, muro, techo);
             }
         }
 
@@ -351,15 +509,16 @@ namespace Altepetl
                 Pieza(_ciudad, PrimitiveType.Cylinder, centro + new Vector3(0f, altoTerraza * (i + 0.5f), 0f),
                     new Vector3(r * 2f, altoTerraza * 0.5f, r * 2f), color);
             }
-            float cima = altoTerraza * terrazas;
-            float radioCima = radio / (terrazas + 1) * 0.9f;
+            // Coloca las viviendas en la ladera que mira a la cámara, donde el cerro no oculta las puertas.
+            float d = radio * 2.5f / (terrazas + 1);
+            float altura = altoTerraza * (terrazas - 1);
             for (int i = 0; i < casas; i++)
             {
-                float angulo = (float)azar.NextDouble() * Mathf.PI * 2f;
-                float d = radioCima + Rango(azar, 0f, radio * 0.4f);
-                int terraza = Mathf.Clamp((int)((1f - d / radio) * (terrazas + 1)), 0, terrazas - 1);
-                var p = centro + new Vector3(Mathf.Cos(angulo) * d, altoTerraza * (terraza + 1), Mathf.Sin(angulo) * d);
-                Casa(p, azar, muro, techo);
+                float t = casas > 1 ? i / (float)(casas - 1) : 0.5f;
+                float angulo = Mathf.Lerp(160f, 290f, t) * Mathf.Deg2Rad;
+                var p = centro + new Vector3(Mathf.Cos(angulo) * d, altura, Mathf.Sin(angulo) * d);
+                var giro = Quaternion.Euler(0f, t < 0.5f ? 270f : 180f, 0f);
+                Casa(p, azar, muro, techo, giroCasa: giro);
             }
         }
 

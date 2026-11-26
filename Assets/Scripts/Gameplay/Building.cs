@@ -26,7 +26,8 @@ namespace Altepetl
         public float FraccionVidaAsalto => Mathf.Clamp01(1f - DanoAsalto / Mathf.Max(1, Vida));
         /// <summary>Radio aproximado, para saber cuándo una tropa ya lo alcanza.</summary>
         public float Radio => Definicion.Id == BuildingId.Muralla ? 0.35f : Definicion.Tamano * 0.45f;
-        public float AlturaModelo => _base + _modelo.localScale.y;
+        public float AlturaModelo => _base + (_palacio != null && _palacio.gameObject.activeSelf
+            ? _limitesPalacio.size.y * _escalaPalacio * _avancePalacio : _modelo.localScale.y);
         /// <summary>Se está levantando de nuevo después de un ataque (solo se ve; ya produce).</summary>
         public bool Reconstruyendo => _reconstruirHasta > Time.time;
 
@@ -54,6 +55,18 @@ namespace Altepetl
         private float _acumulado;
         private Transform _modelo;
         private Renderer _render;
+        private Transform _palacio;
+        private Renderer _renderPalacio;
+        private Bounds _limitesPalacio;
+        private float _escalaPalacio;
+        private Vector3 _escalaImportadaPalacio;
+        private float _avancePalacio;
+        private int _nivelPalacio;
+        private Material[] _materialesPalacio;
+        private Material[] _originalesPalacio;
+        private Material[] _materialesPalacioAtenuado;
+        private static Material _plantillaPalacioAtenuado;
+        private bool _faltaPlantillaPalacio;
         private Material _materialModelo;
         private Material _materialTransparente;
         private bool _vistaTransparente;
@@ -349,7 +362,13 @@ namespace Altepetl
             if (!transparente)
             {
                 if (_vistaTransparente) _render.sharedMaterial = _materialModelo;
+                if (_vistaTransparente && _renderPalacio != null) _renderPalacio.sharedMaterials = _materialesPalacio;
                 _vistaTransparente = false;
+                return;
+            }
+            if (_renderPalacio != null)
+            {
+                AtenuarPalacio(opacidad);
                 return;
             }
             if (_materialTransparente == null)
@@ -381,10 +400,125 @@ namespace Altepetl
             _vistaTransparente = true;
         }
 
+        private void AtenuarPalacio(float opacidad)
+        {
+            if (_materialesPalacioAtenuado == null)
+            {
+                if (_faltaPlantillaPalacio) return;
+                if (_plantillaPalacioAtenuado == null)
+                    _plantillaPalacioAtenuado = Resources.Load<Material>("Materials/PalacioAtenuado");
+                if (_plantillaPalacioAtenuado == null)
+                {
+                    _faltaPlantillaPalacio = true;
+                    Debug.LogError("Falta Materials/PalacioAtenuado para atenuar el tecpan.", this);
+                    return;
+                }
+                _materialesPalacioAtenuado = new Material[_materialesPalacio.Length];
+                for (int i = 0; i < _materialesPalacio.Length; i++)
+                {
+                    var material = new Material(_plantillaPalacioAtenuado);
+                    material.CopyPropertiesFromMaterial(_materialesPalacio[i]);
+                    material.EnableKeyword("_ATENUAR_EDIFICIO");
+                    material.SetColor("_ColorFigura", Color.white);
+                    _materialesPalacioAtenuado[i] = material;
+                }
+            }
+            for (int i = 0; i < _materialesPalacio.Length; i++)
+            {
+                var material = _materialesPalacioAtenuado[i];
+                var original = _materialesPalacio[i];
+                if (material.color != original.color) material.color = original.color;
+                // El volumen oscuro representa el interior de una puerta, no parte de la silueta.
+                bool interior = _originalesPalacio[i].name.StartsWith("Sombra interior", System.StringComparison.Ordinal);
+                float cobertura = interior ? 0f : Mathf.Clamp01(opacidad);
+                if (material.GetFloat("_OpacidadVista") != cobertura)
+                    material.SetFloat("_OpacidadVista", cobertura);
+            }
+            if (!_vistaTransparente) _renderPalacio.sharedMaterials = _materialesPalacioAtenuado;
+            _vistaTransparente = true;
+        }
+
         private void OnDestroy()
         {
+            LiberarMaterialesPalacio();
             if (_materialTransparente != null) Destroy(_materialTransparente);
             if (_materialModelo != null) Destroy(_materialModelo);
+        }
+
+        private void LiberarMaterialesPalacio()
+        {
+            if (_materialesPalacio != null)
+                foreach (var material in _materialesPalacio) Destroy(material);
+            if (_materialesPalacioAtenuado != null)
+                foreach (var material in _materialesPalacioAtenuado) Destroy(material);
+            _materialesPalacio = null;
+            _originalesPalacio = null;
+            _materialesPalacioAtenuado = null;
+        }
+
+        private void ActualizarPalacio(float avance)
+        {
+            int nivel = Mathf.Max(1, Nivel);
+            if (_nivelPalacio != nivel)
+            {
+                _nivelPalacio = nivel;
+                if (_palacio != null)
+                {
+                    _palacio.gameObject.SetActive(false);
+                    Destroy(_palacio.gameObject);
+                }
+                LiberarMaterialesPalacio();
+                _palacio = null;
+                _renderPalacio = null;
+                var prefab = Resources.Load<GameObject>($"ModelosEdificios/Mexicas/Tecpan_{nivel}");
+                if (prefab != null)
+                {
+                    var instancia = Instantiate(prefab, transform).transform;
+                    instancia.localPosition = Vector3.zero;
+                    instancia.localRotation = Quaternion.Euler(0f, 180f, 0f) * instancia.localRotation;
+                    var dibujo = instancia.GetComponentInChildren<MeshRenderer>();
+                    if (dibujo != null && Mathf.Max(dibujo.bounds.size.x, dibujo.bounds.size.z) > 0f)
+                    {
+                        _palacio = instancia;
+                        _renderPalacio = dibujo;
+                        dibujo.forceRenderingOff = _render.forceRenderingOff;
+                        _limitesPalacio = dibujo.bounds;
+                        _limitesPalacio.center -= transform.position;
+                        _escalaPalacio = (Definicion.Tamano - 0.05f) / Mathf.Max(_limitesPalacio.size.x, _limitesPalacio.size.z);
+                        _escalaImportadaPalacio = instancia.localScale * _escalaPalacio;
+                        _originalesPalacio = dibujo.sharedMaterials;
+                        _materialesPalacio = dibujo.sharedMaterials;
+                        for (int i = 0; i < _materialesPalacio.Length; i++)
+                            _materialesPalacio[i] = new Material(_materialesPalacio[i]);
+                        dibujo.sharedMaterials = _materialesPalacio;
+                        _render.sharedMaterial = _materialModelo;
+                        _vistaTransparente = false;
+                    }
+                    else
+                    {
+                        instancia.gameObject.SetActive(false);
+                        Destroy(instancia.gameObject);
+                    }
+                }
+            }
+
+            bool visible = _palacio != null && !Derribado;
+            _render.enabled = !visible;
+            if (_palacio == null) return;
+            _palacio.gameObject.SetActive(visible);
+            if (!visible) return;
+            _avancePalacio = avance;
+            // La raíz FBX tiene su eje Z local en la vertical de Unity.
+            _palacio.localScale = Vector3.Scale(_escalaImportadaPalacio, new Vector3(1f, 1f, avance));
+            _palacio.localPosition = new Vector3(-_limitesPalacio.center.x * _escalaPalacio,
+                _base - _limitesPalacio.min.y * _escalaPalacio * avance, -_limitesPalacio.center.z * _escalaPalacio);
+            for (int i = 0; i < _materialesPalacio.Length; i++)
+            {
+                var color = _originalesPalacio[i].color;
+                if (DanoAsalto > 0f)
+                    color = Color.Lerp(new Color(0.3f, 0.1f, 0.1f), color, FraccionVidaAsalto);
+                if (_materialesPalacio[i].color != color) _materialesPalacio[i].color = color;
+            }
         }
 
         private bool EsMuralla => Definicion.Id == BuildingId.Muralla;
@@ -501,6 +635,8 @@ namespace Altepetl
             if (Derribado) _materialModelo.color = new Color(0.25f, 0.22f, 0.2f);
             else if (levantado < 1f) _materialModelo.color = Color.Lerp(new Color(0.25f, 0.22f, 0.2f), _materialModelo.color, levantado);
             else if (DanoAsalto > 0f) _materialModelo.color = Color.Lerp(new Color(0.3f, 0.1f, 0.1f), _materialModelo.color, FraccionVidaAsalto);
+            if (Definicion.Id == BuildingId.Tecpan && _pueblo.Id == PuebloId.Mexicas)
+                ActualizarPalacio(altura / alturaNivel);
 
             // Tramos: del borde de este poste al del vecino, un poco más bajos y delgados.
             float alturaTramo = altura * 0.85f;
